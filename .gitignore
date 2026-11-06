@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.output/
+.vercel/
+.nitro/
+.tanstack/
+.vinxi/
+*.log
+.DS_Store
+coverage/
+
+# Private: copied in by .worktreeinclude, never committed
+internal/
+.env*
+!.env.example
+
+.context/
