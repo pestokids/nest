@@ -1,6 +1,7 @@
 /*
  * The Raise views' existing layouts, re-skinned with the new tokens.
- * Layouts stay as they were; T3–T5 redesign Today, Pipeline, Investors, Plan and Settings.
+ * Today and the drawer have their own files (today.css, drawer.css); Pipeline, Investors,
+ * Plan and Settings keep their layouts until T4–T5.
  */
 .eyebrow { font: 600 12px/1.3 var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-faint); }
 .muted { color: var(--text-muted); }
@@ -9,7 +10,6 @@
 .err { color: var(--state-error); font-size: 13px; font-weight: 600; }
 .who { color: var(--text-faint); }
 .raise h2 { color: var(--text-primary); }
-.btn--danger { --btn-fg: var(--state-error); --btn-hover: var(--state-error-bg); --btn-pressed: #f9d6ca; }
 
 /* Legacy chips map onto the Chip component's look. */
 .chip.tier { font-family: var(--font-mono); font-weight: 600; height: 22px; padding: 0 9px; font-size: 12px; background: var(--board-column); }
@@ -19,14 +19,7 @@
 .chip.warm { background: var(--state-success-bg); color: var(--state-success); }
 .chip.cold { background: var(--board-column); color: var(--text-faint); }
 
-/* KPI strip (Today) */
-.kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
-.kpi { display: flex; flex-direction: column; gap: 8px; padding: 20px; border-radius: var(--radius-card); background: var(--surface-white); border: 1px solid var(--line-default); min-width: 0; }
-.kpi .eyebrow { font: 600 13px/1.3 var(--font-ui); text-transform: none; letter-spacing: 0; color: var(--text-secondary); }
-.kpi .v { font: 800 40px/1 var(--font-display); color: var(--text-primary); letter-spacing: -0.01em; }
-.kpi .s { font-size: 14px; color: var(--text-muted); }
-
-.grid2 { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+/* Panels (Plan, Settings) */
 .panel { background: var(--surface-white); border: 1px solid var(--line-default); border-radius: var(--radius-card); display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
 .panel > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 20px 24px 14px; }
 .panel > header h2 { font: 700 22px/1.2 var(--font-display); }
@@ -34,21 +27,6 @@
 .panel .body { padding: 0 8px 10px; }
 .panel .pad { padding: 4px 24px 24px; display: flex; flex-direction: column; gap: 14px; }
 .empty { padding: 8px 16px 16px; color: var(--text-muted); font-size: 14px; }
-
-.row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; padding: 12px 16px; border-radius: 14px; border-left: 3px solid transparent; cursor: pointer; transition: background-color 120ms ease; }
-.row:hover { background: var(--surface-cream); }
-.row:focus-visible { outline: 3px solid var(--brand-lime); outline-offset: -3px; }
-.row.sev-bad { border-left-color: var(--state-error); }
-.row.sev-warn { border-left-color: var(--brand-orange); }
-.row .n { font-weight: 600; color: var(--text-primary); }
-.row .d { grid-column: 1 / -1; font-size: 13px; color: var(--text-muted); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.row .act { display: flex; gap: 8px; align-items: center; }
-
-.funnel { display: flex; flex-direction: column; gap: 10px; padding: 4px 24px 24px; }
-.fl { display: grid; grid-template-columns: 104px minmax(0, 1fr) 76px; gap: 12px; align-items: center; font-size: 13px; color: var(--text-primary); }
-.fl .tr { height: 10px; background: var(--surface-mint); border-radius: 5px; overflow: hidden; }
-.fl .fi { height: 100%; background: var(--brand-forest); border-radius: 5px; min-width: 2px; }
-.fl .rt { color: var(--text-muted); text-align: right; font: 500 12px/1 var(--font-mono); }
 
 /* Board (Pipeline) */
 .board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(230px, 1fr); gap: 8px; overflow-x: auto; padding-bottom: 10px; overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: #9fb3a6 transparent; }
@@ -94,31 +72,6 @@
 .met .fi { height: 100%; background: var(--brand-forest); border-radius: 4px; }
 .phase ul { margin: 0; padding-left: 18px; color: var(--text-muted); font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
 
-/* Drawer */
-.scrim { position: fixed; inset: 0; background: rgb(0 31 23 / 0.35); z-index: 60; animation: m-fade 200ms ease-out; }
-.drawer {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: min(560px, 100%);
-  background: var(--surface-white);
-  z-index: 61;
-  border-left: 1px solid var(--line-default);
-  display: flex;
-  flex-direction: column;
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-  padding-right: env(safe-area-inset-right, 0px);
-  animation: drawer-in 280ms var(--ease-out-quart);
-  color: var(--text-secondary);
-}
-@keyframes drawer-in { from { transform: translateX(40px); opacity: 0; } }
-.drawer header { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 18px 24px; border-bottom: 1px solid var(--line-default); }
-.drawer header h2 { font: 800 26px/1.15 var(--font-display); color: var(--text-primary); }
-.drawer .scroll { overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 20px; flex: 1; overscroll-behavior: contain; }
-.drawer footer { display: flex; gap: 10px; padding: 14px 24px; border-top: 1px solid var(--line-default); flex-wrap: wrap; align-items: center; }
-.drawer footer .sp { flex: 1; }
 .fgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 14px; }
 .f { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .f.full { grid-column: 1 / -1; }
@@ -126,7 +79,6 @@
 .f input,
 .f select,
 .f textarea,
-.log .add input,
 .import textarea,
 .tg input,
 .tg select {
@@ -148,7 +100,6 @@
 .f input:focus,
 .f select:focus,
 .f textarea:focus,
-.log .add input:focus,
 .import textarea:focus,
 .tg input:focus,
 .tg select:focus { outline: none; border-color: var(--brand-forest); box-shadow: 0 0 0 3px var(--brand-lime); }
@@ -159,11 +110,6 @@
 .chk { display: flex; gap: 10px; align-items: center; font: 500 14px/1.3 var(--font-ui); color: var(--text-primary); min-height: 44px; }
 .f .chk input,
 .chk input { width: 20px; height: 20px; min-height: 0; accent-color: var(--brand-forest); }
-.log { display: flex; flex-direction: column; gap: 10px; }
-.log .add { display: flex; gap: 8px; align-items: center; }
-.ev { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 12px; font-size: 14px; color: var(--text-primary); }
-.ev .mono { color: var(--text-faint); }
-
 /* Settings and import */
 .settings { display: flex; flex-direction: column; gap: 16px; }
 .import { display: flex; flex-direction: column; gap: 12px; padding: 4px 24px 24px; }
@@ -175,29 +121,22 @@
 .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 
 @media (max-width: 1100px) {
-  .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .phases { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .odds { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 900px) {
-  .grid2 { grid-template-columns: minmax(0, 1fr); }
   .tg { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 720px) {
-  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .kpi { padding: 16px; }
-  .kpi .v { font-size: 32px; }
   .phases { grid-template-columns: minmax(0, 1fr); }
   .odds { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .fgrid { grid-template-columns: minmax(0, 1fr); }
   .panel > header { padding: 18px 18px 12px; flex-wrap: wrap; }
   .panel > header .muted { text-align: left; }
-  .funnel, .panel .pad, .import { padding-left: 18px; padding-right: 18px; }
+  .panel .pad, .import { padding-left: 18px; padding-right: 18px; }
   .filters input { min-width: 0; flex-basis: 100%; }
   .filters select { flex: 1 1 calc(50% - 4px); min-width: 0; }
-  .fl { grid-template-columns: 88px minmax(0, 1fr) 64px; }
   .board { grid-auto-columns: minmax(260px, 82vw); scroll-snap-type: x mandatory; }
   .col { scroll-snap-align: start; }
-  .drawer header, .drawer .scroll, .drawer footer { padding-left: 20px; padding-right: 20px; }
-  .f input, .f select, .f textarea, .log .add input, .filters input, .filters select { font-size: 16px; }
+  .f input, .f select, .f textarea, .filters input, .filters select { font-size: 16px; }
 }

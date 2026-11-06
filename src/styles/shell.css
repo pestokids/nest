@@ -140,8 +140,8 @@
   align-items: flex-end;
   justify-content: space-between;
   gap: 24px;
-  padding-top: 34px;
-  padding-bottom: 12px;
+  padding-top: 28px;
+  padding-bottom: 4px;
 }
 .raise-head h1 {
   font: 800 48px/1.05 var(--font-display);
@@ -191,8 +191,9 @@
   .raise-head { padding-top: 16px; padding-bottom: 4px; }
   .raise-head h1 { font-size: 40px; margin-top: 2px; }
   .raise-head__actions { display: none; }
+  .raise-head__instrument { display: none; }
   .raise .subtabs { margin: 0 calc(-1 * max(var(--gutter), env(safe-area-inset-left, 0px))); padding: 0 max(var(--gutter), env(safe-area-inset-left, 0px)); }
-  .raise .subtabs .subtab { padding: 0 12px; }
+  .raise .subtabs .subtab { padding: 0 10px; font-size: 15px; }
   .raise .subtabs .subtab:first-child { margin-left: -2px; }
   .raise-view { padding-top: 16px; }
   .fab { display: grid; }

@@ -3,9 +3,9 @@ import { ConvexError } from 'convex/values'
 import { mutation, query, type MutationCtx } from './_generated/server'
 import type { Id } from './_generated/dataModel'
 import { requireUser } from './lib/access'
-import { investorFields, vPipelineStage, vStage } from './validators'
+import { investorFields, vPipelineStage, vStage, vTouch } from './validators'
 import { todayIST, isISODate } from '../src/lib/dates'
-import { applyAdvance, applySave, type InvestorFields } from '../src/lib/pipeline'
+import { applyAdvance, applySave, touchDay, type InvestorFields } from '../src/lib/pipeline'
 import { applyMove, applyUndo } from '../src/lib/board'
 import { IDX, LABEL } from '../src/lib/stages'
 
@@ -25,6 +25,8 @@ export function clean(f: typeof vFields.type): InvestorFields {
     ...f,
     name: f.name.trim(), firm: f.firm.trim(), path: f.path.trim(), nextStep: f.nextStep.trim(), notes: f.notes.trim(), source: f.source.trim(),
     expected: num(f.expected), committed: num(f.committed), nextDate: date(f.nextDate), lastTouch: date(f.lastTouch),
+    email: f.email?.trim() || undefined,
+    parkedUntil: f.stage === 'parked' ? date(f.parkedUntil) : undefined,
   }
 }
 const vFields = v.object(investorFields)
@@ -78,10 +80,10 @@ export const importMany = mutation({
   },
 })
 
-/** Move one stage forward. */
+/** Move one stage forward, optionally setting the next step in the same write. */
 export const advance = mutation({
-  args: { id: v.id('investors') },
-  handler: async (ctx, { id }) => {
+  args: { id: v.id('investors'), next: v.optional(v.object({ step: v.string(), date: v.optional(v.union(v.string(), v.null())) })) },
+  handler: async (ctx, { id, next: step }) => {
     const { userId } = await requireUser(ctx)
     const i = await ctx.db.get(id)
     if (!i) throw new ConvexError('That investor was deleted')
@@ -91,24 +93,42 @@ export const advance = mutation({
     await ctx.db.patch(id, {
       stage: next.stage, lastTouch: today, updatedAt: Date.now(), updatedBy: userId,
       ...(next.raiseMax && IDX[next.stage] !== undefined ? { maxStage: next.stage } : {}),
+      ...(step ? { nextStep: step.step.trim(), nextDate: step.date && isISODate(step.date) ? step.date : undefined } : {}),
     })
     await logStage(ctx, id, next.stage, userId, today)
     return { stage: next.stage, label: LABEL[next.stage] }
   },
 })
 
-/** Log a note ("touch") and set lastTouch to today. */
+/**
+ * Log a touch (a note, call, email, meeting, ask, nudge or done next step).
+ * `date` defaults to today and can't be in the future; lastTouch moves forward
+ * to it. `next` also sets the next step (an empty date clears it).
+ */
 export const logNote = mutation({
-  args: { id: v.id('investors'), note: v.string() },
-  handler: async (ctx, { id, note }) => {
+  args: {
+    id: v.id('investors'),
+    note: v.string(),
+    touch: v.optional(vTouch),
+    date: v.optional(v.string()),
+    next: v.optional(v.object({ step: v.string(), date: v.optional(v.union(v.string(), v.null())) })),
+  },
+  handler: async (ctx, { id, note, touch, date, next }) => {
     const { userId } = await requireUser(ctx)
     const text = note.trim()
     if (!text) throw new ConvexError('Write a note first')
-    if (!(await ctx.db.get(id))) throw new ConvexError('That investor was deleted')
+    const i = await ctx.db.get(id)
+    if (!i) throw new ConvexError('That investor was deleted')
     const today = todayIST()
-    await ctx.db.insert('activities', { investorId: id, kind: 'note', note: text, date: today, userId })
-    await ctx.db.patch(id, { lastTouch: today, updatedAt: Date.now(), updatedBy: userId })
-    return today
+    const day = touchDay(date, today)
+    await ctx.db.insert('activities', { investorId: id, kind: 'note', note: text, ...(touch ? { touch } : {}), date: day, userId })
+    await ctx.db.patch(id, {
+      lastTouch: !i.lastTouch || i.lastTouch < day ? day : i.lastTouch,
+      updatedAt: Date.now(),
+      updatedBy: userId,
+      ...(next ? { nextStep: next.step.trim(), nextDate: next.date && isISODate(next.date) ? next.date : undefined } : {}),
+    })
+    return day
   },
 })
 

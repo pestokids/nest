@@ -25,6 +25,8 @@ const calls = [
   ['mutation', 'investors:importMany', api.investors.importMany, { rows: [fields] }],
   ['mutation', 'investors:advance', api.investors.advance, { id }],
   ['mutation', 'investors:logNote', api.investors.logNote, { id, note: 'x' }],
+  ['mutation', 'investors:logNote (touch)', api.investors.logNote, { id, note: 'x', touch: 'ask', next: { step: 'x' } }],
+  ['mutation', 'investors:advance (next)', api.investors.advance, { id, next: { step: 'x' } }],
   ['mutation', 'investors:remove', api.investors.remove, { id }],
   ['mutation', 'settings:update', api.settings.update, { round }],
   ['query', 'prep:list', api.prep.list, { phaseKey: 'p1' }],

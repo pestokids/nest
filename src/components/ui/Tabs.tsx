@@ -39,3 +39,27 @@ export function SubTabs({ items, label, children }: { items: TabItem[]; label: s
     </nav>
   )
 }
+
+/** The same underlined tabs switching panels in place (the drawer's Details and History). */
+export function SubTabButtons<T extends string>({ items, value, onChange, label, idPrefix }: { items: { value: T; label: ReactNode }[]; value: T; onChange: (v: T) => void; label: string; idPrefix: string }) {
+  return (
+    <div className="subtabs" role="tablist" aria-label={label}>
+      <div className="subtabs__list">
+        {items.map((t) => (
+          <button
+            key={t.value}
+            type="button"
+            role="tab"
+            id={`${idPrefix}-tab-${t.value}`}
+            aria-selected={t.value === value}
+            aria-controls={`${idPrefix}-panel`}
+            className={`subtab${t.value === value ? ' subtab--active' : ''}`}
+            onClick={() => onChange(t.value)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}

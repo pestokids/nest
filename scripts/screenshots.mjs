@@ -20,6 +20,9 @@ const SCREENS = [
   ['home-prep-done', '/?preview&home=prepdone'],
   ...['default', 'hover', 'checking', 'noaccess', 'error', 'signedout'].map((s) => [`sign-in-${s}`, `/?preview&signin=${s}`]),
   ['raise-today', '/raise/today?preview'],
+  ['raise-today-nothing-due', '/raise/today?preview&today=nothingdue'],
+  ['raise-today-win', '/raise/today?preview&today=win'],
+  ...['view', 'edit', 'new', 'advance', 'touch', 'history', 'delete'].map((s) => [`drawer-${s}`, `/raise/investors?preview&drawer=${s}`]),
   ['raise-pipeline', '/raise/pipeline?preview'],
   ['raise-investors', '/raise/investors?preview'],
   ['raise-plan', '/raise/plan?preview'],
@@ -40,8 +43,10 @@ for (const size of SIZES) {
     if (only && !name.includes(only)) continue
     await page.goto(base + path, { waitUntil: 'networkidle' })
     await page.evaluate(() => document.fonts.ready)
-    await page.waitForTimeout(900)
-    const full = !name.startsWith('sign-in')
+    // The win plays 700ms after load; catch it mid-confetti with the toast up.
+    await page.waitForTimeout(name.endsWith('-win') ? 1000 : 900)
+    // Full-page capture resizes the viewport, which re-snaps the phone moves carousel: keep the win at viewport size there.
+    const full = !name.startsWith('sign-in') && !name.startsWith('drawer-') && !(size.mobile && name.endsWith('-win'))
     await page.screenshot({ path: `${out}/${name}--${size.name}.png`, fullPage: full })
     process.stdout.write('.')
   }

@@ -35,7 +35,7 @@ pnpm dev                     # convex dev (push + watch) and Vite on http://loca
 
 Other scripts: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`, `pnpm dev:web` (Vite only).
 
-Dev-only preview: `http://localhost:3000/?preview` renders Home and every Raise view from a small made-up fixture (`src/preview/fixture.ts`) with in-memory writes, without signing in. Add `&seed` to use `internal/seed.json` instead, `&home=firstrun` or `&home=prepdone` for the Home states, or `&signin=default|hover|checking|noaccess|error|signedout` for the sign-in states. It's stripped from production builds.
+Dev-only preview: `http://localhost:3000/?preview` renders Home and every Raise view from a small made-up fixture (`src/preview/fixture.ts`) with in-memory writes, without signing in. Add `&seed` to use `internal/seed.json` instead, `&home=firstrun` or `&home=prepdone` for the Home states, `&signin=default|hover|checking|noaccess|error|signedout` for the sign-in states, `&today=nothingdue|win` for Raise · Today, or `&drawer=view|edit|new|advance|touch|history|delete` for the investor drawer (on any Raise view; add `&sheet` for the phone bottom sheet at any width). It's stripped from production builds.
 
 Screenshots of every preview screen at 1440 × 900, 440 × 956 and 412 × 915: run `pnpm dev:web`, then `node scripts/screenshots.mjs http://localhost:3000` (writes to `.context/screens/`). They use the fixture, never real data.
 
@@ -68,6 +68,12 @@ Check it: `node --env-file=.env.local scripts/check-unauth.mjs <investor id>` ca
 ## Round settings
 
 Nothing about the raise is hard-coded. Target, stretch, close and kickoff dates, instrument, cap, minimum check, phases (dates, targets, to-dos), stage odds, the "gone quiet" days and wave labels live in the `settings` row keyed `round`, editable on `/raise/settings`; each change is logged in `settingsLog`. `src/lib/round.ts` `DEFAULT_ROUND` (neutral placeholders) is used only until that row exists. Dollar phase targets are stored as a share of the raise target, so changing the target rescales them.
+
+## Raise · Today and the investor drawer
+
+`/raise/today` (`src/routes/_app/raise/today.tsx`, rules in `src/lib/today.ts`): the summary card, **Your next 3 moves** (the current phase's unmet targets in phase order, then "ask for a number" for the furthest-along conversation between a first meeting and a yes that hasn't been asked yet; filled in from what's due, who's quiet and who's next), the KPIs, **Due today** (a next step dated today or earlier on a live conversation, or a parked investor whose park-until day has come), **Gone quiet** (live and uncommitted, no touch in the round's quiet days) and **How a conversation moves**. Logging the ask, ticking a due step and nudging all write an activity with a `touch` kind (`ask`, `done`, `nudge`).
+
+The drawer (`src/components/Drawer.tsx`) is a side drawer on desktop and a bottom sheet on phones (swipe down or tap outside to close). Only moving forward a stage celebrates (`celebrates()` in `src/lib/today.ts`); back, passed, parked and reopening don't. Delete hides the investor at once and sends the delete when the Undo toast goes (6s), or straight away when you leave Raise or close the tab.
 
 ## Home
 

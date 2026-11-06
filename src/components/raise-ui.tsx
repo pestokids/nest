@@ -1,22 +1,25 @@
-// Shared bits of the Raise views (re-skinned prototype pieces). T3–T5 replace these with the new layouts.
-import { createContext, useCallback, useContext, type ReactNode } from 'react'
-import { shortDate } from '../lib/dates'
-import { money } from '../lib/money'
+// Shared bits of the Raise views: toasts, the drawer opener, advance and delete with undo.
+import { createContext, useCallback, useContext } from 'react'
 import type { Investor } from '../lib/pipeline'
-import { ACTIVE, LABEL, WARM, type Stage } from '../lib/stages'
+import { play } from '../lib/sound'
+import { WARM, type Stage } from '../lib/stages'
 import { errorMessage, useRaise } from './data'
-import { Chip, IconButton, type ChipTone, type ToastInput } from './ui'
+import { Chip, type ChipTone, type ToastInput } from './ui'
 
 /* ---------- toast + drawer opener ---------- */
 /** Prefill for the drawer's "new" state, e.g. the stage of the column whose + was clicked. */
 export type OpenOptions = { stage?: Stage }
-type UI = {
+export type UI = {
   toast: (t: ToastInput | string) => void
-  /** Opens the drawer on an investor, or its "new" state with `null` (optionally with a preselected stage). */
+  /** Opens the drawer on an investor, or its "new" state with `null` (optionally with a preselected stage). The opener gets focus back on close. */
   open: (id: string | null, opts?: OpenOptions) => void
-  advance: (i: Investor) => void
   /** What the open drawer was opened with (its "new" state reads `stage` from here). */
   opening: OpenOptions
+  advance: (i: Investor) => void
+  /** Delete with an Undo toast; the delete is sent when the toast goes. */
+  remove: (i: Investor) => void
+  /** A write failed: error toast and the save-failed sound. */
+  fail: (e: unknown) => void
 }
 export const UIContext = createContext<UI | null>(null)
 export const useUI = () => {
@@ -25,8 +28,19 @@ export const useUI = () => {
   return v
 }
 
-/** Advance one stage, with a success toast. */
-export function useAdvance(toast: UI['toast']) {
+/** Error toast plus the save-failed sound. */
+export function useFail(toast: UI['toast']) {
+  return useCallback(
+    (e: unknown) => {
+      play('save-failed')
+      toast({ tone: 'error', message: errorMessage(e) })
+    },
+    [toast],
+  )
+}
+
+/** Advance one stage, with a success toast (Pipeline's arrow). */
+export function useAdvance(toast: UI['toast'], fail: UI['fail']) {
   const { advance } = useRaise()
   return useCallback(
     async (i: Investor) => {
@@ -34,10 +48,10 @@ export function useAdvance(toast: UI['toast']) {
         const r = await advance(i._id)
         if (r) toast(`${i.name} → ${r.label}. Set the next step.`)
       } catch (e) {
-        toast({ tone: 'error', message: errorMessage(e) })
+        fail(e)
       }
     },
-    [advance, toast],
+    [advance, toast, fail],
   )
 }
 
@@ -50,58 +64,8 @@ export const WarmChip = ({ w }: { w: Investor['warmth'] }) => (
 )
 
 export const openOnKey = (fn: () => void) => (e: React.KeyboardEvent) => {
-  if (e.key === 'Enter' && e.target === e.currentTarget) fn()
-}
-
-/** A list row (Today panels). */
-export function Row({ i, today, sev }: { i: Investor; today: string; sev?: 'sev-bad' | 'sev-warn' }) {
-  const { open, advance } = useUI()
-  const late = !!i.nextDate && i.nextDate < today
-  return (
-    <div className={`row ${sev ?? ''}`} tabIndex={0} onClick={() => open(i._id)} onKeyDown={openOnKey(() => open(i._id))}>
-      <div>
-        <span className="n">{i.name}</span>
-        {i.firm ? <span className="muted"> · {i.firm}</span> : null}
-      </div>
-      <div className="act">
-        <Chip tone="outline" className="chip--sm">
-          {LABEL[i.stage] || i.stage}
-        </Chip>
-        {ACTIVE.has(i.stage) || i.stage === 'todo' ? (
-          <IconButton
-            icon="arrow-right"
-            size="sm"
-            label={`Advance ${i.name}`}
-            onClick={(e) => {
-              e.stopPropagation()
-              advance(i)
-            }}
-          />
-        ) : null}
-      </div>
-      <div className="d">
-        {i.nextStep ? <span>{i.nextStep}</span> : <span>No next step set</span>}
-        {i.nextDate ? (
-          <Chip tone={late ? 'error' : 'outline'} className="chip--sm">
-            {late ? 'late · ' : ''}
-            {shortDate(i.nextDate)}
-          </Chip>
-        ) : null}
-        <WarmChip w={i.warmth} />
-        {i.expected ? <span className="num">{money(i.expected)}</span> : null}
-      </div>
-    </div>
-  )
-}
-
-export function Panel({ title, aside, children }: { title: string; aside?: ReactNode; children: ReactNode }) {
-  return (
-    <div className="panel">
-      <header>
-        <h2>{title}</h2>
-        {aside !== undefined ? <span className="muted">{aside}</span> : null}
-      </header>
-      {children}
-    </div>
-  )
+  if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) {
+    e.preventDefault()
+    fn()
+  }
 }

@@ -1,256 +1,898 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { shortDate, todayIST } from '../lib/dates'
-import { NEW_INVESTOR, type InvestorFields } from '../lib/pipeline'
-import { ALL, GEOS, LABEL, TIERS, TYPES, WARM, WAVES, type Wave } from '../lib/stages'
-import { errorMessage, useRaise } from './data'
+// The investor drawer: a side drawer on desktop, a bottom sheet on phones.
+// States: view (Details / History), edit, new, advance stage, log a touch,
+// park, and the in-drawer delete confirm. Data logic: useRaise(), the form
+// helpers below, and activities.forInvestor (d.useLog).
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { parseMoney } from '../lib/csv'
+import { dayDiff, todayIST } from '../lib/dates'
+import { dayMonth, monDay } from '../lib/home'
+import { confetti, replay, shake, shine } from '../lib/motion'
+import { money } from '../lib/money'
+import { fieldsOf, NEW_INVESTOR, quietList, type Activity, type Investor, type InvestorFields } from '../lib/pipeline'
+import { play } from '../lib/sound'
+import {
+  advanceConfirm, ALL, GEOS, IDX, STAGE_RULE, STAGE_SHORT, STAGE_TILE, STAGES, TIERS, TOUCH_LABEL, TOUCH_PICK, TYPES, WARM, WAVES,
+  type PipelineStage, type Stage, type TouchKind, type Wave,
+} from '../lib/stages'
+import { addDays, celebrates, stageChange } from '../lib/today'
+import { useRaise } from './data'
+import { Egg, EggCracking, EggHatching } from './illustrations'
 import { useUI } from './raise-ui'
-import { Button } from './ui'
+import { Button, Checkbox, Chip, Icon, Input, Segmented, Select, SubTabButtons, Textarea, Toggle, type ChipTone } from './ui'
 
-/** Form state: numbers as strings so inputs can be empty. */
-type Form = Omit<InvestorFields, 'expected' | 'committed' | 'nextDate' | 'lastTouch'> & {
+export type DrawerStart = 'view' | 'edit' | 'advance' | 'touch' | 'history' | 'delete'
+type Mode = 'view' | 'edit' | 'advance' | 'touch' | 'park' | 'delete'
+type Tab = 'details' | 'history'
+
+const PROGRESS = STAGES.slice(1) // Asked … Money in
+const WARM_SHORT: Record<Investor['warmth'], [string, ChipTone]> = {
+  existing: ['Existing', 'live'], warm: ['Warm', 'success'], intro: ['Needs intro', 'outline'], cold: ['Cold', 'muted'],
+}
+const STAGE_TONE = (s: Stage): ChipTone => (s === 'passed' ? 'error' : s === 'parked' ? 'muted' : 'neutral')
+const firstName = (name: string) => name.trim().split(/\s+/)[0] || name
+
+/* ---------- form helpers ---------- */
+
+/** Form state: numbers and dates as strings so inputs can be empty. */
+type Form = Omit<InvestorFields, 'expected' | 'committed' | 'nextDate' | 'lastTouch' | 'email' | 'parkedUntil'> & {
   expected: string
   committed: string
   nextDate: string
   lastTouch: string
+  email: string
+  parkedUntil: string
 }
+type FormErrors = Partial<Record<'name' | 'expected' | 'committed' | 'email', string>>
 
+const moneyText = (n: number | undefined) => (n == null ? '' : `$${n.toLocaleString('en-US')}`)
 const toForm = (v: InvestorFields): Form => ({
   ...v,
-  expected: v.expected == null ? '' : String(v.expected),
-  committed: v.committed == null ? '' : String(v.committed),
+  expected: moneyText(v.expected),
+  committed: moneyText(v.committed),
   nextDate: v.nextDate ?? '',
   lastTouch: v.lastTouch ?? '',
+  email: v.email ?? '',
+  parkedUntil: v.parkedUntil ?? '',
 })
 
-const fromForm = (f: Form): InvestorFields => {
-  const num = (x: string) => (x === '' ? undefined : Math.max(0, Number(x)))
-  return {
+/** Validate and convert; errors when a field can't be read. */
+function fromForm(f: Form): { body: InvestorFields; errors: FormErrors } {
+  const errors: FormErrors = {}
+  const amount = (k: 'expected' | 'committed') => {
+    if (!f[k].trim()) return undefined
+    const n = parseMoney(f[k])
+    if (n === null) errors[k] = 'Numbers only, like 25000 or 25K.'
+    return n ?? undefined
+  }
+  const name = f.name.trim()
+  if (!name) errors.name = 'Add a name. Everything else can wait.'
+  const email = f.email.trim()
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = 'That doesn’t look like an email address.'
+  const body: InvestorFields = {
     ...f,
-    name: f.name.trim(), firm: f.firm.trim(), path: f.path.trim(), nextStep: f.nextStep.trim(), notes: f.notes.trim(), source: f.source.trim(),
-    expected: num(f.expected), committed: num(f.committed), nextDate: f.nextDate || undefined, lastTouch: f.lastTouch || undefined,
+    name, firm: f.firm.trim(), path: f.path.trim(), nextStep: f.nextStep.trim(), notes: f.notes.trim(), source: f.source.trim(),
+    expected: amount('expected'), committed: amount('committed'), nextDate: f.nextDate || undefined, lastTouch: f.lastTouch || undefined,
+    email: email || undefined, parkedUntil: f.stage === 'parked' ? f.parkedUntil || undefined : undefined,
+  }
+  return { body, errors }
+}
+
+/* ---------- small hooks ---------- */
+
+function useMedia(q: string) {
+  const [on, setOn] = useState(() => typeof matchMedia === 'function' && matchMedia(q).matches)
+  useEffect(() => {
+    const m = matchMedia(q)
+    const fn = () => setOn(m.matches)
+    m.addEventListener('change', fn)
+    return () => m.removeEventListener('change', fn)
+  }, [q])
+  return on
+}
+
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+/** Keep Tab inside `root` (the delete confirm when it's open). */
+function trapTab(e: KeyboardEvent, root: HTMLElement | null) {
+  if (e.key !== 'Tab' || !root) return
+  const els = [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => el.offsetParent !== null || el === document.activeElement)
+  if (!els.length) return
+  const first = els[0]
+  const last = els[els.length - 1]
+  if (!root.contains(document.activeElement)) {
+    e.preventDefault()
+    first.focus()
+  } else if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault()
+    last.focus()
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault()
+    first.focus()
   }
 }
 
-/** Add/edit drawer with activity log, advance and in-page delete confirm. */
-export function Drawer({ id, onClose }: { id: string | null; onClose: () => void }) {
-  const d = useRaise()
-  const { toast } = useUI()
-  const inv = id ? d.investors.find((i) => i._id === id) : undefined
-  const [form, setForm] = useState<Form>(() => toForm(inv ?? NEW_INVESTOR))
-  const [touch, setTouch] = useState('')
-  const [confirmDel, setConfirmDel] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const log = d.useLog(inv ? id : null)
-  const nameRef = useRef<HTMLInputElement>(null)
+/* ---------- the drawer ---------- */
 
-  useEffect(() => nameRef.current?.focus(), [])
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
-  // Deleted elsewhere (another tab): close.
+export function Drawer({ id, start = 'view', forceSheet, onClose }: { id: string | null; start?: DrawerStart; forceSheet?: boolean; onClose: () => void }) {
+  const d = useRaise()
+  const ui = useUI()
+  const phone = useMedia('(max-width: 720px)')
+  const sheet = !!forceSheet || phone
+  const inv = id ? d.investors.find((i) => i._id === id) : undefined
+  const isNew = !id
+  const [mode, setMode] = useState<Mode>(isNew ? 'edit' : start === 'history' ? 'view' : start)
+  const [tab, setTab] = useState<Tab>(start === 'history' ? 'history' : 'details')
+  const [closing, setClosing] = useState(false)
+  /** A touch was just logged: History slides its newest entry in. */
+  const [fresh, setFresh] = useState(false)
+  const box = useRef<HTMLDivElement>(null)
+  const confirmBox = useRef<HTMLDivElement>(null)
+  const stageChip = useRef<HTMLSpanElement>(null)
+  const uid = useId()
+  const log = d.useLog(inv ? inv._id : null)
+
+  const close = useCallback(() => {
+    if (closing) return
+    setClosing(true)
+    setTimeout(onClose, 200)
+  }, [closing, onClose])
+
+  // Deleted elsewhere (another tab, or Undo-able delete from here): close.
   const existed = useRef(!!inv)
   useEffect(() => {
     if (existed.current && !inv) onClose()
   }, [inv, onClose])
 
-  const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => ({ ...f, [k]: v }))
+  // Focus: into the drawer on open; Tab stays inside; Esc closes (or backs out of the delete confirm).
+  useEffect(() => {
+    const root = box.current
+    if (!root) return
+    const target = root.querySelector<HTMLElement>('[data-autofocus]') ?? root
+    target.focus({ preventScroll: true })
+  }, [mode])
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        if (mode === 'delete') setMode('view')
+        else close()
+        return
+      }
+      trapTab(e, mode === 'delete' ? confirmBox.current : box.current)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [mode, close])
+  // No page scroll behind the drawer.
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [])
 
-  async function save(e: FormEvent) {
+  // Swipe down to close (sheet): drag the handle or the header.
+  const drag = useRef<{ y: number; t: number; dy: number } | null>(null)
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (!sheet || (e.target as HTMLElement).closest('button, a, input, select, textarea')) return
+    drag.current = { y: e.clientY, t: performance.now(), dy: 0 }
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    box.current?.classList.add('is-dragging')
+  }
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!drag.current || !box.current) return
+    drag.current.dy = Math.max(0, e.clientY - drag.current.y)
+    box.current.style.transform = `translateY(${drag.current.dy}px)`
+  }
+  const onPointerUp = () => {
+    const g = drag.current
+    drag.current = null
+    const el = box.current
+    if (!g || !el) return
+    el.classList.remove('is-dragging')
+    const v = g.dy / Math.max(1, performance.now() - g.t)
+    if (g.dy > 110 || (g.dy > 30 && v > 0.6)) {
+      el.style.transform = ''
+      close()
+    } else el.style.transform = ''
+  }
+
+  // Celebrations: shine the new stage chip.
+  const shineStage = () => requestAnimationFrame(() => shine(stageChip.current))
+
+  const title = inv ? inv.name : 'New investor'
+  const headerBusy = mode === 'edit' || mode === 'park'
+  return (
+    <>
+      <div className={`scrim${closing ? ' scrim--leaving' : ''}`} onClick={close} aria-hidden="true" />
+      <div
+        ref={box}
+        className={['drawer', sheet ? 'drawer--sheet' : 'drawer--side', closing ? 'drawer--leaving' : '', mode === 'delete' ? 'drawer--confirming' : ''].filter(Boolean).join(' ')}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={`${uid}-title`}
+        tabIndex={-1}
+      >
+        <div className="drawer__top" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
+          {sheet ? <div className="drawer__handle" aria-hidden="true" /> : null}
+          <header className="drawer__head">
+            <div className="drawer__eyebrow eyebrow-mono">{inv ? `Investor · ${inv.type}` : 'Add to the nest'}</div>
+            <div className="drawer__tools">
+              {inv && !sheet ? <MoreMenu inv={inv} onPick={(m) => (m === 'pass' ? void pass(inv) : setMode(m))} /> : null}
+              <button type="button" className="drawer__icon" aria-label="Close" onClick={close}>
+                <Icon name="close" size={22} />
+              </button>
+            </div>
+            <h2 id={`${uid}-title`} className="drawer__title">
+              {title}
+            </h2>
+            {inv ? (
+              <>
+                {inv.firm || inv.email ? (
+                  <p className="drawer__sub">
+                    {[inv.firm, !sheet ? inv.email : ''].filter(Boolean).join(' · ')}
+                  </p>
+                ) : null}
+                <div className="drawer__chips">
+                  <Chip ref={stageChip} tone={STAGE_TONE(inv.stage)} dot={false}>
+                    {STAGE_TILE[inv.stage]}
+                  </Chip>
+                  <Chip tone="outline" dot={false}>
+                    Wave {inv.wave}
+                  </Chip>
+                  <Chip tone={WARM_SHORT[inv.warmth][1]} dot={inv.warmth === 'warm' || inv.warmth === 'existing'}>
+                    {WARM_SHORT[inv.warmth][0]}
+                  </Chip>
+                  {inv.stage === 'parked' && inv.parkedUntil ? <Chip tone="muted" dot={false}>Until {dayMonth(inv.parkedUntil)}</Chip> : null}
+                </div>
+                <HeadActions inv={inv} sheet={sheet} busy={headerBusy} mode={mode} onAdvance={() => setMode('advance')} onTouch={() => setMode('touch')} onReopen={() => void reopen(inv)} />
+                <StageProgress inv={inv} labels={!sheet} />
+              </>
+            ) : (
+              <p className="drawer__sub">Only the name is required. Everything else can wait.</p>
+            )}
+          </header>
+        </div>
+        {inv ? (
+          <SubTabButtons
+            label="Investor"
+            idPrefix={uid}
+            value={tab}
+            onChange={(t) => {
+              setTab(t)
+              setFresh(false)
+              if (mode !== 'view' && mode !== 'delete') setMode('view')
+            }}
+            items={[
+              { value: 'details', label: 'Details' },
+              { value: 'history', label: 'History' },
+            ]}
+          />
+        ) : null}
+        <div className="drawer__body" id={`${uid}-panel`} role={inv ? 'tabpanel' : undefined} aria-labelledby={inv ? `${uid}-tab-${tab}` : undefined}>
+          {isNew ? (
+            <EditForm inv={null} onDone={close} />
+          ) : !inv ? null : mode === 'edit' ? (
+            <EditForm inv={inv} onDone={() => setMode('view')} onCelebrate={shineStage} />
+          ) : mode === 'advance' ? (
+            <AdvancePanel inv={inv} onDone={() => { setMode('view'); shineStage() }} onPass={() => void pass(inv)} onPark={() => setMode('park')} />
+          ) : mode === 'touch' ? (
+            <TouchPanel inv={inv} onDone={() => { setMode('view'); setTab('history'); setFresh(true) }} />
+          ) : mode === 'park' ? (
+            <ParkPanel inv={inv} onDone={() => setMode('view')} />
+          ) : tab === 'history' ? (
+            <History inv={inv} log={log} fresh={fresh} />
+          ) : (
+            <Details inv={inv} log={log} sheet={sheet} onDelete={() => setMode('delete')} onEdit={() => setMode('edit')} />
+          )}
+        </div>
+        <Footer mode={isNew ? 'new' : mode} sheet={sheet} onCancel={isNew ? close : () => setMode('view')} onDelete={() => setMode('delete')} onEdit={() => setMode('edit')} inv={inv} />
+        {inv && mode === 'delete' ? (
+          <DeleteConfirm
+            boxRef={confirmBox}
+            inv={inv}
+            onCancel={() => setMode('view')}
+            onPass={() => {
+              setMode('view')
+              void pass(inv)
+            }}
+            onDelete={() => {
+              ui.remove(inv)
+              onClose()
+            }}
+          />
+        ) : null}
+      </div>
+    </>
+  )
+
+  async function pass(i: Investor) {
+    try {
+      await d.save(i._id, { ...fieldsOf(i), stage: 'passed' })
+      setMode('view')
+      ui.toast({ tone: 'info', icon: 'check', message: `Marked ${i.name} as passed.` })
+    } catch (e) {
+      ui.fail(e)
+    }
+  }
+  async function reopen(i: Investor) {
+    const back: Stage = i.maxStage && i.maxStage !== 'todo' ? i.maxStage : 'ask'
+    try {
+      await d.save(i._id, { ...fieldsOf(i), stage: back })
+      ui.toast(`${i.name} is back in ${STAGE_TILE[back]}.`)
+    } catch (e) {
+      ui.fail(e)
+    }
+  }
+}
+
+/* ---------- header pieces ---------- */
+
+function nextStage(s: Stage): PipelineStage | null {
+  const ix = IDX[s]
+  return ix === undefined || ix >= STAGES.length - 1 ? null : STAGES[ix + 1].k
+}
+
+function HeadActions({ inv, sheet, busy, mode, onAdvance, onTouch, onReopen }: { inv: Investor; sheet: boolean; busy: boolean; mode: Mode; onAdvance: () => void; onTouch: () => void; onReopen: () => void }) {
+  const next = nextStage(inv.stage)
+  const closed = inv.stage === 'passed' || inv.stage === 'parked'
+  return (
+    <div className="drawer__actions">
+      {next ? (
+        <Button variant="primary" onClick={onAdvance} disabled={busy} aria-pressed={mode === 'advance' || undefined}>
+          Move to {STAGE_TILE[next]}
+        </Button>
+      ) : closed ? (
+        <Button variant="primary" onClick={onReopen} disabled={busy}>
+          Reopen
+        </Button>
+      ) : null}
+      <Button variant="secondary" onClick={onTouch} disabled={busy} aria-pressed={mode === 'touch' || undefined} className="drawer__log">
+        {sheet ? 'Log' : 'Log a touch'}
+      </Button>
+    </div>
+  )
+}
+
+function StageProgress({ inv, labels }: { inv: Investor; labels: boolean }) {
+  const cur = IDX[inv.stage] ?? -1
+  const reached = Math.max(cur, IDX[inv.maxStage] ?? -1)
+  const closed = cur < 0
+  return (
+    <ol className={`stageprog${labels ? '' : ' stageprog--bare'}${closed ? ' stageprog--closed' : ''}`} aria-label={`Stage: ${STAGE_TILE[inv.stage]}`}>
+      {PROGRESS.map((s) => {
+        const ix = IDX[s.k]!
+        const state = closed ? (ix <= reached ? 'was' : 'todo') : ix < cur ? 'done' : ix === cur ? 'now' : 'todo'
+        return (
+          <li key={s.k} className={`stageprog__seg stageprog__seg--${state}`} aria-current={state === 'now' ? 'step' : undefined}>
+            <span className="stageprog__bar" />
+            {labels ? <span className="stageprog__label">{STAGE_SHORT[s.k]}</span> : null}
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
+function MoreMenu({ inv, onPick }: { inv: Investor; onPick: (m: 'park' | 'delete' | 'pass') => void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const off = (e: PointerEvent) => !ref.current?.contains(e.target as Node) && setOpen(false)
+    document.addEventListener('pointerdown', off)
+    return () => document.removeEventListener('pointerdown', off)
+  }, [open])
+  const pick = (m: 'park' | 'delete' | 'pass') => {
+    setOpen(false)
+    onPick(m)
+  }
+  return (
+    <div className="drawer__more" ref={ref}>
+      <button type="button" className="drawer__icon" aria-label="More actions" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((x) => !x)}>
+        <Icon name="more" size={22} />
+      </button>
+      {open ? (
+        <div className="drawer__menu" role="menu">
+          {inv.stage !== 'passed' ? (
+            <button type="button" role="menuitem" className="drawer__menu-item" onClick={() => pick('pass')}>
+              Mark as passed
+            </button>
+          ) : null}
+          <button type="button" role="menuitem" className="drawer__menu-item" onClick={() => pick('park')}>
+            {inv.stage === 'parked' ? 'Change the park date' : 'Park until a date'}
+          </button>
+          <button type="button" role="menuitem" className="drawer__menu-item drawer__menu-item--danger" onClick={() => pick('delete')}>
+            Delete investor
+          </button>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function Footer({ mode, sheet, inv, onCancel, onDelete, onEdit }: { mode: Mode | 'new'; sheet: boolean; inv?: Investor; onCancel: () => void; onDelete: () => void; onEdit: () => void }) {
+  if (mode === 'view' || mode === 'delete') {
+    if (sheet || !inv) return null
+    return (
+      <footer className="drawer__foot">
+        <button type="button" className="drawer__textbtn drawer__textbtn--danger" onClick={onDelete}>
+          Delete investor
+        </button>
+        <button type="button" className="drawer__textbtn" onClick={onEdit}>
+          Edit details
+        </button>
+      </footer>
+    )
+  }
+  const submit = { new: 'Add to the nest', edit: 'Save changes', advance: inv ? `Move to ${STAGE_TILE[nextStage(inv.stage) ?? inv.stage]}` : 'Move', touch: 'Log touch', park: 'Park' }[mode]
+  return (
+    <footer className="drawer__foot drawer__foot--form">
+      <button type="button" className="drawer__textbtn" onClick={onCancel}>
+        Cancel
+      </button>
+      <Button variant="primary" type="submit" form="drawer-form">
+        {submit}
+      </Button>
+    </footer>
+  )
+}
+
+/* ---------- details and history ---------- */
+
+const relDay = (iso: string, today: string) => {
+  const n = dayDiff(today, iso)
+  return n <= 0 ? 'Today' : n === 1 ? 'Yesterday' : `${n} days ago`
+}
+const waveLabel = (w: Wave, labels: string[]) => {
+  const l = labels[w - 1]?.trim()
+  return l && l.toLowerCase() !== `wave ${w}` ? `Wave ${w} · ${l}` : `Wave ${w}`
+}
+
+function Details({ inv, log, sheet, onDelete, onEdit }: { inv: Investor; log: Activity[] | undefined; sheet: boolean; onDelete: () => void; onEdit: () => void }) {
+  const { round } = useRaise()
+  const today = todayIST()
+  const lastKind = log?.find((a) => a.kind === 'note' && a.date === inv.lastTouch && a.touch && TOUCH_PICK.includes(a.touch as (typeof TOUCH_PICK)[number]))?.touch
+  const late = !!inv.nextDate && inv.nextDate < today && inv.stage !== 'passed' && inv.stage !== 'parked' && inv.stage !== 'wired'
+  const rows: [string, ReactNode][] = sheet
+    ? [
+        ['Expected', inv.expected ? money(inv.expected) : '–'],
+        ['Warm path', inv.path || '–'],
+        ['Next step', inv.nextStep ? `${inv.nextStep}${inv.nextDate ? ` · ${dayMonth(inv.nextDate).replace(/ \w+$/, '')}` : ''}` : '–'],
+        ['Last touch', inv.lastTouch ? `${relDay(inv.lastTouch, today)}${lastKind ? ` · ${TOUCH_LABEL[lastKind].toLowerCase()}` : ''}` : 'Never'],
+      ]
+    : [
+        ['Expected amount', inv.expected ? money(inv.expected) : '–'],
+        ['Warm path', inv.path || '–'],
+        ['Next step', inv.nextStep || '–'],
+        ['Due', inv.nextDate ? <span className={late ? 'is-late' : undefined}>{dayMonth(inv.nextDate)}{late ? ' · late' : ''}</span> : '–'],
+        ['Last touch', inv.lastTouch ? `${relDay(inv.lastTouch, today)}${lastKind ? ` · ${TOUCH_LABEL[lastKind].toLowerCase()}` : ''}` : 'Never'],
+        ['Wave', waveLabel(inv.wave, round.waves)],
+      ]
+  if (inv.committed) rows.splice(1, 0, ['Committed', money(inv.committed)])
+  return (
+    <div className="details">
+      <dl className="details__rows">
+        {rows.map(([k, v]) => (
+          <div className="details__row" key={k}>
+            <dt>{k}</dt>
+            <dd>{v}</dd>
+          </div>
+        ))}
+      </dl>
+      <div className="details__notes">
+        <h3 className="details__label">Notes</h3>
+        <p className={`details__note${inv.notes ? '' : ' details__note--empty'}`}>{inv.notes || 'No notes yet.'}</p>
+      </div>
+      {sheet ? (
+        <div className="details__sheetfoot">
+          <button type="button" className="drawer__textbtn drawer__textbtn--danger" onClick={onDelete}>
+            Delete investor
+          </button>
+          <button type="button" className="drawer__textbtn" onClick={onEdit}>
+            Edit details
+          </button>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function eventText(a: Activity): [string, string] {
+  if (a.kind === 'stage') {
+    const st = a.stage as Stage
+    return [`Moved to ${STAGE_TILE[st] ?? st}`, STAGE_RULE[st as PipelineStage] ?? (st === 'passed' ? 'Not this round.' : st === 'parked' ? 'On hold for now.' : '')]
+  }
+  if (a.touch) return [TOUCH_LABEL[a.touch], a.note ?? '']
+  return ['Note', a.note ?? '']
+}
+
+function History({ inv, log, fresh }: { inv: Investor; log: Activity[] | undefined; fresh: boolean }) {
+  const today = todayIST()
+  if (log === undefined) return <div className="history history--loading" aria-busy="true" />
+  const items = log.map((a) => {
+    const [t, sub] = eventText(a)
+    return { key: a._id, date: a.date, title: t, sub, by: a.by }
+  })
+  if (inv._creationTime)
+    items.push({ key: 'added', date: todayIST(inv._creationTime), title: 'Added to the nest', sub: inv.source || '', by: undefined })
+  if (!items.length)
+    return (
+      <div className="drawer-empty">
+        <Egg size={40} />
+        <p>Nothing logged yet. Moves and touches land here.</p>
+      </div>
+    )
+  return (
+    <ol className="history">
+      {items.map((x, n) => (
+        <li key={x.key} className={`history__item${n === 0 && fresh ? ' history__item--new' : ''}${x.key === 'added' ? ' history__item--first' : ''}`}>
+          <span className="history__dot" aria-hidden="true" />
+          <span className="history__date eyebrow-mono">
+            {x.date === today ? 'Today' : x.date === addDays(today, -1) ? 'Yesterday' : monDay(x.date)}
+            {x.by ? <span className="history__by"> · {x.by}</span> : null}
+          </span>
+          <span className="history__title">{x.title}</span>
+          {x.sub ? <span className="history__sub">{x.sub}</span> : null}
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+/* ---------- edit / new ---------- */
+
+function EditForm({ inv, onDone, onCelebrate }: { inv: Investor | null; onDone: () => void; onCelebrate?: () => void }) {
+  const d = useRaise()
+  const ui = useUI()
+  const [form, setForm] = useState<Form>(() => toForm(inv ? fieldsOf(inv) : NEW_INVESTOR))
+  const [errors, setErrors] = useState<FormErrors>({})
+  const [busy, setBusy] = useState(false)
+  const formRef = useRef<HTMLFormElement>(null)
+  const set = <K extends keyof Form>(k: K, v: Form[K]) => {
+    setForm((f) => ({ ...f, [k]: v }))
+    if (k in errors) setErrors((e) => ({ ...e, [k]: undefined }))
+  }
+  const text = (k: 'name' | 'firm' | 'path' | 'nextStep' | 'source' | 'email' | 'expected' | 'committed') => ({
+    value: form[k],
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => set(k, e.target.value),
+    error: k in errors ? errors[k as keyof FormErrors] : undefined,
+  })
+
+  async function submit(e: FormEvent) {
     e.preventDefault()
-    const body = fromForm(form)
-    if (!body.name) return nameRef.current?.focus()
+    const { body, errors: errs } = fromForm(form)
+    if (Object.values(errs).some(Boolean)) {
+      setErrors(errs)
+      play('nope')
+      const first = formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')
+      shake(first?.closest('.field'))
+      first?.focus()
+      return
+    }
     setBusy(true)
     try {
       await d.save(inv ? inv._id : null, body)
-      toast('Saved')
-      onClose()
+      if (!inv) ui.toast(`Added ${body.name} to the nest.`)
+      else if (body.stage !== inv.stage) {
+        const how = stageChange(inv.stage, body.stage)
+        if (celebrates(inv.stage, body.stage)) {
+          hatchSounds()
+          ui.toast({ tone: 'hatch', message: `${body.name} moved to ${STAGE_TILE[body.stage]}.` })
+          onCelebrate?.()
+        } else {
+          if (body.stage === 'parked') play('park')
+          ui.toast(how === 'closed' ? `${body.name} is ${STAGE_TILE[body.stage].toLowerCase()}.` : `${body.name} moved to ${STAGE_TILE[body.stage]}.`)
+        }
+      } else ui.toast('Saved.')
+      onDone()
     } catch (err) {
-      toast({ tone: 'error', message: errorMessage(err) })
+      ui.fail(err)
     } finally {
       setBusy(false)
     }
   }
 
-  async function advance() {
-    if (!inv) return
+  const field = {
+    name: <Input label={inv ? 'Name' : 'Name *'} placeholder="Who is it?" required data-autofocus {...text('name')} />,
+    firm: <Input label="Firm or title" placeholder="Fund, company or role" {...text('firm')} />,
+    email: <Input label="Email" type="email" inputMode="email" placeholder="Optional" {...text('email')} />,
+    type: (
+      <Select label="Type" value={form.type} onChange={(e) => set('type', e.target.value as Form['type'])}>
+        {TYPES.map((x) => <option key={x}>{x}</option>)}
+      </Select>
+    ),
+    expected: <Input label="Expected amount" inputMode="decimal" placeholder="e.g. 25K" {...text('expected')} />,
+    wave: (
+      <Select label="Wave" value={String(form.wave)} onChange={(e) => set('wave', Number(e.target.value) as Wave)}>
+        {WAVES.map((w) => <option key={w} value={w}>{waveLabel(w, d.round.waves)}</option>)}
+      </Select>
+    ),
+    stage: (
+      <Select label="Stage" value={form.stage} onChange={(e) => set('stage', e.target.value as Form['stage'])}>
+        {ALL.map((s) => <option key={s.k} value={s.k}>{STAGE_TILE[s.k]}</option>)}
+      </Select>
+    ),
+  }
+  return (
+    <form id="drawer-form" ref={formRef} className="dform" autoComplete="off" noValidate onSubmit={submit} aria-busy={busy || undefined}>
+      {inv ? (
+        <>
+          <div className="dform__row">{field.name}{field.firm}</div>
+          <div className="dform__row">{field.email}{field.type}</div>
+          <div className="dform__row">{field.expected}{field.wave}</div>
+          <Input label="Warm path" placeholder="Who can introduce you?" help="Who can introduce you, and how you know them." {...text('path')} />
+          <div className="dform__row dform__row--wide">
+            <Input label="Next step" placeholder="What happens next, in one line" {...text('nextStep')} />
+            <Input label="Due" type="date" value={form.nextDate} onChange={(e) => set('nextDate', e.target.value)} />
+          </div>
+          <Textarea label="Notes" rows={4} value={form.notes} onChange={(e) => set('notes', e.target.value)} />
+          <details className="dform__more" open={form.stage !== inv.stage || undefined}>
+            <summary>More details</summary>
+            <div className="dform__row">
+              {field.stage}
+              <Select label="Relationship" value={form.warmth} onChange={(e) => set('warmth', e.target.value as Form['warmth'])}>
+                {Object.entries(WARM).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+              </Select>
+            </div>
+            {form.stage === 'parked' ? <Input label="Park until" type="date" value={form.parkedUntil} onChange={(e) => set('parkedUntil', e.target.value)} help="They come back to Due today on this day." /> : null}
+            <div className="dform__row">
+              <Select label="Tier" value={form.tier} onChange={(e) => set('tier', e.target.value as Form['tier'])}>
+                {TIERS.map((x) => <option key={x}>{x}</option>)}
+              </Select>
+              <Select label="Geography" value={form.geo} onChange={(e) => set('geo', e.target.value as Form['geo'])}>
+                {GEOS.map((x) => <option key={x}>{x}</option>)}
+              </Select>
+            </div>
+            <div className="dform__row">
+              <Input label="Committed" inputMode="decimal" placeholder="Once they say a number" {...text('committed')} />
+              <Input label="Last touch" type="date" value={form.lastTouch} onChange={(e) => set('lastTouch', e.target.value)} />
+            </div>
+            <Input label="Source" {...text('source')} />
+            <Checkbox label="Can lead or anchor" checked={form.lead} onChange={(e) => set('lead', e.target.checked)} />
+          </details>
+        </>
+      ) : (
+        <>
+          {field.name}
+          <div className="dform__row">{field.firm}{field.type}</div>
+          <div className="dform__row">{field.stage}{field.wave}</div>
+          <Input label="Warm path" placeholder="Who can introduce you?" {...text('path')} />
+          <div className="dform__row">{field.expected}{field.email}</div>
+          <p className="drawer-tip">
+            <Egg size={28} />
+            <span>Tip: add the warm path now. Names without one sit in Asked and go quiet fast.</span>
+          </p>
+        </>
+      )}
+    </form>
+  )
+}
+
+/** egg-crack ×2 → pesto-chirp + stage-up (interactions.png, Raise · Drawer · Advance stage). */
+function hatchSounds(win = false) {
+  play('egg-crack')
+  play('egg-crack', { delay: 0.5 })
+  play('pesto-chirp', { delay: 1 })
+  if (win) {
+    play('signed', { delay: 1.2 })
+    play('confetti', { delay: 1.3, volume: 0.7 })
+  } else play('stage-up', { delay: 1.2, volume: 0.7 })
+}
+
+/* ---------- advance stage ---------- */
+
+function AdvancePanel({ inv, onDone, onPass, onPark }: { inv: Investor; onDone: () => void; onPass: () => void; onPark: () => void }) {
+  const d = useRaise()
+  const ui = useUI()
+  const to = nextStage(inv.stage)
+  const [ok, setOk] = useState(false)
+  const [step, setStep] = useState('')
+  const [by, setBy] = useState(() => addDays(todayIST(), 3))
+  const [notes, setNotes] = useState('')
+  const [hatch, setHatch] = useState<'idle' | 'cracking' | 'hatched'>('idle')
+  const okRef = useRef<HTMLDivElement>(null)
+  const eggRef = useRef<HTMLSpanElement>(null)
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([])
+  useEffect(() => () => timers.current.forEach(clearTimeout), [])
+  if (!to) return null
+  const rule = STAGE_RULE[to] ?? ''
+
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    if (hatch !== 'idle' || !to) return
+    if (!ok) {
+      play('nope')
+      shake(okRef.current)
+      okRef.current?.querySelector('input')?.focus()
+      return
+    }
     try {
-      const r = await d.advance(inv._id)
-      if (r) {
-        toast(`${inv.name} → ${r.label}. Set the next step.`)
-        setForm((f) => ({ ...f, stage: r.stage as Form['stage'], lastTouch: todayIST() }))
-      }
+      const r = await d.advance(inv._id, step.trim() ? { step: step.trim(), date: by || undefined } : undefined)
+      if (!r) return onDone()
+      if (notes.trim()) await d.logNote(inv._id, notes.trim(), { touch: to === 'm1' || to === 'm2' ? 'meeting' : 'note' })
+      const win = to === 'signed' || to === 'wired'
+      hatchSounds(win)
+      setHatch('cracking')
+      timers.current.push(
+        setTimeout(() => {
+          setHatch('hatched')
+          if (win) confetti(eggRef.current)
+        }, 1000),
+        setTimeout(() => {
+          ui.toast(win ? { tone: 'win', message: `${to === 'signed' ? 'Signed!' : 'Money in!'} ${inv.name} is in.` } : { tone: 'hatch', message: `${inv.name} moved to ${STAGE_TILE[to]}.` })
+          onDone()
+        }, 1900),
+      )
     } catch (err) {
-      toast({ tone: 'error', message: errorMessage(err) })
+      ui.fail(err)
     }
   }
-
-  async function logTouch() {
-    const note = touch.trim()
-    if (!note || !inv) return
-    try {
-      const day = await d.logNote(inv._id, note)
-      setTouch('')
-      set('lastTouch', day)
-      toast('Logged')
-    } catch (err) {
-      toast({ tone: 'error', message: errorMessage(err) })
-    }
-  }
-
-  async function del() {
-    if (!inv) return
-    try {
-      await d.remove(inv._id)
-      toast({ tone: 'info', icon: 'trash', message: 'Deleted' })
-      onClose()
-    } catch (err) {
-      toast({ tone: 'error', message: errorMessage(err) })
-    }
-  }
-
-  const text = (k: 'name' | 'firm' | 'path' | 'nextStep' | 'source') => ({
-    value: form[k],
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => set(k, e.target.value),
-  })
 
   return (
-    <>
-      <div className="scrim" onClick={onClose} />
-      <aside className="drawer" aria-labelledby="dTitle" role="dialog">
-        <header>
-          <h2 id="dTitle">{inv ? inv.name : 'New investor'}</h2>
-          <Button variant="secondary" size="sm" type="button" onClick={onClose}>
-            Close
-          </Button>
-        </header>
-        <form className="scroll" id="form" autoComplete="off" onSubmit={save}>
-          <div className="fgrid">
-            <div className="f"><label htmlFor="i-name">Name</label><input id="i-name" ref={nameRef} required {...text('name')} /></div>
-            <div className="f"><label htmlFor="i-firm">Fund / company</label><input id="i-firm" {...text('firm')} /></div>
-            <div className="f">
-              <label htmlFor="i-type">Type</label>
-              <select id="i-type" value={form.type} onChange={(e) => set('type', e.target.value as Form['type'])}>
-                {TYPES.map((x) => <option key={x} value={x}>{x}</option>)}
-              </select>
-            </div>
-            <div className="f">
-              <label htmlFor="i-geo">Geography</label>
-              <select id="i-geo" value={form.geo} onChange={(e) => set('geo', e.target.value as Form['geo'])}>
-                {GEOS.map((x) => <option key={x} value={x}>{x}</option>)}
-              </select>
-            </div>
-            <div className="f">
-              <label htmlFor="i-warmth">Relationship</label>
-              <select id="i-warmth" value={form.warmth} onChange={(e) => set('warmth', e.target.value as Form['warmth'])}>
-                {Object.entries(WARM).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-              </select>
-            </div>
-            <div className="f"><label htmlFor="i-path">Warm path (who intros)</label><input id="i-path" placeholder="e.g. a name, or direct" {...text('path')} /></div>
-            <div className="f">
-              <label htmlFor="i-tier">Tier</label>
-              <select id="i-tier" value={form.tier} onChange={(e) => set('tier', e.target.value as Form['tier'])}>
-                {TIERS.map((x) => <option key={x}>{x}</option>)}
-              </select>
-            </div>
-            <div className="f">
-              <label htmlFor="i-wave">Wave</label>
-              <select id="i-wave" value={String(form.wave)} onChange={(e) => set('wave', Number(e.target.value) as Wave)}>
-                {WAVES.map((w, ix) => <option key={w} value={w}>{w} · {d.round.waves[ix] ?? ''}</option>)}
-              </select>
-            </div>
-            <div className="f">
-              <label htmlFor="i-stage">Stage</label>
-              <select id="i-stage" value={form.stage} onChange={(e) => set('stage', e.target.value as Form['stage'])}>
-                {ALL.map((s) => <option key={s.k} value={s.k}>{s.l}</option>)}
-              </select>
-            </div>
-            <div className="f">
-              <label className="chk" htmlFor="i-lead" style={{ textTransform: 'none', letterSpacing: 0, fontSize: 13, color: 'var(--ink)', marginTop: 20 }}>
-                <input id="i-lead" type="checkbox" checked={form.lead} onChange={(e) => set('lead', e.target.checked)} /> Can lead or anchor
-              </label>
-            </div>
-            <div className="f"><label htmlFor="i-expected">Expected check ($)</label><input id="i-expected" type="number" min="0" step="5000" inputMode="numeric" value={form.expected} onChange={(e) => set('expected', e.target.value)} /></div>
-            <div className="f"><label htmlFor="i-committed">Committed ($)</label><input id="i-committed" type="number" min="0" step="5000" inputMode="numeric" value={form.committed} onChange={(e) => set('committed', e.target.value)} /></div>
-            <div className="f full"><label htmlFor="i-next">Next step</label><input id="i-next" placeholder="What happens next, in one line" {...text('nextStep')} /></div>
-            <div className="f"><label htmlFor="i-nextDate">Next step date</label><input id="i-nextDate" type="date" value={form.nextDate} onChange={(e) => set('nextDate', e.target.value)} /></div>
-            <div className="f"><label htmlFor="i-last">Last touch</label><input id="i-last" type="date" value={form.lastTouch} onChange={(e) => set('lastTouch', e.target.value)} /></div>
-            <div className="f full"><label htmlFor="i-notes">Notes</label><textarea id="i-notes" value={form.notes} onChange={(e) => set('notes', e.target.value)} /></div>
-            <div className="f full"><label htmlFor="i-source">Source</label><input id="i-source" {...text('source')} /></div>
-          </div>
-          {inv ? (
-            <div className="log">
-              <div className="eyebrow">Activity</div>
-              <div className="add">
-                <input
-                  placeholder="Log a touch: emailed, called, sent update…"
-                  aria-label="Log a touch"
-                  value={touch}
-                  onChange={(e) => setTouch(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      void logTouch()
-                    }
-                  }}
-                />
-                <Button variant="secondary" size="sm" type="button" onClick={logTouch}>
-                  Log
-                </Button>
-              </div>
-              <div className="log">
-                {log === undefined ? null : log.length ? (
-                  log.map((a) => (
-                    <div className="ev" key={a._id}>
-                      <span className="mono">{shortDate(a.date)}</span>
-                      <span>
-                        {a.kind === 'stage' ? (
-                          <>
-                            Moved to <strong>{LABEL[a.stage!] || a.stage}</strong>
-                          </>
-                        ) : (
-                          a.note
-                        )}
-                        {a.by ? <span className="who"> · {a.by}</span> : null}
-                      </span>
-                    </div>
-                  ))
-                ) : (
-                  <div className="muted">No activity logged yet.</div>
-                )}
-              </div>
-            </div>
-          ) : null}
-        </form>
-        <footer>
-          <Button variant="primary" type="submit" form="form" disabled={busy}>
-            Save
-          </Button>
-          {inv ? (
-            <Button variant="secondary" type="button" onClick={advance}>
-              Advance stage →
+    <form id="drawer-form" className="dform" onSubmit={submit}>
+      <div className="advance-card">
+        <div>
+          <p className="advance-card__eyebrow eyebrow-mono">Moving to {STAGE_TILE[to]}</p>
+          <p className="advance-card__rule">The rule: {rule.charAt(0).toLowerCase() + rule.slice(1)}</p>
+        </div>
+        <span ref={eggRef} className={`advance-card__egg advance-card__egg--${hatch}`} aria-hidden="true">
+          {hatch === 'hatched' ? <EggHatching size={56} /> : <EggCracking size={52} />}
+        </span>
+      </div>
+      <div ref={okRef} className={`advance-ok${ok ? ' advance-ok--on' : ''}`}>
+        <Checkbox checked={ok} onChange={(e) => setOk(e.target.checked)} label={advanceConfirm(to, inv.name)} data-autofocus />
+      </div>
+      <Input label="What’s the next step?" placeholder="e.g. Send the data room" value={step} onChange={(e) => setStep(e.target.value)} />
+      <Input label="By when" type="date" className="dform__narrow" value={by} onChange={(e) => setBy(e.target.value)} />
+      <Textarea label={to === 'm1' || to === 'm2' ? 'Call notes (optional)' : 'Notes (optional)'} rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
+      <p className="advance-alt">
+        Not moving forward?{' '}
+        <button type="button" className="drawer__link" onClick={onPass}>
+          Mark as passed
+        </button>
+        <span aria-hidden="true"> · </span>
+        <button type="button" className="drawer__link" onClick={onPark}>
+          Park until a date
+        </button>
+      </p>
+      <span className="sr-only" role="status">
+        {hatch === 'hatched' ? `${inv.name} moved to ${STAGE_TILE[to]}.` : ''}
+      </span>
+    </form>
+  )
+}
+
+/* ---------- log a touch ---------- */
+
+function TouchPanel({ inv, onDone }: { inv: Investor; onDone: () => void }) {
+  const d = useRaise()
+  const ui = useUI()
+  const today = todayIST()
+  const [kind, setKind] = useState<TouchKind>('call')
+  const [what, setWhat] = useState('')
+  const [when, setWhen] = useState(today)
+  const [setNext, setSetNext] = useState(true)
+  const [step, setStep] = useState(inv.nextStep)
+  const [due, setDue] = useState(inv.nextDate && inv.nextDate >= today ? inv.nextDate : addDays(today, 3))
+  const [busy, setBusy] = useState(false)
+  const whatRef = useRef<HTMLTextAreaElement>(null)
+  const quiet = useMemo(() => quietList([inv], today, d.round.quietDays).length > 0, [inv, today, d.round.quietDays])
+  const days = Array.from({ length: 7 }, (_, n) => addDays(today, -n))
+
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    if (!what.trim()) {
+      play('nope')
+      shake(whatRef.current?.closest('.field'))
+      whatRef.current?.focus()
+      return
+    }
+    setBusy(true)
+    try {
+      await d.logNote(inv._id, what.trim(), { touch: kind, date: when, next: setNext ? { step: step.trim(), date: due || undefined } : undefined })
+      ui.toast({ message: `${TOUCH_LABEL[kind]} logged.` })
+      onDone()
+    } catch (err) {
+      ui.fail(err)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <form id="drawer-form" className="dform" onSubmit={submit} aria-busy={busy || undefined}>
+      <div className="field">
+        <span className="field__label" id="touch-kind">What kind of touch?</span>
+        <Segmented label="What kind of touch?" value={kind} onChange={setKind} options={TOUCH_PICK.map((k) => ({ value: k, label: TOUCH_LABEL[k] }))} />
+      </div>
+      <Textarea ref={whatRef} label="What happened?" rows={4} placeholder="A line or two you’ll want next time." value={what} onChange={(e) => setWhat(e.target.value)} data-autofocus />
+      <Select label="When" className="dform__narrow" value={when} onChange={(e) => setWhen(e.target.value)}>
+        {days.map((x, n) => (
+          <option key={x} value={x}>
+            {n === 0 ? 'Today' : n === 1 ? 'Yesterday' : dayMonth(x)}
+          </option>
+        ))}
+      </Select>
+      <Toggle label="Also set the next step" checked={setNext} onChange={(e) => setSetNext(e.target.checked)} className="dform__toggle" />
+      {setNext ? (
+        <div className="dform__row dform__row--wide">
+          <Input label="Next step" placeholder="What happens next" value={step} onChange={(e) => setStep(e.target.value)} />
+          <Input label="Due" type="date" value={due} onChange={(e) => setDue(e.target.value)} />
+        </div>
+      ) : null}
+      <p className="drawer-tip drawer-tip--info">
+        <Icon name="clock" size={20} />
+        <span>Logging a touch resets the quiet clock.{quiet ? ` ${firstName(inv.name)} drops off “Gone quiet”.` : ''}</span>
+      </p>
+    </form>
+  )
+}
+
+/* ---------- park ---------- */
+
+function ParkPanel({ inv, onDone }: { inv: Investor; onDone: () => void }) {
+  const d = useRaise()
+  const ui = useUI()
+  const [until, setUntil] = useState(inv.parkedUntil ?? addDays(todayIST(), 14))
+  const [note, setNote] = useState('')
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    try {
+      await d.save(inv._id, { ...fieldsOf(inv), stage: 'parked', parkedUntil: until || undefined })
+      if (note.trim()) await d.logNote(inv._id, note.trim(), { touch: 'note' })
+      play('park')
+      ui.toast(until ? `Parked until ${dayMonth(until)}. ${firstName(inv.name)} comes back to Due today then.` : `${inv.name} is parked.`)
+      onDone()
+    } catch (err) {
+      ui.fail(err)
+    }
+  }
+  return (
+    <form id="drawer-form" className="dform" onSubmit={submit}>
+      <p className="drawer-tip">
+        <EggCracking size={28} />
+        <span>Parking takes {firstName(inv.name)} off Today and Gone quiet until the day you pick.</span>
+      </p>
+      <Input label="Park until" type="date" className="dform__narrow" value={until} onChange={(e) => setUntil(e.target.value)} data-autofocus />
+      <Textarea label="Why (optional)" rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
+    </form>
+  )
+}
+
+/* ---------- delete confirm ---------- */
+
+function DeleteConfirm({ inv, boxRef, onCancel, onPass, onDelete }: { inv: Investor; boxRef: React.RefObject<HTMLDivElement | null>; onCancel: () => void; onPass: () => void; onDelete: () => void }) {
+  const egg = useRef<HTMLSpanElement>(null)
+  const uid = useId()
+  useLayoutEffect(() => {
+    replay(egg.current, 'm-shake')
+    boxRef.current?.querySelector<HTMLElement>('[data-autofocus]')?.focus()
+  }, [boxRef])
+  return (
+    <div className="confirm-layer">
+      <div ref={boxRef} className="confirm" role="alertdialog" aria-modal="true" aria-labelledby={`${uid}-t`} aria-describedby={`${uid}-b`}>
+        <span ref={egg} className="confirm__egg">
+          <EggCracking size={36} />
+        </span>
+        <div className="confirm__text">
+          <h3 id={`${uid}-t`}>Delete {inv.name}?</h3>
+          <p id={`${uid}-b`}>Their notes and history go with them. If it’s just a no, mark them Passed instead.</p>
+        </div>
+        <div className="confirm__actions">
+          <button type="button" className="drawer__textbtn" onClick={onCancel} data-autofocus>
+            Cancel
+          </button>
+          {inv.stage !== 'passed' ? (
+            <Button variant="secondary" onClick={onPass}>
+              Mark as passed
             </Button>
           ) : null}
-          <span className="sp" />
-          {inv ? (
-            <span>
-              {confirmDel ? (
-                <>
-                  <span className="muted" style={{ fontSize: 12 }}>Delete for good?</span>{' '}
-                  <Button variant="ghost" size="sm" className="btn--danger" type="button" onClick={del}>
-                    Yes, delete
-                  </Button>
-                </>
-              ) : (
-                <Button variant="ghost" size="sm" className="btn--danger" type="button" onClick={() => setConfirmDel(true)}>
-                  Delete
-                </Button>
-              )}
-            </span>
-          ) : null}
-        </footer>
-      </aside>
-    </>
+          <Button variant="danger" onClick={onDelete}>
+            Delete
+          </Button>
+        </div>
+      </div>
+    </div>
   )
 }

@@ -77,6 +77,15 @@
   --btn-pressed: var(--brand-orange-pressed);
   --btn-ring: var(--brand-forest);
 }
+.btn--danger {
+  --btn-bg: var(--state-error);
+  --btn-fg: #fff;
+  --btn-border: var(--state-error);
+  --btn-edge: #8c2a12;
+  --btn-hover: #c4421f;
+  --btn-pressed: #9c2f15;
+  --btn-ring: var(--state-error-bg);
+}
 .btn--ghost {
   --btn-bg: transparent;
   --btn-border: transparent;
@@ -261,11 +270,16 @@
 .field--error .input input,
 .field--error .select select { border-color: var(--state-error); border-width: 2px; padding-right: 40px; }
 .field--error .input input:focus { box-shadow: 0 0 0 3px var(--state-error-bg); }
+.input--date input { color: transparent; cursor: pointer; padding-right: 40px; }
+.input--date input::-webkit-datetime-edit { color: transparent; }
+.input--date input::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: auto; height: auto; margin: 0; opacity: 0; cursor: pointer; }
+.input__date { position: absolute; left: 15px; right: 40px; pointer-events: none; font: 500 15px/1.4 var(--font-ui); color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.input__date--empty { color: var(--text-faint); font-weight: 400; }
 .input__alert { position: absolute; right: 12px; color: var(--state-error); pointer-events: none; }
 .select__chevron { position: absolute; right: 12px; color: var(--text-primary); pointer-events: none; }
 @media (max-width: 720px) {
   /* 16px stops iOS zooming into fields. */
-  .input input, .select select, .textarea { font-size: 16px; }
+  .input input, .select select, .textarea, .input__date { font-size: 16px; }
 }
 
 /* ---------- Checkbox and Toggle ---------- */
@@ -400,6 +414,46 @@ a.tab--active:hover { background: var(--brand-forest); color: var(--text-on-dark
 .subtab--active::after,
 .subtab--active:hover::after { background: var(--brand-orange); }
 
+button.subtab { border: 0; background: none; cursor: pointer; }
+button.subtab:focus-visible { outline: 3px solid var(--brand-lime); outline-offset: -3px; border-radius: 8px; }
+
+/* ---------- Segmented ---------- */
+.segmented {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--surface-cream);
+}
+.segmented__opt {
+  height: 36px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-primary);
+  font: 500 15px/1 var(--font-ui);
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.segmented__opt:hover { background: var(--surface-mint); }
+.segmented__opt[aria-checked='true'] { background: var(--brand-forest); color: var(--text-on-dark); }
+.segmented__opt:focus-visible { outline: 3px solid var(--brand-lime); outline-offset: 1px; }
+@media (pointer: coarse) { .segmented__opt { height: 44px; } }
+
+/* ---------- Phase bar (Home's Raise card and Today's summary) ---------- */
+.phasebar { display: flex; gap: 6px; list-style: none; margin: 30px 0 0; padding: 0; }
+.phasebar__seg { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.phasebar__bar { height: 12px; border-radius: 6px; background: var(--brand-forest-2); }
+.phasebar__seg--past .phasebar__bar { background: var(--brand-lime-deep); }
+.phasebar__seg--now .phasebar__bar { background: var(--brand-lime); }
+.phasebar__label { font: 400 14px/1.2 var(--font-ui); color: var(--text-on-dark-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.phasebar__seg--now .phasebar__label { color: var(--brand-lime); font-weight: 600; }
+.phasebar__detail { margin-top: -2px; font: 500 11px/1.2 var(--font-mono); letter-spacing: 0.02em; color: var(--text-on-dark); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.phasebar__seg--close .phasebar__detail { color: var(--brand-orange); }
+
 /* ---------- Card and KPI card ---------- */
 .card {
   background: var(--surface-white);
@@ -447,11 +501,16 @@ a.tab--active:hover { background: var(--brand-forest); color: var(--text-on-dark
   z-index: 80;
   padding: 0 16px;
 }
+/* Desktop: bottom right (system/save-failed.png, raise-today/win.png). Phones: centred. */
+@media (min-width: 721px) {
+  .toast-region { justify-content: flex-end; padding: 0 32px; bottom: 28px; }
+}
 .toast {
   display: flex;
   align-items: center;
   gap: 12px;
   min-height: 64px;
+  min-width: min(420px, 100%);
   max-width: min(560px, 100%);
   padding: 10px 20px 10px 12px;
   border-radius: 16px;

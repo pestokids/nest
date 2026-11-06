@@ -110,3 +110,11 @@ svg {
     --gutter: 32px;
   }
 }
+
+/* Show one or the other: desktop vs phone copy and layout pieces. */
+@media (min-width: 721px) {
+  .only-phone { display: none !important; }
+}
+@media (max-width: 720px) {
+  .only-desk { display: none !important; }
+}

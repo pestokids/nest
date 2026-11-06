@@ -1,10 +1,10 @@
 // Pipeline maths, ported from the prototype. Pure functions over plain data,
 // shared by the UI and Convex.
-import { dayDiff } from './dates'
+import { dayDiff, isISODate } from './dates'
 import { currentPhase, targetValue, type Metric, type Phase, type Round } from './round'
 import {
   ACTIVE, COMMIT, DONE, IDX, STAGES, TYPES,
-  type Geo, type InvestorType, type PipelineStage, type Stage, type Tier, type Warmth, type Wave,
+  type Geo, type InvestorType, type PipelineStage, type Stage, type Tier, type TouchKind, type Warmth, type Wave,
 } from './stages'
 
 /** Editable investor fields (the drawer form and CSV import). */
@@ -26,9 +26,12 @@ export type InvestorFields = {
   lastTouch?: string
   notes: string
   source: string
+  email?: string
+  /** Set only while parked: the day they come back to Due today. */
+  parkedUntil?: string
 }
 
-export type Investor = InvestorFields & { _id: string; maxStage: PipelineStage; slug?: string; updatedAt?: number }
+export type Investor = InvestorFields & { _id: string; maxStage: PipelineStage; slug?: string; updatedAt?: number; _creationTime?: number }
 
 export type Activity = {
   _id: string
@@ -36,15 +39,27 @@ export type Activity = {
   kind: 'stage' | 'note'
   stage?: Stage
   note?: string
+  touch?: TouchKind
   date: string
   by?: string
+  _creationTime?: number
 }
+
+/** Options for logging a touch: its kind, the day it happened, and optionally a new next step. */
+export type TouchOptions = { touch?: TouchKind; date?: string; next?: { step: string; date?: string } }
 
 /** Defaults for a new investor, as in the prototype's drawer. */
 export const NEW_INVESTOR: InvestorFields = {
   name: '', firm: '', type: 'Angel', geo: 'India', warmth: 'intro', path: '', tier: 'B', wave: 2, stage: 'todo',
   lead: false, nextStep: '', notes: '', source: '',
 }
+
+/** Just the editable fields of a stored investor (drops ids and bookkeeping). */
+export const fieldsOf = (i: InvestorFields): InvestorFields => ({
+  name: i.name, firm: i.firm, type: i.type, geo: i.geo, warmth: i.warmth, path: i.path, tier: i.tier, wave: i.wave, stage: i.stage,
+  lead: i.lead, expected: i.expected, committed: i.committed, nextStep: i.nextStep, nextDate: i.nextDate, lastTouch: i.lastTouch,
+  notes: i.notes, source: i.source, email: i.email, parkedUntil: i.parkedUntil,
+})
 
 type Inv = Pick<InvestorFields, 'stage' | 'expected' | 'committed'> & { maxStage?: string }
 
@@ -86,9 +101,21 @@ export function totals(inv: Inv[], round: Round, today: string) {
   }
 }
 
-/** Investors whose next step is due today or overdue, oldest first. */
+/** The day an investor is due on Today: their next-step date, or for a parked one the day they come back. */
+export const dueDate = (i: Pick<InvestorFields, 'stage' | 'nextDate' | 'parkedUntil'>) =>
+  i.stage === 'parked' ? i.parkedUntil : DONE.has(i.stage) ? undefined : i.nextDate
+
+/**
+ * Due today: a live next step dated today or earlier, or a parked investor whose
+ * "park until" day has come. Passed and money-in never show. Oldest first.
+ */
 export const dueList = <T extends Investor>(inv: T[], today: string) =>
-  inv.filter((i) => i.nextDate && i.nextDate <= today && !DONE.has(i.stage)).sort((a, b) => a.nextDate!.localeCompare(b.nextDate!))
+  inv
+    .filter((i) => {
+      const d = dueDate(i)
+      return !!d && d <= today
+    })
+    .sort((a, b) => dueDate(a)!.localeCompare(dueDate(b)!) || a.name.localeCompare(b.name))
 
 /** Live, uncommitted conversations with no touch in `quietDays`+ days. */
 export const quietList = <T extends Investor>(inv: T[], today: string, quietDays: number) =>
@@ -180,3 +207,6 @@ export function applyAdvance(i: Inv, today: string) {
   const next = STAGES[ix + 1].k
   return { stage: next as PipelineStage, lastTouch: today, raiseMax: ix + 1 > maxIdx(i) }
 }
+
+/** The day a touch is logged on: the picked day, never in the future; today when missing or invalid. */
+export const touchDay = (date: string | undefined, today: string) => (date && isISODate(date) && date <= today ? date : today)

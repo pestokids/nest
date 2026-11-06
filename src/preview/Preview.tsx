@@ -4,10 +4,14 @@
 //   &signin=<state>          a sign-in state: default, hover, checking, noaccess, error, signedout
 //   &pipeline=hidden|shown|end  Pipeline board states (adds a few fake cards; see components/pipeline/preview.ts)
 //   &stage=<key>             with &pipeline on a phone: the stage chip that starts selected
+//   &today=nothingdue|win    Raise · Today states
+//   &drawer=<state>          the investor drawer: view, edit, new, advance, touch, history, delete
+//   &sheet                   the drawer as the phone bottom sheet at any width
 import { AppShell } from '../components/AppShell'
 import { PreviewData, type PreviewHome } from '../components/PreviewData'
 import { LocalSounds, SessionContext } from '../components/session'
 import { SignIn, SIGN_IN_STATES, type SignInState } from '../components/SignIn'
+import { PREVIEW_DRAWER, PREVIEW_TODAY, PreviewStateContext, type PreviewDrawer, type PreviewToday } from '../components/preview-state'
 
 const session = { me: { firstName: 'Dev', name: 'Dev Preview', email: 'dev@example.com' }, signOut: () => {} }
 
@@ -25,12 +29,22 @@ export function Preview() {
       </LocalSounds>
     )
   const home = (q.get('home') ?? 'default') as PreviewHome
+  const today = (PREVIEW_TODAY as readonly string[]).includes(q.get('today') ?? '') ? (q.get('today') as PreviewToday) : 'default'
+  const drawer = (PREVIEW_DRAWER as readonly string[]).includes(q.get('drawer') ?? '') ? (q.get('drawer') as PreviewDrawer) : undefined
+  const state = { today, drawer, sheet: q.has('sheet') }
   return (
     <LocalSounds>
       <SessionContext.Provider value={session}>
-        <PreviewData source={sessionStorage.getItem('nest_preview_data') === 'seed' ? 'seed' : 'fixture'} home={home} board={sessionStorage.getItem('nest_preview_board') === '1'}>
-          <AppShell />
-        </PreviewData>
+        <PreviewStateContext.Provider value={state}>
+          <PreviewData
+            source={sessionStorage.getItem('nest_preview_data') === 'seed' ? 'seed' : 'fixture'}
+            home={home}
+            today={today}
+            board={sessionStorage.getItem('nest_preview_board') === '1'}
+          >
+            <AppShell />
+          </PreviewData>
+        </PreviewStateContext.Provider>
       </SessionContext.Provider>
     </LocalSounds>
   )

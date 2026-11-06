@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react'
 import type { MoveRecord } from '../lib/board'
-import type { Activity, Investor, InvestorFields } from '../lib/pipeline'
+import type { Activity, Investor, InvestorFields, TouchOptions } from '../lib/pipeline'
 import type { Round, RoundChange } from '../lib/round'
 import type { Stage } from '../lib/stages'
 
@@ -15,12 +15,14 @@ export type RaiseData = {
   roundExists: boolean
   me: string
   save: (id: string | null, fields: InvestorFields) => Promise<string>
-  advance: (id: string) => Promise<{ stage: string; label: string } | null>
+  /** One stage forward; `next` also sets the next step. Null at Money in or a closed stage. */
+  advance: (id: string, next?: TouchOptions['next']) => Promise<{ stage: string; label: string } | null>
   /** Move to any stage (Pipeline board); resolves with what `undoMove` needs. Applied optimistically. */
   move: (id: string, stage: Stage) => Promise<MoveRecord>
   /** Put a moved investor back; rejects if it has moved again since. */
   undoMove: (rec: MoveRecord) => Promise<unknown>
-  logNote: (id: string, note: string) => Promise<string>
+  /** Log a touch; returns the day it was logged on. */
+  logNote: (id: string, note: string, opts?: TouchOptions) => Promise<string>
   remove: (id: string) => Promise<unknown>
   importMany: (rows: InvestorFields[]) => Promise<{ added: number; skipped: number }>
   updateRound: (round: Round) => Promise<number>

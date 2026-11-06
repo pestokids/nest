@@ -4,17 +4,21 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { applyMove, applyUndo } from '../lib/board'
 import { todayIST } from '../lib/dates'
-import { applyAdvance, applySave, type Activity, type Investor } from '../lib/pipeline'
+import { applyAdvance, applySave, touchDay, type Activity, type Investor } from '../lib/pipeline'
 import { DEFAULT_ROUND, diffRound, mergeRound, type Round } from '../lib/round'
 import { LABEL } from '../lib/stages'
-import { fixtureBoardExtras, fixtureInvestors, fixtureRound } from '../preview/fixture'
+import { fixtureActs, fixtureBoardExtras, fixtureInvestors, fixtureRound } from '../preview/fixture'
+import { addDays } from '../lib/today'
+import { ACTIVE } from '../lib/stages'
 import { RaiseContext, type LogRow, type RaiseData } from './data'
 
 type Seed = { round?: Partial<Round>; investors: (Omit<Investor, '_id'> & { slug: string })[] }
 export type PreviewHome = 'default' | 'firstrun' | 'prepdone'
 
-/** `board`: add the Pipeline board's extra fake cards (`&pipeline=…`). */
-export function PreviewData({ source, home = 'default', board = false, children }: { source: 'fixture' | 'seed'; home?: PreviewHome; board?: boolean; children: ReactNode }) {
+/** `board`: add the Pipeline board's extra fake cards (`&pipeline=…`). `today`: the Raise · Today preview state. */
+export function PreviewData({
+  source, home = 'default', board = false, today: todayState = 'default', children,
+}: { source: 'fixture' | 'seed'; home?: PreviewHome; board?: boolean; today?: 'default' | 'nothingdue' | 'win'; children: ReactNode }) {
   const [investors, setInvestors] = useState<Investor[] | null>(null)
   const [acts, setActs] = useState<Activity[]>([])
   const [round, setRound] = useState<Round>(DEFAULT_ROUND)
@@ -31,9 +35,18 @@ export function PreviewData({ source, home = 'default', board = false, children 
         setRound(DEFAULT_ROUND)
         return
       }
-      setInvestors(inv)
+      // `&today=nothingdue`: every next step is later and every live conversation was touched yesterday.
+      const list =
+        todayState === 'nothingdue'
+          ? inv.map((i) => ({
+              ...i,
+              nextDate: i.nextDate && i.nextDate <= t ? addDays(t, 3) : i.nextDate,
+              lastTouch: ACTIVE.has(i.stage) ? addDays(t, -1) : i.lastTouch,
+            }))
+          : inv
+      setInvestors(list)
       setRound(r)
-      setActs(inv.filter((i) => i.stage !== 'todo').map((i, n) => ({ _id: 'a' + n, investorId: i._id, kind: 'stage', stage: i.stage, date: t, by: 'Dev' })))
+      setActs(fixtureActs(list, t))
       if (home === 'prepdone') {
         const p = r.phases.find((x) => t >= x.from && t <= x.to)
         if (p) setTicks({ [p.k]: p.todo.map((_, i) => i) })
@@ -50,7 +63,7 @@ export function PreviewData({ source, home = 'default', board = false, children 
           mergeRound(s.round),
         )
       })
-  }, [source, home, board])
+  }, [source, home, board, todayState])
 
   const latest = useRef(investors)
   useEffect(() => {
@@ -60,9 +73,9 @@ export function PreviewData({ source, home = 'default', board = false, children 
   const value = useMemo<RaiseData>(() => {
     const t = todayIST()
     let n = 0
-    const act = (a: Omit<Activity, '_id' | 'date' | 'by'>) => {
+    const act = (a: Omit<Activity, '_id' | 'date' | 'by'> & { date?: string }) => {
       const _id = `p${Date.now()}${n++}`
-      setActs((xs) => [{ ...a, _id, date: t, by: 'Dev' }, ...xs])
+      setActs((xs) => [{ date: t, ...a, _id, by: 'Dev', _creationTime: Date.now() }, ...xs])
       return _id
     }
     const list = investors ?? []
@@ -77,16 +90,20 @@ export function PreviewData({ source, home = 'default', board = false, children 
         const prev = id ? list.find((i) => i._id === id) ?? null : null
         const { lastTouch, maxStage, logStage } = applySave(prev, f, t)
         const nid = id ?? 'new' + Date.now()
-        const doc: Investor = { ...f, _id: nid, lastTouch, maxStage }
+        const doc: Investor = {
+          ...f, _id: nid, lastTouch, maxStage, email: f.email?.trim() || undefined,
+          parkedUntil: f.stage === 'parked' ? f.parkedUntil || undefined : undefined, _creationTime: prev?._creationTime ?? Date.now(),
+        }
         setInvestors((xs) => (prev ? (xs ?? []).map((i) => (i._id === id ? doc : i)) : [...(xs ?? []), doc]))
         if (logStage) act({ investorId: nid, kind: 'stage', stage: logStage })
         return nid
       },
-      advance: async (id) => {
+      advance: async (id, next) => {
         const i = list.find((x) => x._id === id)
         const nx = i && applyAdvance(i, t)
         if (!i || !nx) return null
-        setInvestors((xs) => (xs ?? []).map((x) => (x._id === id ? { ...x, stage: nx.stage, lastTouch: t, ...(nx.raiseMax ? { maxStage: nx.stage } : {}) } : x)))
+        const step = next ? { nextStep: next.step.trim(), nextDate: next.date || undefined } : {}
+        setInvestors((xs) => (xs ?? []).map((x) => (x._id === id ? { ...x, stage: nx.stage, lastTouch: t, ...(nx.raiseMax ? { maxStage: nx.stage } : {}), ...step } : x)))
         act({ investorId: id, kind: 'stage', stage: nx.stage })
         return { stage: nx.stage, label: LABEL[nx.stage] }
       },
@@ -108,10 +125,17 @@ export function PreviewData({ source, home = 'default', board = false, children 
         setInvestors((xs) => (xs ?? []).map((x) => (x._id === rec.id ? { ...x, ...back } : x)))
         if (rec.activityId) setActs((xs) => xs.filter((a) => a._id !== rec.activityId))
       },
-      logNote: async (id, note) => {
-        act({ investorId: id, kind: 'note', note })
-        setInvestors((xs) => (xs ?? []).map((x) => (x._id === id ? { ...x, lastTouch: t } : x)))
-        return t
+      logNote: async (id, note, o) => {
+        const day = touchDay(o?.date, t)
+        act({ investorId: id, kind: 'note', note: note.trim(), touch: o?.touch, date: day })
+        setInvestors((xs) =>
+          (xs ?? []).map((x) =>
+            x._id === id
+              ? { ...x, lastTouch: !x.lastTouch || x.lastTouch < day ? day : x.lastTouch, ...(o?.next ? { nextStep: o.next.step.trim(), nextDate: o.next.date || undefined } : {}) }
+              : x,
+          ),
+        )
+        return day
       },
       remove: async (id) => {
         setInvestors((xs) => (xs ?? []).filter((x) => x._id !== id))

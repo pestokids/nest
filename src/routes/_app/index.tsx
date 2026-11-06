@@ -3,10 +3,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { errorMessage, useRaise } from '../../components/data'
 import { Egg, EggCracking, NestEmpty } from '../../components/illustrations'
 import { LogoTile } from '../../components/LogoTile'
+import { PhaseBar } from '../../components/PhaseBar'
 import { useSession } from '../../components/session'
 import { buttonClass, Card, Checkbox, Icon, useToast } from '../../components/ui'
 import { todayIST } from '../../lib/dates'
-import { dateEyebrow, dayMonth, greeting, isChecklistDone, monDay, nextPhase, phaseLine, phaseOn, phaseSegments, upNext } from '../../lib/home'
+import { dateEyebrow, dayMonth, greeting, isChecklistDone, monDay, nextPhase, phaseLine, phaseOn, upNext } from '../../lib/home'
 import { confetti, rise, usePop } from '../../lib/motion'
 import { money } from '../../lib/money'
 import { phaseActual, totals } from '../../lib/pipeline'
@@ -95,7 +96,6 @@ function RaiseCard({ round: r, roundExists, today }: { round: Round; roundExists
         </Link>
       </Card>
     )
-  const segs = phaseSegments(r, today)
   const talking = inv.filter((i) => ACTIVE.has(i.stage)).length
   const passed = inv.filter((i) => i.stage === 'passed').length
   return (
@@ -112,17 +112,7 @@ function RaiseCard({ round: r, roundExists, today }: { round: Round; roundExists
         </span>
         <span className="raise-card__of">of {money(r.target)} committed</span>
       </p>
-      <ol className="phasebar" aria-label="Phases">
-        {segs.map((s) => (
-          <li key={s.key} className={`phasebar__seg phasebar__seg--${s.state}`} style={{ flexGrow: s.grow }}>
-            <span className="phasebar__bar" />
-            <span className="phasebar__label">
-              {s.name}
-              {s.state === 'now' ? ' · now' : ''}
-            </span>
-          </li>
-        ))}
-      </ol>
+      <PhaseBar round={r} today={today} />
       <p className="raise-card__stats">
         <span>
           <b className="num">{talking}</b> in conversation
