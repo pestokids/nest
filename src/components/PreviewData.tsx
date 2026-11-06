@@ -37,7 +37,8 @@ export function PreviewData({ source, home = 'default', children }: { source: 'f
         if (p) setTicks({ [p.k]: p.todo.map((_, i) => i) })
       }
     }
-    if (source === 'fixture') return load(fixtureInvestors(t), fixtureRound(t))
+    // The real seed file only exists locally; deployed previews always use the fixture.
+    if (source === 'fixture' || !import.meta.env.DEV) return load(fixtureInvestors(t), fixtureRound(t))
     fetch('/internal/seed.json')
       .then((r) => r.json() as Promise<Seed>)
       .then((s) => {

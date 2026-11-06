@@ -6,8 +6,10 @@ import { ConvexData } from '../components/ConvexData'
 import { ConvexSounds } from '../components/session'
 import { installSound } from '../lib/sound'
 
-// DEV ONLY: `?preview` renders without signing in (see src/preview/Preview.tsx).
-const Preview = import.meta.env.DEV ? lazy(() => import('../preview/Preview').then((m) => ({ default: m.Preview }))) : null
+// `?preview` renders without signing in (see src/preview/Preview.tsx), with the fake fixture only.
+// On in local dev, and on Vercel preview builds where VITE_PREVIEW_MODE=1. Never in production.
+const PREVIEW_ON = import.meta.env.DEV || import.meta.env.VITE_PREVIEW_MODE === '1'
+const Preview = PREVIEW_ON ? lazy(() => import('../preview/Preview').then((m) => ({ default: m.Preview }))) : null
 
 function isPreview() {
   if (!Preview) return false

@@ -91,3 +91,5 @@ npx convex deploy --cmd 'pnpm build' --cmd-url-env-var-name VITE_CONVEX_URL
 ```
 
 which pushes Convex functions to production, then runs `vite build` with `VITE_CONVEX_URL` set to the production URL. Vercel needs `CONVEX_DEPLOY_KEY` (production deploy key). TanStack Start builds through Nitro with the `vercel` preset (`vite.config.ts`), which writes `.vercel/output` (Vercel Build Output API). Never deploy to production from a laptop.
+
+Preview deployments (every PR) build with `pnpm build` only: `vercel.json` skips `convex deploy` unless `VERCEL_ENV` is `production`, so a preview never touches the production deployment. Previews set `VITE_PREVIEW_MODE=1` and `VITE_CONVEX_URL` (the dev deployment) for the Preview environment, which turns on `?preview` with the fake fixture. Production never sets `VITE_PREVIEW_MODE`.
