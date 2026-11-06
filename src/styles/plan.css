@@ -1,0 +1,110 @@
+/* Raise · Plan (screens/raise-plan/*). */
+.plan { display: flex; flex-direction: column; }
+
+.plan-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  background: var(--surface-white);
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-card);
+  padding: 20px 0;
+}
+.plan-cell { display: flex; flex-direction: column; gap: 12px; padding: 0 24px; min-width: 0; }
+.plan-cell + .plan-cell { border-left: 1px solid var(--line-default); }
+.plan-cell__label { font: 600 12px/1 var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
+.plan-cell__value { font: 800 22px/1.1 var(--font-display); color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan-cell__value--today { color: var(--brand-leaf); }
+
+.plan-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin: 28px 0 18px; }
+.plan-head h2 { font: 800 28px/1.1 var(--font-display); letter-spacing: -0.005em; }
+.plan-head p { margin-top: 8px; font-size: 15px; color: var(--text-secondary); }
+.plan-head .btn { flex: none; }
+
+.plan-phases { display: grid; grid-template-columns: repeat(min(var(--n, 5), 5), minmax(0, 1fr)); gap: 12px; }
+.plan-empty { color: var(--text-muted); }
+.plan-phase {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-height: 250px;
+  padding: 20px 20px 22px;
+  border-radius: var(--radius-card);
+  background: var(--surface-white);
+  border: 1px solid var(--line-default);
+  color: var(--text-secondary);
+  min-width: 0;
+}
+.plan-phase__chip { height: 28px; padding: 0 12px; }
+.plan-phase__name { margin-top: 14px; font: 800 26px/1.1 var(--font-display); letter-spacing: -0.005em; color: var(--text-primary); }
+.plan-phase__dates { margin-top: 10px; font: 600 12px/1 var(--font-mono); letter-spacing: 0.04em; color: var(--text-muted); }
+.plan-phase__goal { margin-top: 18px; font-size: 14px; line-height: 1.25; color: var(--text-primary); }
+.plan-phase__foot { margin-top: auto; padding-top: 22px; width: 100%; }
+.plan-bar { height: 8px; border-radius: 4px; background: #e2e8d8; overflow: hidden; }
+.plan-bar__fill { display: block; height: 100%; border-radius: 4px; background: var(--brand-forest); transition: width 600ms var(--ease-out); }
+.plan-phase__progress { margin-top: 18px; font: 600 12px/1.2 var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-primary); }
+
+.plan-phase--now { background: var(--brand-forest); border-color: var(--brand-forest); }
+.plan-phase--now .plan-phase__name { color: var(--text-on-dark); }
+.plan-phase--now .plan-phase__dates { color: var(--text-on-dark-muted); }
+.plan-phase--now .plan-phase__goal { color: var(--text-on-dark); }
+.plan-phase--now .plan-bar { background: var(--brand-forest-2); }
+.plan-phase--now .plan-bar__fill { background: var(--brand-lime); }
+.plan-phase--now .plan-phase__progress { color: var(--brand-lime); }
+.plan-phase--next { border: 2px solid var(--brand-forest); padding: 19px 19px 21px; }
+.plan-phase--next .plan-phase__chip { height: 28px; }
+.plan-phase--later .plan-phase__chip { background: #efeee5; color: var(--text-muted); font-weight: 500; }
+.plan-phase--done { background: var(--surface-paper); }
+.plan-phase--hit { background: var(--state-success-bg); border-color: var(--state-success-bg); }
+.plan-phase--hit .plan-phase__chip { background: transparent; padding-left: 8px; color: var(--state-success); }
+.plan-phase--hit .plan-bar__fill { background: var(--state-success); }
+.plan-phase--hit .plan-phase__progress { color: var(--state-success); }
+.plan-phase--missed { background: var(--surface-peach); border-color: var(--line-peach); }
+.plan-phase--missed .plan-phase__chip { background: var(--surface-white); }
+.plan-phase--missed .plan-bar { background: #f3e2d6; }
+.plan-phase--missed .plan-bar__fill { background: var(--brand-orange); }
+.plan-phase--missed .plan-phase__progress { color: var(--text-orange-deep); }
+
+.plan-waves { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.plan-wave {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 22px 24px 22px 28px;
+  border-radius: var(--radius-card);
+  background: var(--surface-white);
+  border: 1px solid var(--line-default);
+  overflow: hidden;
+  min-width: 0;
+}
+.plan-wave::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: var(--brand-lime); }
+.plan-wave--2::before { background: var(--brand-leaf); }
+.plan-wave--3::before { background: var(--brand-forest); }
+.plan-wave__top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.plan-wave__top h3 { font: 800 22px/1.15 var(--font-display); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan-wave__count { font: 800 22px/1 var(--font-display); color: var(--text-primary); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.plan-wave__when { margin-top: 10px; font: 600 12px/1 var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
+.plan-wave__about { margin-top: 16px; font-size: 14px; color: var(--text-primary); }
+.plan-wave__link { margin-top: 8px; display: inline-flex; align-items: center; min-height: 44px; font: 600 14px/1 var(--font-ui); color: var(--brand-leaf); text-decoration: none; align-self: flex-start; }
+.plan-wave__link:hover { text-decoration: underline; }
+
+@media (max-width: 1240px) {
+  .plan-phases { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .plan-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 20px; }
+  .plan-cell:nth-child(4) { border-left: 0; }
+}
+@media (max-width: 720px) {
+  .plan-strip { grid-template-columns: 1fr 1fr; padding: 18px 0; }
+  .plan-cell { padding: 0 18px; gap: 8px; }
+  .plan-cell:nth-child(odd) { border-left: 0; }
+  .plan-cell:nth-child(4) { border-left: 1px solid var(--line-default); }
+  .plan-cell:last-child { grid-column: 1 / -1; }
+  .plan-cell__value { font-size: 20px; white-space: normal; }
+  .plan-head { flex-direction: column; align-items: stretch; gap: 14px; margin: 28px 0 14px; }
+  .plan-head h2 { font-size: 26px; }
+  .plan-phases, .plan-waves { grid-template-columns: minmax(0, 1fr); }
+  .plan-phase { min-height: 0; }
+  .plan-phase__foot { padding-top: 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .plan-bar__fill { transition: none; }
+}

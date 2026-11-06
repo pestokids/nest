@@ -1,6 +1,6 @@
 // Motion vocabulary from interactions.png. CSS lives in src/styles/motion.css;
 // this file triggers the one-shot animations and draws confetti.
-import { useEffect, useRef, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 
 export const MOTION = {
   rise: { ms: 420, staggerMs: 60 },
@@ -92,4 +92,46 @@ export function confetti(from: Element | null | undefined, { count = 46 }: { cou
   if (still && typeof layer.animate === 'function')
     layer.animate([{ opacity: 1 }, { opacity: 1, offset: 0.7 }, { opacity: 0 }], { duration: MOTION.confetti.ms, fill: 'forwards' })
   setTimeout(() => layer.remove(), MOTION.confetti.ms + 100)
+}
+
+/** Counts from `from` up to `to` (ease-out, 600ms by default); jumps straight there under reduced motion. */
+export function useCountUp(to: number, { from = 0, ms = 600, delay = 0 }: { from?: number; ms?: number; delay?: number } = {}) {
+  const [n, setN] = useState(from)
+  useEffect(() => {
+    if (prefersReducedMotion() || typeof requestAnimationFrame !== 'function') {
+      setN(to)
+      return
+    }
+    let raf = 0
+    let start = 0
+    const tick = (t: number) => {
+      if (!start) start = t
+      const k = Math.min(1, Math.max(0, (t - start - delay) / ms))
+      setN(Math.round(from + (to - from) * (1 - Math.pow(1 - k, 3))))
+      if (k < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [to, from, ms, delay])
+  return n
+}
+
+/** True once the element has scrolled into view (stays true). For bars that fill when seen. */
+export function useInView<T extends Element>() {
+  const ref = useRef<T>(null)
+  const [seen, setSeen] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || seen) return
+    if (typeof IntersectionObserver !== 'function') return setSeen(true)
+    const io = new IntersectionObserver((es) => {
+      if (es.some((e) => e.isIntersecting)) {
+        setSeen(true)
+        io.disconnect()
+      }
+    }, { threshold: 0.2 })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [seen])
+  return [ref, seen] as const
 }

@@ -7,13 +7,25 @@ import { errorMessage, useRaise } from './data'
 import { Chip, type ChipTone, type ToastInput } from './ui'
 
 /* ---------- toast + drawer opener ---------- */
-/** Prefill for the drawer's "new" state, e.g. the stage of the column whose + was clicked. */
-export type OpenOptions = { stage?: Stage }
+/** Prefill for the drawer's "new" state: the stage of the column whose + was clicked, or the name searched for ("Add “Name”"). */
+export type OpenOptions = { stage?: Stage; name?: string }
+
+/*
+ * Opening the drawer from outside the Raise views (the ⌘K palette lives in the
+ * app shell, above UIContext): navigate to a Raise view with `state.drawer`, and
+ * the Raise layout passes it straight to useUI().open(id, opts). One opener.
+ */
+export type DrawerRequest = { id: string | null; opts?: OpenOptions }
+declare module '@tanstack/react-router' {
+  interface HistoryState {
+    drawer?: DrawerRequest
+  }
+}
 export type UI = {
   toast: (t: ToastInput | string) => void
-  /** Opens the drawer on an investor, or its "new" state with `null` (optionally with a preselected stage). The opener gets focus back on close. */
+  /** Opens the drawer on an investor, or its "new" state with `null` (optionally with a preselected stage or name). The opener gets focus back on close. */
   open: (id: string | null, opts?: OpenOptions) => void
-  /** What the open drawer was opened with (its "new" state reads `stage` from here). */
+  /** What the open drawer was opened with (its "new" state reads `stage` and `name` from here). */
   opening: OpenOptions
   advance: (i: Investor) => void
   /** Delete with an Undo toast; the delete is sent when the toast goes. */

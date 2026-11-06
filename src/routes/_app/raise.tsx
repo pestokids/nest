@@ -1,7 +1,9 @@
-import { createFileRoute, Link, Outlet } from '@tanstack/react-router'
+import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { RaiseContext, useRaise, type RaiseData } from '../../components/data'
 import { Drawer, type DrawerStart } from '../../components/Drawer'
+import { TargetHitWatcher } from '../../components/plan/targetHits'
+import { ViewSkeleton } from '../../components/system/Skeleton'
 import { usePreviewState } from '../../components/preview-state'
 import { UIContext, useAdvance, useFail, type OpenOptions, type UI } from '../../components/raise-ui'
 import { Button, buttonClass, Icon, SubTabs, useToast, type TabItem } from '../../components/ui'
@@ -44,6 +46,15 @@ function RaiseLayout() {
     opener.current = null
     if (el?.isConnected) requestAnimationFrame(() => el.focus({ preventScroll: true }))
   }, [])
+
+  // A drawer asked for from outside the Raise views (the ⌘K palette): open it with the same opener, then drop the request.
+  const navigate = useNavigate()
+  const request = useRouterState({ select: (s) => s.location.state.drawer })
+  useEffect(() => {
+    if (!request || !raw.loaded) return
+    open(request.id, request.opts)
+    void navigate({ to: '.', search: true, hash: true, replace: true, state: (s) => ({ ...s, drawer: undefined }) })
+  }, [request, raw.loaded, open, navigate])
 
   // Preview: open the drawer in the asked-for state (no sound on load).
   useEffect(() => {
@@ -152,15 +163,16 @@ function RaiseLayout() {
             </div>
           </header>
           <SubTabs items={TABS} label="Raise views" />
-          {status ? <div className="notice">{status}</div> : null}
-          <div className="raise-view">{d.loaded ? <Outlet /> : null}</div>
+          {status && (d.loaded || slow) ? <div className="notice">{status}</div> : null}
+          <div className="raise-view">{d.loaded ? <Outlet /> : <ViewSkeleton />}</div>
+          {d.loaded ? <TargetHitWatcher /> : null}
         </div>
         {drawer ? null : (
           <button type="button" className="fab" aria-label="Add investor" onClick={() => open(null)}>
             <Icon name="plus" size={26} strokeWidth={2.2} />
           </button>
         )}
-        {drawer ? <Drawer key={drawer.id ?? `new-${drawer.opts.stage ?? ''}`} id={drawer.id} start={drawer.start} forceSheet={preview?.sheet} onClose={close} /> : null}
+        {drawer ? <Drawer key={drawer.id ?? `new-${drawer.opts.stage ?? ''}-${drawer.opts.name ?? ''}`} id={drawer.id} start={drawer.start} forceSheet={preview?.sheet} onClose={close} /> : null}
       </UIContext.Provider>
     </RaiseContext.Provider>
   )

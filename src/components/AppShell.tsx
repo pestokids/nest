@@ -1,15 +1,23 @@
 import { Outlet } from '@tanstack/react-router'
+import type { ReactNode } from 'react'
+import { CommandPalette } from './system/CommandPalette'
+import { OfflineBanner } from './system/Connection'
+import { usePreviewState } from './preview-state'
 import { TopBar } from './TopBar'
 import { ToastProvider } from './ui'
 
-/** Top bar over the active section. Toasts are app-wide. */
-export function AppShell() {
+/** Top bar over the active section. Toasts, the offline banner and ⌘K are app-wide. */
+export function AppShell({ children }: { children?: ReactNode }) {
+  const preview = usePreviewState()
   return (
     <ToastProvider>
       <TopBar />
       <div className="app-main">
+        <OfflineBanner watchConvex={!preview} force={preview?.system === 'offline'} />
         <Outlet />
       </div>
+      <CommandPalette />
+      {children}
     </ToastProvider>
   )
 }

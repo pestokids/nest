@@ -110,3 +110,72 @@ export function fixtureActs(inv: Investor[], today: string): Activity[] {
 
 /** How far into the round the fixture is (for sanity checks). */
 export const fixtureDaysLeft = (today: string) => dayDiff(fixtureRound(today).deadline, today)
+
+/* ---------- T5 preview states (all made up) ---------- */
+
+/** A CSV like a real export: odd headers, an email column, a second notes column, one duplicate, one row without a name. */
+export function fixtureCsv(): string {
+  const rows = [
+    ['Name', 'Fund / Company', 'Email', 'Kind', 'Intro via', 'Check size', 'Notes 2'],
+    ['Amber Lane', 'Amber Lane Angels', 'amber@example.com', 'Angel', 'Ria', '25k', 'Operator'],
+    ['Birchwood Capital', 'Birchwood', 'hello@example.com', 'Seed fund', 'Ankur', '150000', ''],
+    ['Cobalt Seed', 'Cobalt', 'team@example.org', 'Pre-seed fund', 'Mira', '$100,000', ''],
+    ['Driftwood Angels', '', 'drift@example.net', 'Angel', '', '20k', 'Met at a meetup'],
+    ['Ember Ventures', 'Ember', 'deals@example.com', 'Micro-VC', 'Ria', '75k', ''],
+    ['Fablework Fund', 'Fablework', 'fund@example.com', 'Seed fund', '', '200k', ''],
+    ['Granite Hill', 'Granite Hill', 'gh@example.com', 'Multi-stage VC', 'Ankur', '250k', ''],
+    ['Indigo Angels', '', 'indigo@example.com', 'Large angel', 'Mira', '50k', ''],
+    ['Juniper Labs', 'Juniper', 'labs@example.com', 'Accelerator', '', '125k', ''],
+    ['Kestrel Partners', 'Kestrel', 'k@example.com', 'Micro-VC', 'Ria', '60k', ''],
+    ['Linden Seed', 'Linden', 'linden@example.com', 'Pre-seed fund', '', '80k', ''],
+    ['Meadowlark', '', 'meadow@example.com', 'Angel', 'Direct', '15k', ''],
+    ['Orchard Capital', 'Orchard Capital', 'o@example.com', 'Pre-seed fund', 'Ria', '100k', 'Already tracked'],
+    ['', 'Nameless Co', 'x@example.com', 'Angel', '', '', ''],
+  ]
+  return rows.map((r) => r.map((c) => (/[,"]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c)).join(',')).join('\n')
+}
+
+const WORDS_A = ['Amber', 'Birch', 'Cobalt', 'Drift', 'Ember', 'Fable', 'Granite', 'Harbor', 'Indigo', 'Juniper', 'Kestrel', 'Linden', 'Meadow', 'Nimbus', 'Opal', 'Pine', 'Quarry', 'Ridge', 'Sable', 'Thistle', 'Umber', 'Vale', 'Wren', 'Yarrow']
+const WORDS_B = ['Capital', 'Ventures', 'Angels', 'Partners', 'Fund', 'Collective']
+
+/**
+ * Mid-round (?preview&plan=mid): today is in Push. Prep and Wave 1 hit their
+ * goals, Kickoff missed by a few asks, Close is next.
+ */
+export function fixtureMid(today: string): { round: Round; investors: Investor[]; acts: { _id: string; investorId: string; kind: 'stage'; stage: Investor['stage']; date: string; by: string }[] } {
+  const d = (n: number) => add(today, n)
+  const round: Round = {
+    ...fixtureRound(today),
+    kickoff: d(-18),
+    deadline: d(10),
+    phases: [
+      { k: 'prep', name: 'Prep', from: d(-18), to: d(-14), goal: 'List of 40, warm paths for most, data room ready.', targets: [{ l: 'Names on the list', m: 'count', t: 40 }], todo: ['Pitch deck ready'] },
+      { k: 'w1', name: 'Wave 1', from: d(-13), to: d(-9), goal: 'Closest names first. Get the first meetings booked.', targets: [{ l: '1st meetings', m: 'stage:m1', t: 6 }], todo: ['Send the first asks'] },
+      { k: 'kick', name: 'Kickoff', from: d(-8), to: d(-2), goal: 'Release every held intro. 20 asks out.', targets: [{ l: 'Asks out', m: 'stage:ask', t: 20 }], todo: ['Start first meetings'] },
+      { k: 'push', name: 'Push', from: d(-1), to: d(5), goal: 'Partner meetings and verbal yeses. $900K in.', targets: [{ l: 'Committed', m: 'committed', t: 0.75 }], todo: ['Follow up with every open conversation'] },
+      { k: 'close', name: 'Close', from: d(6), to: d(10), goal: 'Signatures and wires. The whole round by Friday.', targets: [{ l: 'Signed', m: 'signed', t: 1 }], todo: ['Collect signatures'] },
+    ],
+  }
+  const stages: Investor['stage'][] = ['verbal', 'verbal', 'signed', 'm2', 'm2', 'm1', 'm1', 'booked', 'intro', 'intro', 'ask', 'ask', 'ask', 'passed']
+  const investors: Investor[] = Array.from({ length: 44 }, (_, i) => {
+    const stage = stages[i] ?? (i % 5 === 0 ? 'ask' : 'todo')
+    const name = `${WORDS_A[i % WORDS_A.length]} ${WORDS_B[Math.floor(i / WORDS_A.length + i) % WORDS_B.length]}`
+    return {
+      _id: `mid${i}`, name, firm: name, type: (['Angel', 'Seed fund', 'Pre-seed fund', 'Micro-VC', 'Accelerator'] as const)[i % 5], geo: 'India',
+      warmth: i % 3 ? 'intro' : 'warm', path: i % 4 ? ['Ria', 'Ankur', 'Mira'][i % 3] : '', tier: 'B', wave: ((i % 3) + 1) as 1 | 2 | 3, lead: false,
+      expected: [150000, 200000, 250000, 100000, 75000][i % 5], stage, maxStage: stage === 'passed' ? 'ask' : (stage as Investor['maxStage']),
+      nextStep: stage === 'todo' ? '' : 'Follow up', nextDate: stage === 'todo' ? undefined : d(i % 4), lastTouch: stage === 'todo' ? undefined : d(-(i % 7)), notes: '', source: 'Preview fixture',
+    }
+  })
+  const acts = [
+    ...Array.from({ length: 7 }, (_, i) => ({ _id: `ma${i}`, investorId: `mid${i}`, kind: 'stage' as const, stage: 'm1' as const, date: d(-12 + (i % 4)), by: 'Dev' })),
+    ...Array.from({ length: 14 }, (_, i) => ({ _id: `mb${i}`, investorId: `mid${i + 7}`, kind: 'stage' as const, stage: 'ask' as const, date: d(-7 + (i % 5)), by: 'Dev' })),
+  ]
+  return { round, investors, acts }
+}
+
+/** The access list in preview. */
+export const fixtureMembers = [
+  { email: 'dev@example.com', name: 'Dev', me: true },
+  { email: 'sam@example.com', name: 'Sam', me: false },
+]

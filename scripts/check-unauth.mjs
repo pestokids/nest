@@ -35,6 +35,7 @@ const calls = [
   ['mutation', 'prep:set', api.prep.set, { phaseKey: 'p1', item: 0, done: true }],
   ['query', 'prefs:get', api.prefs.get, {}],
   ['mutation', 'prefs:setSounds', api.prefs.setSounds, { on: false }],
+  ['query', 'access:members', api.access.members, {}],
 ]
 
 let failed = 0

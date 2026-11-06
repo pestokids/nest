@@ -11,6 +11,7 @@ import { useSession } from './session'
 const useLog = (investorId: string | null) =>
   useQuery(api.activities.forInvestor, investorId ? { investorId: investorId as Id<'investors'> } : 'skip')
 const useSettingsLog = () => useQuery(api.settings.log)
+const useMembers = () => useQuery(api.access.members)
 const usePrepTicks = (phaseKey: string | null) => {
   const rows = useQuery(api.prep.list, phaseKey ? { phaseKey } : 'skip')
   return useMemo(() => rows?.map((r) => r.item), [rows])
@@ -61,12 +62,13 @@ export function ConvexData({ children }: { children: ReactNode }) {
         undoMove({ id: rec.id as Id<'investors'>, to: rec.to, from: rec.from, activityId: (rec.activityId ?? null) as Id<'activities'> | null }),
       logNote: (id, note, o) => logNote({ id: id as Id<'investors'>, note, touch: o?.touch, date: o?.date, next: o?.next }),
       remove: (id) => remove({ id: id as Id<'investors'> }),
-      importMany: (rows) => importMany({ rows }),
+      importMany: (rows, file) => importMany({ rows, file }),
       updateRound: (round) => updateRound({ round }),
       useLog,
       useSettingsLog,
       usePrepTicks,
       setPrepTick: (phaseKey, item, done) => setTick({ phaseKey, item, done }),
+      useMembers,
     }),
     [investors, acts, settings, me, upsert, advance, move, undoMove, logNote, remove, importMany, updateRound, setTick],
   )
