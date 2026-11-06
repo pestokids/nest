@@ -3,12 +3,21 @@ import { createContext, useCallback, useContext, type ReactNode } from 'react'
 import { shortDate } from '../lib/dates'
 import { money } from '../lib/money'
 import type { Investor } from '../lib/pipeline'
-import { ACTIVE, LABEL, WARM } from '../lib/stages'
+import { ACTIVE, LABEL, WARM, type Stage } from '../lib/stages'
 import { errorMessage, useRaise } from './data'
 import { Chip, IconButton, type ChipTone, type ToastInput } from './ui'
 
 /* ---------- toast + drawer opener ---------- */
-type UI = { toast: (t: ToastInput | string) => void; open: (id: string | null) => void; advance: (i: Investor) => void }
+/** Prefill for the drawer's "new" state, e.g. the stage of the column whose + was clicked. */
+export type OpenOptions = { stage?: Stage }
+type UI = {
+  toast: (t: ToastInput | string) => void
+  /** Opens the drawer on an investor, or its "new" state with `null` (optionally with a preselected stage). */
+  open: (id: string | null, opts?: OpenOptions) => void
+  advance: (i: Investor) => void
+  /** What the open drawer was opened with (its "new" state reads `stage` from here). */
+  opening: OpenOptions
+}
 export const UIContext = createContext<UI | null>(null)
 export const useUI = () => {
   const v = useContext(UIContext)

@@ -2,7 +2,7 @@ import { createFileRoute, Link, Outlet } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRaise } from '../../components/data'
 import { Drawer } from '../../components/Drawer'
-import { UIContext, useAdvance } from '../../components/raise-ui'
+import { UIContext, useAdvance, type OpenOptions } from '../../components/raise-ui'
 import { Button, buttonClass, Icon, SubTabs, useToast, type TabItem } from '../../components/ui'
 
 const TABS: TabItem[] = [
@@ -15,14 +15,17 @@ const TABS: TabItem[] = [
 
 export const Route = createFileRoute('/_app/raise')({ component: RaiseLayout })
 
+const NO_OPTS: OpenOptions = {}
+
 /** Raise header (eyebrow, title, Import CSV, Add investor), sub-tabs, the active view and the drawer. */
 function RaiseLayout() {
   const d = useRaise()
   const toast = useToast()
   const advance = useAdvance(toast)
-  const [drawer, setDrawer] = useState<{ id: string | null } | null>(null)
-  const open = useCallback((id: string | null) => setDrawer({ id }), [])
-  const ui = useMemo(() => ({ toast, open, advance }), [toast, open, advance])
+  const [drawer, setDrawer] = useState<{ id: string | null; opts: OpenOptions } | null>(null)
+  const open = useCallback((id: string | null, opts: OpenOptions = {}) => setDrawer({ id, opts }), [])
+  const opening = drawer?.opts ?? NO_OPTS
+  const ui = useMemo(() => ({ toast, open, advance, opening }), [toast, open, advance, opening])
 
   const [slow, setSlow] = useState(false)
   useEffect(() => {
@@ -64,7 +67,7 @@ function RaiseLayout() {
       <button type="button" className="fab" aria-label="Add investor" onClick={() => open(null)}>
         <Icon name="plus" size={26} strokeWidth={2.2} />
       </button>
-      {drawer ? <Drawer key={drawer.id ?? 'new'} id={drawer.id} onClose={() => setDrawer(null)} /> : null}
+      {drawer ? <Drawer key={drawer.id ?? `new-${drawer.opts.stage ?? ''}`} id={drawer.id} onClose={() => setDrawer(null)} /> : null}
     </UIContext.Provider>
   )
 }

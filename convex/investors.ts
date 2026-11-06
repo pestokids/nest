@@ -3,9 +3,10 @@ import { ConvexError } from 'convex/values'
 import { mutation, query, type MutationCtx } from './_generated/server'
 import type { Id } from './_generated/dataModel'
 import { requireUser } from './lib/access'
-import { investorFields } from './validators'
+import { investorFields, vPipelineStage, vStage } from './validators'
 import { todayIST, isISODate } from '../src/lib/dates'
 import { applyAdvance, applySave, type InvestorFields } from '../src/lib/pipeline'
+import { applyMove, applyUndo } from '../src/lib/board'
 import { IDX, LABEL } from '../src/lib/stages'
 
 export const list = query({
@@ -120,5 +121,50 @@ export const remove = mutation({
     for (const a of acts) await ctx.db.delete(a._id)
     if (await ctx.db.get(id)) await ctx.db.delete(id)
     return acts.length
+  },
+})
+
+/**
+ * Move to any stage (the Pipeline board's drag, [ and ] keys and phone swipe).
+ * Same write rule as `upsert` (lastTouch today, maxStage only rises, a stage
+ * activity), but it patches only those fields and returns what Undo needs to
+ * put the card back exactly.
+ */
+export const move = mutation({
+  args: { id: v.id('investors'), stage: vStage },
+  handler: async (ctx, { id, stage }) => {
+    const { userId } = await requireUser(ctx)
+    const prev = await ctx.db.get(id)
+    if (!prev) throw new ConvexError('That investor was deleted')
+    const from = { stage: prev.stage, lastTouch: prev.lastTouch, maxStage: prev.maxStage }
+    if (prev.stage === stage) return { from, activityId: null }
+    const today = todayIST()
+    const { patch, logStage } = applyMove(prev, stage, today)
+    await ctx.db.patch(id, { ...patch, updatedAt: Date.now(), updatedBy: userId })
+    const activityId = logStage ? await ctx.db.insert('activities', { investorId: id, kind: 'stage', stage: logStage, date: today, userId }) : null
+    return { from, activityId }
+  },
+})
+
+/** Undo a `move`: restore the old stage, lastTouch and maxStage and drop its activity, unless it has moved again since. */
+export const undoMove = mutation({
+  args: {
+    id: v.id('investors'),
+    to: vStage,
+    from: v.object({ stage: vStage, lastTouch: v.optional(v.string()), maxStage: vPipelineStage }),
+    activityId: v.optional(v.union(v.id('activities'), v.null())),
+  },
+  handler: async (ctx, { id, to, from, activityId }) => {
+    const { userId } = await requireUser(ctx)
+    const cur = await ctx.db.get(id)
+    if (!cur) throw new ConvexError('That investor was deleted')
+    const patch = applyUndo(cur, { id, to, from, activityId })
+    if (!patch) throw new ConvexError('It moved again since, so there’s nothing to undo')
+    await ctx.db.patch(id, { ...patch, lastTouch: patch.lastTouch && isISODate(patch.lastTouch) ? patch.lastTouch : undefined, updatedAt: Date.now(), updatedBy: userId })
+    if (activityId) {
+      const a = await ctx.db.get(activityId)
+      if (a && a.investorId === id && a.kind === 'stage') await ctx.db.delete(activityId)
+    }
+    return patch.stage
   },
 })

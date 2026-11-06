@@ -57,5 +57,28 @@ export function fixtureInvestors(today: string): Investor[] {
   })) as Investor[]
 }
 
+/**
+ * Extra made-up cards for the Pipeline board states (`?preview&pipeline=…`),
+ * so its columns look like the design: a full Asked column with two quiet
+ * cards, two intros. Added on top of fixtureInvestors(); the other screens
+ * never see them.
+ */
+export function fixtureBoardExtras(today: string): Investor[] {
+  const d = (n: number) => add(today, n)
+  const rows: Row[] = [
+    { name: 'Saffron Seed', firm: 'Saffron', type: 'Pre-seed fund', warmth: 'warm', path: 'Mira', stage: 'ask', expected: 250000, nextStep: 'Nudge for the intro', nextDate: d(1), lastTouch: d(-6), wave: 1 },
+    { name: 'Northstar Labs', firm: 'Northstar Labs', type: 'Accelerator', warmth: 'intro', path: '', stage: 'ask', expected: 120000, nextStep: 'Follow up', nextDate: d(2), lastTouch: d(-1), wave: 1 },
+    { name: 'Juniper Angel', firm: 'Juniper', type: 'Angel', warmth: 'warm', path: 'Ankur', stage: 'ask', expected: 25000, nextStep: 'Follow up', nextDate: d(2), lastTouch: d(-1), wave: 2 },
+    { name: 'Copperleaf', firm: 'Copperleaf', type: 'Seed fund', warmth: 'intro', path: 'Ria', stage: 'ask', expected: 150000, nextStep: 'Follow up', nextDate: d(3), lastTouch: d(-2), wave: 2 },
+    { name: 'Rowan Operator', firm: 'Rowan', type: 'Angel', warmth: 'warm', path: 'Ria', stage: 'intro', expected: 25000, nextStep: 'Send the deck', nextDate: d(5), lastTouch: d(-1), wave: 1 },
+  ]
+  return rows.map((r, i) => ({
+    _id: `fxb${i}`,
+    firm: '', type: 'Angel', geo: 'India', warmth: 'intro', path: '', tier: 'B', wave: 2, lead: false, notes: '', source: 'Preview fixture',
+    maxStage: r.stage as Investor['maxStage'],
+    ...r,
+  })) as Investor[]
+}
+
 /** How far into the round the fixture is (for sanity checks). */
 export const fixtureDaysLeft = (today: string) => dayDiff(fixtureRound(today).deadline, today)
