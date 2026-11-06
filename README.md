@@ -10,7 +10,7 @@ src/            Frontend: TanStack Start (React, TypeScript, file-based routes)
   components/   ui/ (design system: Button, Chip, Input, Tabs, Toast, Icon…), sign-in desk, top bar, Home logo tile, data providers
   lib/          Shared logic: stages, scoring, round maths, dates, money, CSV, Home, motion, sound (unit-tested)
   styles/       Plain CSS: tokens (named after the Sketch swatches), base, motion, ui, shell, sign-in, home, raise
-  preview/      Dev-only ?preview fixture (made-up data)
+  preview/      ?preview fixture (made-up data; local dev and Vercel PR previews only)
 public/         mascot/ (WebP), sounds/ (UI sounds)
 convex/         Backend: schema, queries, mutations, Convex Auth (Google), seed
 scripts/        Auth key generator, unauthenticated-access check, preview screenshots
@@ -35,7 +35,7 @@ pnpm dev                     # convex dev (push + watch) and Vite on http://loca
 
 Other scripts: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`, `pnpm dev:web` (Vite only).
 
-Dev-only preview: `http://localhost:3000/?preview` renders Home and every Raise view from a small made-up fixture (`src/preview/fixture.ts`) with in-memory writes, without signing in. Add `&seed` to use `internal/seed.json` instead, `&home=firstrun` or `&home=prepdone` for the Home states, `&signin=default|hover|checking|noaccess|error|signedout` for the sign-in states, `&today=nothingdue|win` for Raise · Today, or `&drawer=view|edit|new|advance|touch|history|delete` for the investor drawer (on any Raise view; add `&sheet` for the phone bottom sheet at any width). It's stripped from production builds.
+Preview: `?preview` renders Home and every Raise view from a small made-up fixture (`src/preview/fixture.ts`) with in-memory writes, without signing in. It works on `http://localhost:3000/?preview` in local dev and on the Vercel preview build of every PR (`https://<preview-url>/?preview`), which always uses the fake fixture (never `internal/seed.json` or real data). Add `&seed` (local dev only) to use `internal/seed.json` instead, `&home=firstrun` or `&home=prepdone` for the Home states, `&signin=default|hover|checking|noaccess|error|signedout` for the sign-in states, `&today=nothingdue|win` for Raise · Today, `&drawer=view|edit|new|advance|touch|history|delete` for the investor drawer (on any Raise view; add `&sheet` for the phone bottom sheet at any width), or `&pipeline=hidden|shown|end` (with `&stage=<key>` on a phone) for the Pipeline board states. It's stripped from production builds.
 
 Screenshots of every preview screen at 1440 × 900, 440 × 956 and 412 × 915: run `pnpm dev:web`, then `node scripts/screenshots.mjs http://localhost:3000` (writes to `.context/screens/`). They use the fixture, never real data.
 

@@ -28,6 +28,8 @@ const calls = [
   ['mutation', 'investors:logNote (touch)', api.investors.logNote, { id, note: 'x', touch: 'ask', next: { step: 'x' } }],
   ['mutation', 'investors:advance (next)', api.investors.advance, { id, next: { step: 'x' } }],
   ['mutation', 'investors:remove', api.investors.remove, { id }],
+  ['mutation', 'investors:move', api.investors.move, { id, stage: 'ask' }],
+  ['mutation', 'investors:undoMove', api.investors.undoMove, { id, to: 'ask', from: { stage: 'todo', maxStage: 'todo' }, activityId: null }],
   ['mutation', 'settings:update', api.settings.update, { round }],
   ['query', 'prep:list', api.prep.list, { phaseKey: 'p1' }],
   ['mutation', 'prep:set', api.prep.set, { phaseKey: 'p1', item: 0, done: true }],

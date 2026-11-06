@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { MOTION } from '../../lib/motion'
 import { EggHatching } from '../illustrations'
 import { Icon, type IconName } from './Icon'
@@ -38,11 +38,33 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     [dismiss],
   )
   useEffect(() => clear, [])
+  // While a toast shows, publish how much room it takes (--toast-lift), so things pinned to the
+  // bottom of the screen, like the phones' add button, can move up above it instead of under it.
+  const region = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const root = document.documentElement
+    const el = region.current?.firstElementChild as HTMLElement | null | undefined
+    if (!t || t.leaving || !el) {
+      root.style.removeProperty('--toast-lift')
+      return
+    }
+    const set = () => root.style.setProperty('--toast-lift', `${Math.ceil(el.getBoundingClientRect().height) + 12}px`)
+    set()
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(set) : null
+    ro?.observe(el)
+    return () => ro?.disconnect()
+  }, [t])
+  useEffect(
+    () => () => {
+      document.documentElement.style.removeProperty('--toast-lift')
+    },
+    [],
+  )
   const value = useMemo(() => show, [show])
   return (
     <ToastCtx.Provider value={value}>
       {children}
-      <div className="toast-region" role="status" aria-live="polite">
+      <div className="toast-region" role="status" aria-live="polite" ref={region}>
         {t ? <Toast key={t.id} {...t} onAction={() => { t.action?.onClick(); dismiss() }} /> : null}
       </div>
     </ToastCtx.Provider>

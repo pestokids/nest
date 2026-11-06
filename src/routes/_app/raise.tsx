@@ -5,6 +5,7 @@ import { Drawer, type DrawerStart } from '../../components/Drawer'
 import { usePreviewState } from '../../components/preview-state'
 import { UIContext, useAdvance, useFail, type OpenOptions, type UI } from '../../components/raise-ui'
 import { Button, buttonClass, Icon, SubTabs, useToast, type TabItem } from '../../components/ui'
+import { PendingDeletes } from '../../lib/pendingDelete'
 import type { Investor } from '../../lib/pipeline'
 import { play } from '../../lib/sound'
 
@@ -52,38 +53,36 @@ function RaiseLayout() {
     else if (pick) setDrawer({ id: pick._id, opts: NO_OPTS, start: preview.drawer })
   }, [preview?.drawer, raw.loaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Delete with Undo: hide the row now, send the delete when the toast goes
-  // (or straight away if the Raise views unmount or the page is closing).
+  // Delete with Undo: hide the row now and send the delete when the toast goes, or straight
+  // away if the page is hidden or closed, or the Raise views unmount (src/lib/pendingDelete.ts).
   const [hidden, setHidden] = useState<Set<string>>(() => new Set())
-  const pending = useRef(new Map<string, ReturnType<typeof setTimeout>>())
-  // The data provider hands out new functions on every update; keep the latest in refs so a
-  // pending delete is only sent by its timer, Raise unmounting, or the page closing.
+  const unhide = useCallback((id: string) => setHidden((s) => (s.has(id) ? new Set([...s].filter((x) => x !== id)) : s)), [])
+  // The data provider hands out new functions on every update; read the latest through a ref
+  // so a pending delete is only sent by its timer, the page going away, or unmount.
   const latest = useRef({ remove: raw.remove, fail })
   useEffect(() => {
     latest.current = { remove: raw.remove, fail }
   })
-  const commit = useCallback((id: string) => {
-    const t = pending.current.get(id)
-    if (t === undefined) return
-    clearTimeout(t)
-    pending.current.delete(id)
-    void latest.current
-      .remove(id)
-      .catch((e) => latest.current.fail(e))
-      .finally(() => setHidden((s) => (s.has(id) ? new Set([...s].filter((x) => x !== id)) : s)))
-  }, [])
+  const [pending] = useState(
+    () =>
+      new PendingDeletes((id) => {
+        void latest.current
+          .remove(id)
+          .catch((e) => latest.current.fail(e))
+          .finally(() => unhide(id))
+      }, UNDO_MS),
+  )
   useEffect(() => {
-    const flush = () => [...pending.current.keys()].forEach(commit)
-    window.addEventListener('pagehide', flush)
+    const stop = pending.listen(window, document)
     return () => {
-      window.removeEventListener('pagehide', flush)
-      flush()
+      stop()
+      pending.flush()
     }
-  }, [commit])
+  }, [pending])
   const remove = useCallback(
     (i: Investor) => {
       setHidden((s) => new Set(s).add(i._id))
-      pending.current.set(i._id, setTimeout(() => commit(i._id), UNDO_MS))
+      pending.add(i._id)
       toast({
         tone: 'info',
         icon: 'trash',
@@ -92,17 +91,19 @@ function RaiseLayout() {
         action: {
           label: 'Undo',
           onClick: () => {
-            const t = pending.current.get(i._id)
-            if (t === undefined) return
-            clearTimeout(t)
-            pending.current.delete(i._id)
-            setHidden((s) => new Set([...s].filter((x) => x !== i._id)))
-            play('undo')
+            if (pending.undo(i._id)) {
+              unhide(i._id)
+              play('undo')
+            } else {
+              // Already sent (the page was hidden in between): say so rather than pretend.
+              play('nope')
+              setTimeout(() => toast({ tone: 'info', icon: 'trash', message: `Too late to undo: ${i.name} was already deleted.` }), 250)
+            }
           },
         },
       })
     },
-    [commit, toast],
+    [pending, toast, unhide],
   )
 
   const d = useMemo<RaiseData>(
