@@ -16,6 +16,8 @@ import type * as investors from "../investors.js";
 import type * as lib_access from "../lib/access.js";
 import type * as lib_enums from "../lib/enums.js";
 import type * as lib_round from "../lib/round.js";
+import type * as prefs from "../prefs.js";
+import type * as prep from "../prep.js";
 import type * as seed from "../seed.js";
 import type * as settings from "../settings.js";
 import type * as validators from "../validators.js";
@@ -35,6 +37,8 @@ declare const fullApi: ApiFromModules<{
   "lib/access": typeof lib_access;
   "lib/enums": typeof lib_enums;
   "lib/round": typeof lib_round;
+  prefs: typeof prefs;
+  prep: typeof prep;
   seed: typeof seed;
   settings: typeof settings;
   validators: typeof validators;

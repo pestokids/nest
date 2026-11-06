@@ -1,0 +1,163 @@
+/*
+ * Motion vocabulary (interactions.png, foundations "Motion and delight").
+ * Pair with src/lib/motion.ts. Reduced motion: loops stop, rises become fades,
+ * confetti is a still burst (handled in motion.ts).
+ */
+@keyframes m-rise {
+  from { opacity: 0; transform: translateY(12px); }
+}
+@keyframes m-fade {
+  from { opacity: 0; }
+}
+@keyframes m-pop {
+  0% { transform: scale(0.9); }
+  60% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+@keyframes m-wobble {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(-9deg); }
+  75% { transform: rotate(9deg); }
+}
+@keyframes m-shake {
+  0%, 100% { transform: none; }
+  20% { transform: translateX(-6px) rotate(-4deg); }
+  40% { transform: translateX(6px) rotate(4deg); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(3px); }
+}
+@keyframes m-shake-x {
+  0%, 100% { transform: none; }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(3px); }
+}
+@keyframes m-pulse {
+  from { transform: scale(1); opacity: 0.6; }
+  to { transform: scale(2.6); opacity: 0; }
+}
+@keyframes m-shine {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+@keyframes m-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+@keyframes m-toast-in {
+  from { opacity: 0; transform: translateY(16px) scale(0.96); }
+}
+@keyframes m-toast-out {
+  to { opacity: 0; transform: translateY(12px) scale(0.98); }
+}
+@keyframes m-slide-down {
+  from { opacity: 0; transform: translateY(-8px); }
+}
+@keyframes m-bubble {
+  from { opacity: 0; transform: translateY(6px) scale(0.9); }
+}
+
+/* Rise: cards and rows on first load. Set --rise-i for the 60ms stagger. */
+.m-rise {
+  animation: m-rise 420ms var(--ease-out-back) both;
+  animation-delay: calc(var(--rise-i, 0) * 60ms);
+}
+.m-pop {
+  display: inline-block;
+  animation: m-pop 320ms var(--ease-spring);
+}
+.m-wobble {
+  animation: m-wobble 600ms ease-in-out;
+}
+.m-wobble-loop {
+  animation: m-wobble 600ms ease-in-out infinite;
+}
+.m-wobble-hover:hover .m-wobble-target,
+.m-wobble-hover:focus-visible .m-wobble-target {
+  animation: m-wobble 600ms ease-in-out;
+}
+.m-shake {
+  animation: m-shake 400ms ease-in-out;
+}
+.m-shake-x {
+  animation: m-shake-x 400ms ease-in-out;
+}
+.m-bob {
+  animation: m-bob 3s ease-in-out infinite;
+}
+.m-shine {
+  position: relative;
+  overflow: hidden;
+}
+.m-shine::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 30%, rgb(255 255 255 / 0.8) 50%, transparent 70%);
+  animation: m-shine 900ms ease-out both;
+  pointer-events: none;
+}
+/* Live dot with a 2s pulse ring. */
+.m-live-dot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+.m-live-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: inherit;
+  animation: m-pulse 2s ease-out infinite;
+}
+
+/* Confetti layer (motion.ts confetti()). */
+.m-confetti {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 90;
+}
+.m-confetti i {
+  position: absolute;
+  width: 8px;
+  height: 12px;
+  border-radius: 2px;
+  margin: -6px 0 0 -4px;
+}
+.m-confetti i.round {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .m-rise {
+    animation-name: m-fade;
+    animation-timing-function: ease-out;
+  }
+  .m-bob,
+  .m-wobble-loop,
+  .m-live-dot::after {
+    animation: none;
+  }
+  .m-pop,
+  .m-wobble,
+  .m-wobble-hover:hover .m-wobble-target,
+  .m-shake,
+  .m-shake-x,
+  .m-shine::after {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.001ms !important;
+  }
+}

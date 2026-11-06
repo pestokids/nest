@@ -3,7 +3,8 @@ import { shortDate, todayIST } from '../lib/dates'
 import { NEW_INVESTOR, type InvestorFields } from '../lib/pipeline'
 import { ALL, GEOS, LABEL, TIERS, TYPES, WARM, WAVES, type Wave } from '../lib/stages'
 import { errorMessage, useRaise } from './data'
-import { useUI } from './ui'
+import { useUI } from './raise-ui'
+import { Button } from './ui'
 
 /** Form state: numbers as strings so inputs can be empty. */
 type Form = Omit<InvestorFields, 'expected' | 'committed' | 'nextDate' | 'lastTouch'> & {
@@ -66,7 +67,7 @@ export function Drawer({ id, onClose }: { id: string | null; onClose: () => void
       toast('Saved')
       onClose()
     } catch (err) {
-      toast(errorMessage(err))
+      toast({ tone: 'error', message: errorMessage(err) })
     } finally {
       setBusy(false)
     }
@@ -81,7 +82,7 @@ export function Drawer({ id, onClose }: { id: string | null; onClose: () => void
         setForm((f) => ({ ...f, stage: r.stage as Form['stage'], lastTouch: todayIST() }))
       }
     } catch (err) {
-      toast(errorMessage(err))
+      toast({ tone: 'error', message: errorMessage(err) })
     }
   }
 
@@ -94,7 +95,7 @@ export function Drawer({ id, onClose }: { id: string | null; onClose: () => void
       set('lastTouch', day)
       toast('Logged')
     } catch (err) {
-      toast(errorMessage(err))
+      toast({ tone: 'error', message: errorMessage(err) })
     }
   }
 
@@ -102,10 +103,10 @@ export function Drawer({ id, onClose }: { id: string | null; onClose: () => void
     if (!inv) return
     try {
       await d.remove(inv._id)
-      toast('Deleted')
+      toast({ tone: 'info', icon: 'trash', message: 'Deleted' })
       onClose()
     } catch (err) {
-      toast(errorMessage(err))
+      toast({ tone: 'error', message: errorMessage(err) })
     }
   }
 
@@ -120,9 +121,9 @@ export function Drawer({ id, onClose }: { id: string | null; onClose: () => void
       <aside className="drawer" aria-labelledby="dTitle" role="dialog">
         <header>
           <h2 id="dTitle">{inv ? inv.name : 'New investor'}</h2>
-          <button className="btn small" type="button" onClick={onClose}>
+          <Button variant="secondary" size="sm" type="button" onClick={onClose}>
             Close
-          </button>
+          </Button>
         </header>
         <form className="scroll" id="form" autoComplete="off" onSubmit={save}>
           <div className="fgrid">
@@ -194,9 +195,9 @@ export function Drawer({ id, onClose }: { id: string | null; onClose: () => void
                     }
                   }}
                 />
-                <button className="btn small" type="button" onClick={logTouch}>
+                <Button variant="secondary" size="sm" type="button" onClick={logTouch}>
                   Log
-                </button>
+                </Button>
               </div>
               <div className="log">
                 {log === undefined ? null : log.length ? (
@@ -223,13 +224,13 @@ export function Drawer({ id, onClose }: { id: string | null; onClose: () => void
           ) : null}
         </form>
         <footer>
-          <button className="btn primary" type="submit" form="form" disabled={busy}>
+          <Button variant="primary" type="submit" form="form" disabled={busy}>
             Save
-          </button>
+          </Button>
           {inv ? (
-            <button className="btn" type="button" onClick={advance}>
+            <Button variant="secondary" type="button" onClick={advance}>
               Advance stage →
-            </button>
+            </Button>
           ) : null}
           <span className="sp" />
           {inv ? (
@@ -237,14 +238,14 @@ export function Drawer({ id, onClose }: { id: string | null; onClose: () => void
               {confirmDel ? (
                 <>
                   <span className="muted" style={{ fontSize: 12 }}>Delete for good?</span>{' '}
-                  <button className="btn small danger" type="button" onClick={del}>
+                  <Button variant="ghost" size="sm" className="btn--danger" type="button" onClick={del}>
                     Yes, delete
-                  </button>
+                  </Button>
                 </>
               ) : (
-                <button className="btn small danger" type="button" onClick={() => setConfirmDel(true)}>
+                <Button variant="ghost" size="sm" className="btn--danger" type="button" onClick={() => setConfirmDel(true)}>
                   Delete
-                </button>
+                </Button>
               )}
             </span>
           ) : null}

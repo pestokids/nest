@@ -53,4 +53,18 @@ export default defineSchema({
     from: v.string(),
     to: v.string(),
   }).index('by_at', ['at']),
+
+  // Home prep checklist: one row per ticked to-do of a phase (unticking deletes it).
+  prepTicks: defineTable({
+    phaseKey: v.string(),
+    item: v.number(),
+    doneBy: v.id('users'),
+    doneAt: v.number(),
+  }).index('by_phase_item', ['phaseKey', 'item']),
+
+  // Per-user preferences that follow the user across devices.
+  prefs: defineTable({
+    userId: v.id('users'),
+    sounds: v.boolean(),
+  }).index('by_user', ['userId']),
 })

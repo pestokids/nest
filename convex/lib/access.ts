@@ -15,7 +15,7 @@ export function allowedEmails(): Set<string> {
 
 export type Access =
   | { status: 'signedOut' }
-  | { status: 'denied' }
+  | { status: 'denied'; email: string }
   | { status: 'ok'; userId: Id<'users'>; user: Doc<'users'> }
 
 export async function checkUser(ctx: QueryCtx): Promise<Access> {
@@ -24,7 +24,7 @@ export async function checkUser(ctx: QueryCtx): Promise<Access> {
   const user = await ctx.db.get(userId)
   if (!user) return { status: 'signedOut' }
   const email = user.email?.toLowerCase()
-  if (!email || user.emailVerificationTime === undefined || !allowedEmails().has(email)) return { status: 'denied' }
+  if (!email || user.emailVerificationTime === undefined || !allowedEmails().has(email)) return { status: 'denied', email: email ?? '' }
   return { status: 'ok', userId, user }
 }
 

@@ -1,0 +1,340 @@
+/*
+ * Sign-in desk scene (screens/sign-in/*, phone versions in the device folders).
+ * Everything on the desk is placed from one anchor: the halo's centre line at
+ * the desk top. --k scales the desk (1 on a 900px-tall desktop; SignIn sets it
+ * from the scene height so short screens and phones still fit).
+ */
+.signin {
+  --k: 1;
+  --desk-h: 100px;
+  position: relative;
+  min-height: 100dvh;
+  background: var(--brand-forest);
+  color: var(--text-on-dark);
+  overflow: hidden;
+}
+.signin__scene {
+  position: absolute;
+  inset: 0;
+}
+.signin__wordmark {
+  position: absolute;
+  left: 57px;
+  top: 40px;
+  font-size: 28px;
+}
+.signin__headline {
+  position: absolute;
+  left: 57px;
+  top: 128px;
+  max-width: 620px;
+  margin: 0;
+  text-wrap: wrap;
+  font: 800 88px/104px var(--font-display);
+  letter-spacing: -0.01em;
+  color: var(--text-on-dark);
+}
+.signin__dot {
+  position: absolute;
+  border-radius: 50%;
+}
+.signin__dot--lime { width: 12px; height: 12px; background: var(--brand-lime); left: calc(50% + 140px); top: 200px; }
+.signin__dot--orange { width: 22px; height: 22px; background: var(--brand-orange); left: calc(50% - 150px - 320px * var(--k)); bottom: calc(var(--desk-h) + 138px * var(--k)); }
+.signin__dot--grey { width: 8px; height: 8px; background: #7c9a88; left: calc(50% - 150px - 390px * var(--k)); bottom: calc(var(--desk-h) + 32px * var(--k)); }
+
+.signin__desk {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--desk-h);
+  background: var(--brand-forest-2);
+  border-top: 18px solid var(--desk-edge);
+}
+.signin--noaccess .signin__desk { box-shadow: inset 0 3px 0 #04392a; }
+
+.signin__stage {
+  position: absolute;
+  left: calc(50% - 150px);
+  bottom: var(--desk-h);
+  width: 0;
+  height: 0;
+}
+.signin__halo {
+  position: absolute;
+  width: calc(540px * var(--k));
+  height: calc(540px * var(--k));
+  left: calc(-270px * var(--k));
+  bottom: calc(-70px * var(--k));
+  border-radius: 50%;
+  background: var(--brand-forest-2);
+}
+.signin__mug {
+  position: absolute;
+  left: calc(-275px * var(--k));
+  bottom: calc(-12px * var(--k));
+  width: calc(56px * var(--k));
+  z-index: 2;
+}
+.signin__mug > svg:last-child { width: 100%; height: auto; }
+.signin__steam {
+  position: absolute;
+  left: 18%;
+  bottom: 92%;
+  width: 50%;
+  overflow: visible;
+}
+.signin__steam path {
+  fill: none;
+  stroke: var(--brand-lime);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-dasharray: 30;
+  animation: signin-steam 2.4s linear infinite;
+}
+.signin__steam path + path { animation-delay: 1.2s; }
+@keyframes signin-steam {
+  0% { stroke-dashoffset: 30; opacity: 0; transform: translateY(6px); }
+  30% { opacity: 1; }
+  100% { stroke-dashoffset: -30; opacity: 0; transform: translateY(-8px); }
+}
+
+/* Pesto: one image per pose, cross-faded. Height and centre offset per pose, from the PNGs. */
+.signin__bird {
+  --h: 350px;
+  --x: -10px;
+  position: absolute;
+  left: calc(var(--x) * var(--k));
+  bottom: calc(-10px * var(--k));
+  height: calc(var(--h) * var(--k));
+  aspect-ratio: 1;
+  transform: translateX(-50%);
+  transform-origin: 50% 100%;
+  transition: transform 350ms var(--ease-out-back);
+  z-index: 1;
+}
+.signin__bird img {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  height: 100%;
+  width: auto;
+  max-width: none;
+  transform: translateX(-50%);
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+.signin__bird img.is-on { opacity: 1; }
+.signin__bird--office-typing { --h: 350px; --x: -10px; }
+.signin__bird--office-glasses-up { --h: 350px; --x: -5px; }
+.signin__bird--checking { --h: 370px; --x: -5px; }
+.signin__bird--bouncer { --h: 368px; --x: -42px; }
+.signin__bird--spill { --h: 350px; --x: -15px; }
+.signin__bird--leaving { --h: 370px; --x: 20px; }
+.signin--default .signin__bird img.is-on { animation: signin-type 380ms ease-in-out infinite alternate; }
+.signin--hover .signin__bird { transform: translateX(-50%) rotate(-3deg) translateX(-6px); }
+@keyframes signin-type {
+  from { transform: translateX(-50%) translateY(0) rotate(0); }
+  to { transform: translateX(-50%) translateY(1.5px) rotate(-0.8deg); }
+}
+.signin__glint {
+  position: absolute;
+  width: calc(16px * var(--k));
+  height: calc(16px * var(--k));
+  left: 52%;
+  top: 33%;
+  opacity: 0;
+  animation: signin-glint 6s 1.2s ease-in-out infinite;
+}
+@keyframes signin-glint {
+  0%, 88%, 100% { opacity: 0; transform: scale(0.2) rotate(0); }
+  92% { opacity: 1; transform: scale(1) rotate(45deg); }
+  96% { opacity: 0; transform: scale(0.4) rotate(90deg); }
+}
+
+.signin__bubble {
+  position: absolute;
+  z-index: 3;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: var(--text-on-dark);
+  color: var(--text-primary);
+  font: 500 15px/1.3 var(--font-ui);
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(6px) scale(0.9);
+  transform-origin: 20% 100%;
+  transition: opacity 300ms var(--ease-out-back), transform 300ms var(--ease-out-back);
+  left: calc(100px * var(--k));
+  bottom: calc(370px * var(--k));
+}
+.signin__bubble::after {
+  content: '';
+  position: absolute;
+  left: 22px;
+  bottom: -5px;
+  width: 12px;
+  height: 12px;
+  background: inherit;
+  transform: rotate(45deg);
+  border-radius: 2px;
+}
+.signin__bubble.is-on { opacity: 1; transform: none; }
+.signin__bubble--error { left: calc(150px * var(--k)); bottom: calc(350px * var(--k)); }
+.signin__bubble--signedout { left: calc(-260px * var(--k)); transform-origin: 80% 100%; }
+.signin__bubble--signedout::after { left: auto; right: 30px; }
+
+/* ---------- Card ---------- */
+.signin__card {
+  position: absolute;
+  right: 60px;
+  top: calc(50% - 10px);
+  transform: translateY(-50%);
+  width: 460px;
+  padding: 40px;
+  border-radius: var(--radius-tile);
+  background: var(--text-on-dark);
+  color: var(--text-secondary);
+  box-shadow: 0 30px 60px -20px rgb(0 0 0 / 0.45);
+  display: flex;
+  flex-direction: column;
+  z-index: 5;
+}
+.signin__card.m-shake-x { animation: signin-card-shake 400ms ease-in-out; }
+@keyframes signin-card-shake {
+  0%, 100% { transform: translateY(-50%); }
+  20% { transform: translateY(-50%) translateX(-6px); }
+  40% { transform: translateY(-50%) translateX(6px); }
+  60% { transform: translateY(-50%) translateX(-4px); }
+  80% { transform: translateY(-50%) translateX(3px); }
+}
+.signin__title {
+  font: 800 44px/1.1 var(--font-display);
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  margin: 0 0 26px;
+}
+.signin__body {
+  margin: -4px 0 24px;
+  font: 400 15px/1.3 var(--font-ui);
+  color: var(--text-secondary);
+}
+.signin__email { font-weight: 400; overflow-wrap: anywhere; }
+.signin__actions { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+.signin__callout {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 14px 20px;
+  border-radius: 14px;
+  margin-bottom: 30px;
+  font: 600 14px/1.25 var(--font-ui);
+}
+.signin__callout svg { color: var(--text-primary); flex: none; }
+.signin__callout--error { background: var(--state-error-bg); color: var(--state-error); }
+.signin__callout--ok { background: var(--state-success-bg); color: var(--state-success); }
+.signin__note {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  margin: 24px 0 0;
+  padding: 0 16px;
+  border-radius: 14px;
+  background: var(--signin-note);
+  font: 400 14px/1.3 var(--font-ui);
+  color: var(--text-secondary);
+}
+.signin--noaccess .signin__note { margin-top: 0; }
+.signin__lock { display: inline-grid; color: var(--brand-leaf); }
+.signin__note-egg { flex: none; }
+
+.gbtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  width: 100%;
+  height: 56px;
+  border: 2px solid var(--brand-forest);
+  border-radius: 14px;
+  background: var(--surface-white);
+  color: var(--text-primary);
+  font: 600 16px/1 var(--font-ui);
+  box-shadow: 0 4px 0 var(--brand-forest);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+.gbtn:hover:not(:disabled),
+.gbtn.is-hover { transform: translateY(-2px); box-shadow: 0 6px 0 var(--brand-forest); }
+.gbtn:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 var(--brand-forest); }
+.gbtn:disabled { cursor: progress; }
+.gbtn:focus-visible { outline: 3px solid var(--brand-lime); outline-offset: 3px; }
+.gbtn__egg { animation: m-wobble 600ms ease-in-out infinite; }
+
+/* ---------- Phones: scene on top, the card as a bottom sheet ---------- */
+@media (max-width: 760px) {
+  .signin {
+    --desk-h: 56px;
+    display: flex;
+    flex-direction: column;
+  }
+  .signin__scene {
+    position: relative;
+    flex: 1;
+    min-height: 330px;
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .signin__wordmark { left: 24px; top: calc(env(safe-area-inset-top, 0px) + 18px); font-size: 30px; }
+  .signin__headline {
+    left: 24px;
+    right: 24px;
+    top: calc(env(safe-area-inset-top, 0px) + 66px);
+    font-size: 44px;
+    line-height: 47px;
+    max-width: 320px;
+  }
+  .signin__stage { left: calc(50% + 15px); }
+  .signin__halo {
+    width: calc(470px * var(--k));
+    height: calc(470px * var(--k));
+    left: calc(-235px * var(--k));
+    bottom: calc(-40px * var(--k));
+  }
+  .signin__mug { left: calc(-280px * var(--k)); }
+  .signin__dot--lime { left: auto; right: 34px; top: 38%; }
+  .signin__dot--orange { width: 12px; height: 12px; left: 34px; bottom: calc(var(--desk-h) + 180px * var(--k)); }
+  .signin__dot--grey { display: none; }
+  .signin__bubble,
+  .signin__bubble--error {
+    left: auto;
+    right: calc(-50vw + 31px);
+    bottom: calc(330px * var(--k));
+  }
+  .signin__bubble--signedout { left: calc(-50vw + 9px); right: auto; }
+  .signin__card {
+    position: relative;
+    right: auto;
+    top: auto;
+    transform: none;
+    width: 100%;
+    margin-top: -18px;
+    padding: 28px max(24px, env(safe-area-inset-right, 0px)) calc(28px + env(safe-area-inset-bottom, 0px)) max(24px, env(safe-area-inset-left, 0px));
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+    box-shadow: 0 -10px 30px -18px rgb(0 0 0 / 0.5);
+  }
+  .signin__card.m-shake-x { animation: m-shake-x 400ms ease-in-out; }
+  .signin__title { font-size: 34px; margin-bottom: 22px; }
+  .signin__note { margin-top: 18px; min-height: 52px; }
+  .signin__callout { margin-bottom: 20px; }
+  .signin__actions { margin-bottom: 22px; }
+  .signin__actions .btn { flex: 0 0 auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .signin__steam path,
+  .signin__glint,
+  .signin--default .signin__bird img.is-on,
+  .gbtn__egg { animation: none; }
+  .signin__glint { opacity: 0; }
+  .signin__bubble { transition: opacity 200ms ease; transform: none; }
+}

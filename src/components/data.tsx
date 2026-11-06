@@ -4,7 +4,7 @@ import type { Round, RoundChange } from '../lib/round'
 
 export type LogRow = RoundChange & { _id: string; at: number; by: string }
 
-/** Everything the /raise views read and write. Backed by Convex (or local seed data in dev preview). */
+/** Everything Home and the /raise views read and write. Backed by Convex (or local seed data in dev preview). */
 export type RaiseData = {
   loaded: boolean
   investors: Investor[]
@@ -21,7 +21,9 @@ export type RaiseData = {
   /** Hooks (stable per provider). */
   useLog: (investorId: string | null) => Activity[] | undefined
   useSettingsLog: () => LogRow[] | undefined
-  signOut: () => void
+  /** Ticked to-do indexes of a phase's prep checklist (Home). */
+  usePrepTicks: (phaseKey: string | null) => number[] | undefined
+  setPrepTick: (phaseKey: string, item: number, done: boolean) => Promise<unknown>
 }
 
 export const RaiseContext = createContext<RaiseData | null>(null)

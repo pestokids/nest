@@ -1,0 +1,95 @@
+// Motion vocabulary from interactions.png. CSS lives in src/styles/motion.css;
+// this file triggers the one-shot animations and draws confetti.
+import { useEffect, useRef, type CSSProperties } from 'react'
+
+export const MOTION = {
+  rise: { ms: 420, staggerMs: 60 },
+  pop: { ms: 320 },
+  wobble: { ms: 600 },
+  shake: { ms: 400 },
+  pulse: { ms: 2000 },
+  shine: { ms: 900 },
+  bob: { ms: 3000 },
+  confetti: { ms: 1200 },
+  toast: { ms: 320, holdMs: 4000 },
+} as const
+
+export function prefersReducedMotion(): boolean {
+  return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+/** Style for the nth element in a rising group (60ms stagger). */
+export const rise = (i: number): CSSProperties => ({ ['--rise-i' as string]: i })
+
+/** Restart a one-shot CSS animation class on an element. */
+export function replay(el: Element | null | undefined, className: string) {
+  if (!el) return
+  el.classList.remove(className)
+  void (el as HTMLElement).offsetWidth
+  el.classList.add(className)
+  el.addEventListener('animationend', () => el.classList.remove(className), { once: true })
+}
+
+export const pop = (el: Element | null | undefined) => replay(el, 'm-pop')
+export const shake = (el: Element | null | undefined) => replay(el, 'm-shake')
+export const wobble = (el: Element | null | undefined) => replay(el, 'm-wobble')
+export const shine = (el: Element | null | undefined) => replay(el, 'm-shine')
+
+/** Pops the element whenever `value` changes after the first render. */
+export function usePop<T extends HTMLElement>(value: unknown) {
+  const ref = useRef<T>(null)
+  const first = useRef(true)
+  useEffect(() => {
+    if (first.current) {
+      first.current = false
+      return
+    }
+    pop(ref.current)
+  }, [value])
+  return ref
+}
+
+const CONFETTI_COLORS = ['#A9EC19', '#FF6420', '#003F2E', '#10884C', '#FF9437']
+
+/**
+ * Confetti bursting from an element, 1.2s, once. Under reduced motion it is a
+ * still burst that fades out.
+ */
+export function confetti(from: Element | null | undefined, { count = 46 }: { count?: number } = {}) {
+  if (typeof document === 'undefined' || !from) return
+  const r = from.getBoundingClientRect()
+  const cx = r.left + r.width / 2
+  const cy = r.top + r.height / 2
+  const layer = document.createElement('div')
+  layer.className = 'm-confetti'
+  layer.setAttribute('aria-hidden', 'true')
+  document.body.appendChild(layer)
+  const still = prefersReducedMotion()
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('i')
+    if (i % 3 === 0) p.className = 'round'
+    p.style.background = CONFETTI_COLORS[i % CONFETTI_COLORS.length]
+    p.style.left = `${cx}px`
+    p.style.top = `${cy}px`
+    layer.appendChild(p)
+    const a = Math.random() * Math.PI * 2
+    const v = 90 + Math.random() * 160
+    const tx = Math.cos(a) * v
+    const ty = Math.sin(a) * v * 0.7 - 60
+    if (still || typeof p.animate !== 'function') {
+      p.style.transform = `translate(${tx}px, ${ty}px) rotate(${Math.random() * 360}deg)`
+      continue
+    }
+    p.animate(
+      [
+        { transform: 'translate(0, 0) rotate(0)', opacity: 1 },
+        { transform: `translate(${tx}px, ${ty}px) rotate(${Math.random() * 540}deg)`, opacity: 1, offset: 0.55 },
+        { transform: `translate(${tx * 1.15}px, ${ty + 120}px) rotate(${Math.random() * 720}deg)`, opacity: 0 },
+      ],
+      { duration: MOTION.confetti.ms, easing: 'cubic-bezier(.2,.7,.3,1)', fill: 'forwards' },
+    )
+  }
+  if (still && typeof layer.animate === 'function')
+    layer.animate([{ opacity: 1 }, { opacity: 1, offset: 0.7 }, { opacity: 0 }], { duration: MOTION.confetti.ms, fill: 'forwards' })
+  setTimeout(() => layer.remove(), MOTION.confetti.ms + 100)
+}

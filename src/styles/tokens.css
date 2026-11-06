@@ -1,0 +1,108 @@
+/*
+ * Nest design tokens, named after the Sketch swatches (Brand/Forest → --brand-forest).
+ * Light theme only for now; a dark theme can later redefine these same names.
+ */
+:root {
+  /* Brand */
+  --brand-forest: #003f2e;
+  --brand-forest-2: #0a5540;
+  --brand-leaf: #10884c;
+  --brand-lime: #a9ec19;
+  --brand-orange: #ff6420;
+  --brand-orange-soft: #ff9437;
+
+  /* Surface */
+  --surface-cream: #f5f2e8;
+  --surface-paper: #fbfaf4;
+  --surface-white: #ffffff;
+  --surface-mint: #e6eeda;
+  --surface-peach: #fff0e6;
+
+  /* Line */
+  --line-default: #dde5d2;
+  --line-peach: #ffc7a6;
+  --line-dashed: #b9c8ae;
+
+  /* Text */
+  --text-primary: #003f2e;
+  --text-secondary: #35503f;
+  --text-muted: #4f6656;
+  --text-faint: #6b7f72;
+  --text-on-dark: #fffbeb;
+  --text-on-dark-muted: #cfe3d2;
+  --text-orange-deep: #8a3a0e;
+
+  /* State */
+  --state-error: #b4381a;
+  --state-error-bg: #fde9e2;
+  --state-success: #1e7a3c;
+  --state-success-bg: #e3f5d0;
+
+  /* Board only */
+  --board-column: #ece8dc;
+  --board-drop: #eef8d6;
+  --board-drop-border: #86c20f;
+  --board-slot: #ddf2a8;
+  /* Sign-in team note box */
+  --signin-note: #eef3e4;
+
+  /* Derived shades (button edges and pressed fills; not separate swatches) */
+  --brand-lime-deep: #86c20f;
+  --brand-lime-hover: #b5f22e;
+  --brand-lime-pressed: #97d916;
+  --brand-forest-deep: #001f17;
+  --brand-orange-deep: #c9480f;
+  --brand-orange-pressed: #e4541a;
+  --desk-edge: #136b4c;
+
+  /* Type */
+  --font-display: 'Bricolage Grotesque', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-ui: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* Spacing (4pt grid) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Radius */
+  --radius-chip: 999px;
+  --radius-input: 10px;
+  --radius-button: 12px;
+  --radius-deal: 12px;
+  --radius-column: 14px;
+  --radius-small: 16px;
+  --radius-card: 20px;
+  --radius-hero: 24px;
+  --radius-tile: 28px;
+  --radius-sheet: 28px;
+
+  /* Elevation */
+  --shadow-card: 0 1px 0 rgb(0 63 46 / 0.06), 0 8px 24px -12px rgb(0 63 46 / 0.25);
+  --shadow-pop: 0 18px 40px -14px rgb(0 63 46 / 0.45);
+  --shadow-sheet: 0 24px 60px -24px rgb(0 0 0 / 0.45);
+
+  /* Layout */
+  --topbar-h: 72px;
+  --content-w: 1320px;
+  --gutter: 60px;
+
+  /* Motion */
+  --ease-out-back: cubic-bezier(0.3, 1.4, 0.5, 1);
+  --ease-spring: cubic-bezier(0.3, 1.6, 0.45, 1);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (max-width: 720px) {
+  :root {
+    --gutter: 20px;
+    --topbar-h: 60px;
+  }
+}
