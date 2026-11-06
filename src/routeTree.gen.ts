@@ -9,85 +9,91 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as RaiseRouteImport } from './routes/raise'
-import { Route as RaiseIndexRouteImport } from './routes/raise/index'
-import { Route as RaiseInvestorsRouteImport } from './routes/raise/investors'
-import { Route as RaisePipelineRouteImport } from './routes/raise/pipeline'
-import { Route as RaisePlanRouteImport } from './routes/raise/plan'
-import { Route as RaiseSettingsRouteImport } from './routes/raise/settings'
-import { Route as RaiseTodayRouteImport } from './routes/raise/today'
+import { Route as AppRouteImport } from './routes/_app'
+import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppRaiseRouteImport } from './routes/_app/raise'
+import { Route as AppRaiseIndexRouteImport } from './routes/_app/raise/index'
+import { Route as AppRaiseInvestorsRouteImport } from './routes/_app/raise/investors'
+import { Route as AppRaisePipelineRouteImport } from './routes/_app/raise/pipeline'
+import { Route as AppRaisePlanRouteImport } from './routes/_app/raise/plan'
+import { Route as AppRaiseSettingsRouteImport } from './routes/_app/raise/settings'
+import { Route as AppRaiseTodayRouteImport } from './routes/_app/raise/today'
 
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RaiseRoute = RaiseRouteImport.update({
+const AppIndexRoute = AppIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppRaiseRoute = AppRaiseRouteImport.update({
   id: '/raise',
   path: '/raise',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AppRoute,
 } as any)
-const RaiseIndexRoute = RaiseIndexRouteImport.update({
+const AppRaiseIndexRoute = AppRaiseIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => RaiseRoute,
+  getParentRoute: () => AppRaiseRoute,
 } as any)
-const RaiseInvestorsRoute = RaiseInvestorsRouteImport.update({
+const AppRaiseInvestorsRoute = AppRaiseInvestorsRouteImport.update({
   id: '/investors',
   path: '/investors',
-  getParentRoute: () => RaiseRoute,
+  getParentRoute: () => AppRaiseRoute,
 } as any)
-const RaisePipelineRoute = RaisePipelineRouteImport.update({
+const AppRaisePipelineRoute = AppRaisePipelineRouteImport.update({
   id: '/pipeline',
   path: '/pipeline',
-  getParentRoute: () => RaiseRoute,
+  getParentRoute: () => AppRaiseRoute,
 } as any)
-const RaisePlanRoute = RaisePlanRouteImport.update({
+const AppRaisePlanRoute = AppRaisePlanRouteImport.update({
   id: '/plan',
   path: '/plan',
-  getParentRoute: () => RaiseRoute,
+  getParentRoute: () => AppRaiseRoute,
 } as any)
-const RaiseSettingsRoute = RaiseSettingsRouteImport.update({
+const AppRaiseSettingsRoute = AppRaiseSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
-  getParentRoute: () => RaiseRoute,
+  getParentRoute: () => AppRaiseRoute,
 } as any)
-const RaiseTodayRoute = RaiseTodayRouteImport.update({
+const AppRaiseTodayRoute = AppRaiseTodayRouteImport.update({
   id: '/today',
   path: '/today',
-  getParentRoute: () => RaiseRoute,
+  getParentRoute: () => AppRaiseRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/raise': typeof RaiseRouteWithChildren
-  '/raise/investors': typeof RaiseInvestorsRoute
-  '/raise/pipeline': typeof RaisePipelineRoute
-  '/raise/plan': typeof RaisePlanRoute
-  '/raise/settings': typeof RaiseSettingsRoute
-  '/raise/today': typeof RaiseTodayRoute
-  '/raise/': typeof RaiseIndexRoute
+  '/': typeof AppIndexRoute
+  '/raise': typeof AppRaiseRouteWithChildren
+  '/raise/investors': typeof AppRaiseInvestorsRoute
+  '/raise/pipeline': typeof AppRaisePipelineRoute
+  '/raise/plan': typeof AppRaisePlanRoute
+  '/raise/settings': typeof AppRaiseSettingsRoute
+  '/raise/today': typeof AppRaiseTodayRoute
+  '/raise/': typeof AppRaiseIndexRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/raise/investors': typeof RaiseInvestorsRoute
-  '/raise/pipeline': typeof RaisePipelineRoute
-  '/raise/plan': typeof RaisePlanRoute
-  '/raise/settings': typeof RaiseSettingsRoute
-  '/raise/today': typeof RaiseTodayRoute
-  '/raise': typeof RaiseIndexRoute
+  '/': typeof AppIndexRoute
+  '/raise/investors': typeof AppRaiseInvestorsRoute
+  '/raise/pipeline': typeof AppRaisePipelineRoute
+  '/raise/plan': typeof AppRaisePlanRoute
+  '/raise/settings': typeof AppRaiseSettingsRoute
+  '/raise/today': typeof AppRaiseTodayRoute
+  '/raise': typeof AppRaiseIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/raise': typeof RaiseRouteWithChildren
-  '/raise/investors': typeof RaiseInvestorsRoute
-  '/raise/pipeline': typeof RaisePipelineRoute
-  '/raise/plan': typeof RaisePlanRoute
-  '/raise/settings': typeof RaiseSettingsRoute
-  '/raise/today': typeof RaiseTodayRoute
-  '/raise/': typeof RaiseIndexRoute
+  '/_app': typeof AppRouteWithChildren
+  '/_app/raise': typeof AppRaiseRouteWithChildren
+  '/_app/': typeof AppIndexRoute
+  '/_app/raise/investors': typeof AppRaiseInvestorsRoute
+  '/_app/raise/pipeline': typeof AppRaisePipelineRoute
+  '/_app/raise/plan': typeof AppRaisePlanRoute
+  '/_app/raise/settings': typeof AppRaiseSettingsRoute
+  '/_app/raise/today': typeof AppRaiseTodayRoute
+  '/_app/raise/': typeof AppRaiseIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -111,105 +117,125 @@ export interface FileRouteTypes {
     | '/raise'
   id:
     | '__root__'
-    | '/'
-    | '/raise'
-    | '/raise/investors'
-    | '/raise/pipeline'
-    | '/raise/plan'
-    | '/raise/settings'
-    | '/raise/today'
-    | '/raise/'
+    | '/_app'
+    | '/_app/raise'
+    | '/_app/'
+    | '/_app/raise/investors'
+    | '/_app/raise/pipeline'
+    | '/_app/raise/plan'
+    | '/_app/raise/settings'
+    | '/_app/raise/today'
+    | '/_app/raise/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  RaiseRoute: typeof RaiseRouteWithChildren
+  AppRoute: typeof AppRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
+    '/_app': {
+      id: '/_app'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app/': {
+      id: '/_app/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/raise': {
-      id: '/raise'
+    '/_app/raise': {
+      id: '/_app/raise'
       path: '/raise'
       fullPath: '/raise'
-      preLoaderRoute: typeof RaiseRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AppRaiseRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/raise/': {
-      id: '/raise/'
+    '/_app/raise/': {
+      id: '/_app/raise/'
       path: '/'
       fullPath: '/raise/'
-      preLoaderRoute: typeof RaiseIndexRouteImport
-      parentRoute: typeof RaiseRoute
+      preLoaderRoute: typeof AppRaiseIndexRouteImport
+      parentRoute: typeof AppRaiseRoute
     }
-    '/raise/investors': {
-      id: '/raise/investors'
+    '/_app/raise/investors': {
+      id: '/_app/raise/investors'
       path: '/investors'
       fullPath: '/raise/investors'
-      preLoaderRoute: typeof RaiseInvestorsRouteImport
-      parentRoute: typeof RaiseRoute
+      preLoaderRoute: typeof AppRaiseInvestorsRouteImport
+      parentRoute: typeof AppRaiseRoute
     }
-    '/raise/pipeline': {
-      id: '/raise/pipeline'
+    '/_app/raise/pipeline': {
+      id: '/_app/raise/pipeline'
       path: '/pipeline'
       fullPath: '/raise/pipeline'
-      preLoaderRoute: typeof RaisePipelineRouteImport
-      parentRoute: typeof RaiseRoute
+      preLoaderRoute: typeof AppRaisePipelineRouteImport
+      parentRoute: typeof AppRaiseRoute
     }
-    '/raise/plan': {
-      id: '/raise/plan'
+    '/_app/raise/plan': {
+      id: '/_app/raise/plan'
       path: '/plan'
       fullPath: '/raise/plan'
-      preLoaderRoute: typeof RaisePlanRouteImport
-      parentRoute: typeof RaiseRoute
+      preLoaderRoute: typeof AppRaisePlanRouteImport
+      parentRoute: typeof AppRaiseRoute
     }
-    '/raise/settings': {
-      id: '/raise/settings'
+    '/_app/raise/settings': {
+      id: '/_app/raise/settings'
       path: '/settings'
       fullPath: '/raise/settings'
-      preLoaderRoute: typeof RaiseSettingsRouteImport
-      parentRoute: typeof RaiseRoute
+      preLoaderRoute: typeof AppRaiseSettingsRouteImport
+      parentRoute: typeof AppRaiseRoute
     }
-    '/raise/today': {
-      id: '/raise/today'
+    '/_app/raise/today': {
+      id: '/_app/raise/today'
       path: '/today'
       fullPath: '/raise/today'
-      preLoaderRoute: typeof RaiseTodayRouteImport
-      parentRoute: typeof RaiseRoute
+      preLoaderRoute: typeof AppRaiseTodayRouteImport
+      parentRoute: typeof AppRaiseRoute
     }
   }
 }
 
-interface RaiseRouteChildren {
-  RaiseInvestorsRoute: typeof RaiseInvestorsRoute
-  RaisePipelineRoute: typeof RaisePipelineRoute
-  RaisePlanRoute: typeof RaisePlanRoute
-  RaiseSettingsRoute: typeof RaiseSettingsRoute
-  RaiseTodayRoute: typeof RaiseTodayRoute
-  RaiseIndexRoute: typeof RaiseIndexRoute
+interface AppRaiseRouteChildren {
+  AppRaiseInvestorsRoute: typeof AppRaiseInvestorsRoute
+  AppRaisePipelineRoute: typeof AppRaisePipelineRoute
+  AppRaisePlanRoute: typeof AppRaisePlanRoute
+  AppRaiseSettingsRoute: typeof AppRaiseSettingsRoute
+  AppRaiseTodayRoute: typeof AppRaiseTodayRoute
+  AppRaiseIndexRoute: typeof AppRaiseIndexRoute
 }
 
-const RaiseRouteChildren: RaiseRouteChildren = {
-  RaiseInvestorsRoute: RaiseInvestorsRoute,
-  RaisePipelineRoute: RaisePipelineRoute,
-  RaisePlanRoute: RaisePlanRoute,
-  RaiseSettingsRoute: RaiseSettingsRoute,
-  RaiseTodayRoute: RaiseTodayRoute,
-  RaiseIndexRoute: RaiseIndexRoute,
+const AppRaiseRouteChildren: AppRaiseRouteChildren = {
+  AppRaiseInvestorsRoute: AppRaiseInvestorsRoute,
+  AppRaisePipelineRoute: AppRaisePipelineRoute,
+  AppRaisePlanRoute: AppRaisePlanRoute,
+  AppRaiseSettingsRoute: AppRaiseSettingsRoute,
+  AppRaiseTodayRoute: AppRaiseTodayRoute,
+  AppRaiseIndexRoute: AppRaiseIndexRoute,
 }
 
-const RaiseRouteWithChildren = RaiseRoute._addFileChildren(RaiseRouteChildren)
+const AppRaiseRouteWithChildren = AppRaiseRoute._addFileChildren(
+  AppRaiseRouteChildren,
+)
+
+interface AppRouteChildren {
+  AppRaiseRoute: typeof AppRaiseRouteWithChildren
+  AppIndexRoute: typeof AppIndexRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppRaiseRoute: AppRaiseRouteWithChildren,
+  AppIndexRoute: AppIndexRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  RaiseRoute: RaiseRouteWithChildren,
+  AppRoute: AppRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

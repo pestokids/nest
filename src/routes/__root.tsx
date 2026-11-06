@@ -1,7 +1,14 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { createRootRouteWithContext, HeadContent, Outlet, Scripts } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
-import css from '../styles.css?url'
+import tokens from '../styles/tokens.css?url'
+import base from '../styles/base.css?url'
+import motion from '../styles/motion.css?url'
+import ui from '../styles/ui.css?url'
+import shell from '../styles/shell.css?url'
+import signin from '../styles/signin.css?url'
+import home from '../styles/home.css?url'
+import raise from '../styles/raise.css?url'
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
@@ -9,16 +16,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: 'utf-8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
       { name: 'robots', content: 'noindex' },
+      { name: 'theme-color', content: '#FBFAF4' },
       { title: 'Nest · Pesto' },
     ],
     links: [
+      { rel: 'icon', href: '/mascot/logo-tile.webp', type: 'image/webp' },
       { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
       { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossOrigin: 'anonymous' },
       {
         rel: 'stylesheet',
-        href: 'https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800&family=JetBrains+Mono:wght@500&display=swap',
+        href: 'https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap',
       },
-      { rel: 'stylesheet', href: css },
+      ...[tokens, base, motion, ui, shell, signin, home, raise].map((href) => ({ rel: 'stylesheet', href })),
     ],
   }),
   component: () => (

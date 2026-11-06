@@ -1,0 +1,4 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "if [ \"$VERCEL_ENV\" = \"production\" ]; then npx convex deploy --cmd 'pnpm build' --cmd-url-env-var-name VITE_CONVEX_URL; else pnpm build; fi"
+}

@@ -1,17 +1,22 @@
-import { useAuthActions } from '@convex-dev/auth/react'
 import { useMutation, useQuery } from 'convex/react'
 import { useMemo, type ReactNode } from 'react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { DEFAULT_ROUND } from '../lib/round'
 import { RaiseContext, type RaiseData } from './data'
+import { useSession } from './session'
 
 const useLog = (investorId: string | null) =>
   useQuery(api.activities.forInvestor, investorId ? { investorId: investorId as Id<'investors'> } : 'skip')
 const useSettingsLog = () => useQuery(api.settings.log)
+const usePrepTicks = (phaseKey: string | null) => {
+  const rows = useQuery(api.prep.list, phaseKey ? { phaseKey } : 'skip')
+  return useMemo(() => rows?.map((r) => r.item), [rows])
+}
 
 /** Live Convex subscriptions; every open tab stays in sync. */
-export function ConvexData({ me, children }: { me: string; children: ReactNode }) {
+export function ConvexData({ children }: { children: ReactNode }) {
+  const me = useSession().me.firstName
   const investors = useQuery(api.investors.list)
   const acts = useQuery(api.activities.recent)
   const settings = useQuery(api.settings.get)
@@ -21,7 +26,7 @@ export function ConvexData({ me, children }: { me: string; children: ReactNode }
   const remove = useMutation(api.investors.remove)
   const importMany = useMutation(api.investors.importMany)
   const updateRound = useMutation(api.settings.update)
-  const { signOut } = useAuthActions()
+  const setTick = useMutation(api.prep.set)
 
   const value = useMemo<RaiseData>(
     () => ({
@@ -39,9 +44,10 @@ export function ConvexData({ me, children }: { me: string; children: ReactNode }
       updateRound: (round) => updateRound({ round }),
       useLog,
       useSettingsLog,
-      signOut: () => void signOut(),
+      usePrepTicks,
+      setPrepTick: (phaseKey, item, done) => setTick({ phaseKey, item, done }),
     }),
-    [investors, acts, settings, me, upsert, advance, logNote, remove, importMany, updateRound, signOut],
+    [investors, acts, settings, me, upsert, advance, logNote, remove, importMany, updateRound, setTick],
   )
   return <RaiseContext.Provider value={value}>{children}</RaiseContext.Provider>
 }

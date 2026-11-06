@@ -27,6 +27,10 @@ const calls = [
   ['mutation', 'investors:logNote', api.investors.logNote, { id, note: 'x' }],
   ['mutation', 'investors:remove', api.investors.remove, { id }],
   ['mutation', 'settings:update', api.settings.update, { round }],
+  ['query', 'prep:list', api.prep.list, { phaseKey: 'p1' }],
+  ['mutation', 'prep:set', api.prep.set, { phaseKey: 'p1', item: 0, done: true }],
+  ['query', 'prefs:get', api.prefs.get, {}],
+  ['mutation', 'prefs:setSounds', api.prefs.setSounds, { on: false }],
 ]
 
 let failed = 0

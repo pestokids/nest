@@ -1,33 +1,54 @@
-// DEV ONLY: renders the views from internal/seed.json with in-memory writes, so
-// the UI can be checked without a Google sign-in. Never used in production builds.
+// DEV ONLY: renders Home and the Raise views with in-memory writes, so the UI
+// can be checked without a Google sign-in. Never used in production builds.
+// Data: the fake fixture in src/preview/ (default), or internal/seed.json with `&seed`.
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { todayIST } from '../lib/dates'
 import { applyAdvance, applySave, type Activity, type Investor } from '../lib/pipeline'
 import { DEFAULT_ROUND, diffRound, mergeRound, type Round } from '../lib/round'
 import { LABEL } from '../lib/stages'
+import { fixtureInvestors, fixtureRound } from '../preview/fixture'
 import { RaiseContext, type LogRow, type RaiseData } from './data'
 
 type Seed = { round?: Partial<Round>; investors: (Omit<Investor, '_id'> & { slug: string })[] }
+export type PreviewHome = 'default' | 'firstrun' | 'prepdone'
 
-export function PreviewData({ children }: { children: ReactNode }) {
+export function PreviewData({ source, home = 'default', children }: { source: 'fixture' | 'seed'; home?: PreviewHome; children: ReactNode }) {
   const [investors, setInvestors] = useState<Investor[] | null>(null)
   const [acts, setActs] = useState<Activity[]>([])
   const [round, setRound] = useState<Round>(DEFAULT_ROUND)
+  const [roundExists, setRoundExists] = useState(true)
   const [log, setLog] = useState<LogRow[]>([])
+  const [ticks, setTicks] = useState<Record<string, number[]>>({})
 
   useEffect(() => {
+    const t = todayIST()
+    const load = (inv: Investor[], r: Round) => {
+      if (home === 'firstrun') {
+        setInvestors([])
+        setRoundExists(false)
+        setRound(DEFAULT_ROUND)
+        return
+      }
+      setInvestors(inv)
+      setRound(r)
+      setActs(inv.filter((i) => i.stage !== 'todo').map((i, n) => ({ _id: 'a' + n, investorId: i._id, kind: 'stage', stage: i.stage, date: t, by: 'Dev' })))
+      if (home === 'prepdone') {
+        const p = r.phases.find((x) => t >= x.from && t <= x.to)
+        if (p) setTicks({ [p.k]: p.todo.map((_, i) => i) })
+      }
+    }
+    // The real seed file only exists locally; deployed previews always use the fixture.
+    if (source === 'fixture' || !import.meta.env.DEV) return load(fixtureInvestors(t), fixtureRound(t))
     fetch('/internal/seed.json')
       .then((r) => r.json() as Promise<Seed>)
       .then((s) => {
         const clean = (o: object) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== null)) as Investor
-        setInvestors(s.investors.map((i) => clean({ ...i, _id: i.slug })))
-        setRound(mergeRound(s.round))
-        const t = todayIST()
-        setActs(
-          s.investors.filter((i) => i.stage !== 'todo').map((i, n) => ({ _id: 'a' + n, investorId: i.slug, kind: 'stage', stage: i.stage, date: t, by: 'Dev' })),
+        load(
+          s.investors.map((i) => clean({ ...i, _id: i.slug })),
+          mergeRound(s.round),
         )
       })
-  }, [])
+  }, [source, home])
 
   const value = useMemo<RaiseData>(() => {
     const t = todayIST()
@@ -39,7 +60,7 @@ export function PreviewData({ children }: { children: ReactNode }) {
       investors: list,
       acts,
       round,
-      roundExists: true,
+      roundExists,
       me: 'Dev',
       save: async (id, f) => {
         const prev = id ? list.find((i) => i._id === id) ?? null : null
@@ -75,13 +96,16 @@ export function PreviewData({ children }: { children: ReactNode }) {
         const ch = diffRound(round, r)
         setLog((l) => [...ch.map((c, k) => ({ ...c, _id: `l${Date.now()}${k}`, at: Date.now(), by: 'Dev' })), ...l])
         setRound(r)
+        setRoundExists(true)
         return ch.length
       },
       useLog: (id) => acts.filter((a) => a.investorId === id),
       useSettingsLog: () => log,
-      signOut: () => {},
+      usePrepTicks: (k) => (k ? ticks[k] ?? [] : undefined),
+      setPrepTick: async (k, item, done) =>
+        setTicks((m) => ({ ...m, [k]: done ? [...new Set([...(m[k] ?? []), item])] : (m[k] ?? []).filter((x) => x !== item) })),
     }
-  }, [investors, acts, round, log])
+  }, [investors, acts, round, roundExists, log, ticks])
 
   return <RaiseContext.Provider value={value}>{children}</RaiseContext.Provider>
 }

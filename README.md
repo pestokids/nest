@@ -6,16 +6,24 @@ Pesto's internal app. Its first section is the **pre-seed raise tracker** under 
 
 ```
 src/            Frontend: TanStack Start (React, TypeScript, file-based routes)
-  routes/       / → /raise/today; /raise/{today,pipeline,investors,plan,settings}
-  components/   Shell (round band, tabs), drawer, auth gate, data providers
-  lib/          Shared logic: stages, scoring, round maths, dates, money, CSV (unit-tested; also imported by convex/)
-  styles.css    The prototype's stylesheet, both themes
+  routes/       _app (signed-in layout: top bar) → / Home, /raise/{today,pipeline,investors,plan,settings}
+  components/   ui/ (design system: Button, Chip, Input, Tabs, Toast, Icon…), sign-in desk, top bar, Home logo tile, data providers
+  lib/          Shared logic: stages, scoring, round maths, dates, money, CSV, Home, motion, sound (unit-tested)
+  styles/       Plain CSS: tokens (named after the Sketch swatches), base, motion, ui, shell, sign-in, home, raise
+  preview/      Dev-only ?preview fixture (made-up data)
+public/         mascot/ (WebP), sounds/ (UI sounds)
 convex/         Backend: schema, queries, mutations, Convex Auth (Google), seed
-scripts/        Auth key generator, unauthenticated-access check
-internal/       Private, never committed (prototype, seed.json); copied into worktrees by .worktreeinclude
+scripts/        Auth key generator, unauthenticated-access check, preview screenshots
+internal/       Private, never committed (design handoff, prototype, seed.json); copied into worktrees by .worktreeinclude
 ```
 
-The app is a Convex client: no server functions of our own, and the `/raise` routes are client-rendered (`ssr: false`), so nothing private is rendered on the server.
+Everything behind sign-in is client-rendered (`ssr: false` on the `_app` layout), so nothing private is rendered on the server. The app is a Convex client with no server functions of our own.
+
+## Design system
+
+Tokens are CSS custom properties in `src/styles/tokens.css`, named after the Sketch swatches (`Brand/Forest` → `--brand-forest`), light theme only. Fonts: Bricolage Grotesque (display, at its 14pt optical size), Inter (UI), JetBrains Mono (labels). Components live in `src/components/ui/`; illustrations in `src/components/illustrations.tsx`.
+
+Motion (`src/lib/motion.ts` + `src/styles/motion.css`): rise, pop, wobble, shake, pulse, shine, bob, confetti and toast slide, all respecting `prefers-reduced-motion`. Sound (`src/lib/sound.ts`): one Web Audio player, `play(name, { volume, delay, rate })`, silent until the first gesture, while the tab is hidden, or when the user turns Sounds off in the avatar menu (stored per user in Convex, `prefs` table).
 
 ## Local setup
 
@@ -27,7 +35,9 @@ pnpm dev                     # convex dev (push + watch) and Vite on http://loca
 
 Other scripts: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`, `pnpm dev:web` (Vite only).
 
-Dev-only preview: `http://localhost:3000/raise/today?preview` renders every view from `internal/seed.json` with in-memory writes, without signing in. It's stripped from production builds.
+Dev-only preview: `http://localhost:3000/?preview` renders Home and every Raise view from a small made-up fixture (`src/preview/fixture.ts`) with in-memory writes, without signing in. Add `&seed` to use `internal/seed.json` instead, `&home=firstrun` or `&home=prepdone` for the Home states, or `&signin=default|hover|checking|noaccess|error|signedout` for the sign-in states. It's stripped from production builds.
+
+Screenshots of every preview screen at 1440 × 900, 440 × 956 and 412 × 915: run `pnpm dev:web`, then `node scripts/screenshots.mjs http://localhost:3000` (writes to `.context/screens/`). They use the fixture, never real data.
 
 ## Environment variables
 
@@ -51,13 +61,17 @@ Google OAuth redirect URI per deployment: `https://<deployment>.convex.site/api/
 
 ## Access
 
-Google sign-in only (Convex Auth). Google must report the email as verified. Every public query and mutation calls `requireUser(ctx)` (`convex/lib/access.ts`), which checks the user's email against `ALLOWED_EMAILS` and throws otherwise. An account that signs in but isn't on the list is signed out with "This account doesn't have access". `access:status` is the only public function that answers outsiders, and it returns nothing but their own status.
+Google sign-in only (Convex Auth). Google must report the email as verified. Every public query and mutation calls `requireUser(ctx)` (`convex/lib/access.ts`), which checks the user's email against `ALLOWED_EMAILS` and throws otherwise. An account that signs in but isn't on the list is signed out with "This account doesn't have access". `access:status` is the only public function that answers outsiders, and it returns nothing but their own status (and their own name and email, for the avatar menu and the "Not on the list" screen).
 
 Check it: `node --env-file=.env.local scripts/check-unauth.mjs <investor id>` calls every public function signed out and expects each to be refused.
 
 ## Round settings
 
 Nothing about the raise is hard-coded. Target, stretch, close and kickoff dates, instrument, cap, minimum check, phases (dates, targets, to-dos), stage odds, the "gone quiet" days and wave labels live in the `settings` row keyed `round`, editable on `/raise/settings`; each change is logged in `settingsLog`. `src/lib/round.ts` `DEFAULT_ROUND` (neutral placeholders) is used only until that row exists. Dollar phase targets are stored as a share of the raise target, so changing the target rescales them.
+
+## Home
+
+`/` greets you by time of day (Asia/Kolkata) and shows the round from the same data as `/raise`: committed and phases, days to close, the current phase's prep checklist, the list against its phase targets, and the next three dated items. Checklist ticks live in the `prepTicks` table (phase key, to-do index, done by, done at); unticking deletes the row.
 
 ## Seed
 
@@ -77,3 +91,5 @@ npx convex deploy --cmd 'pnpm build' --cmd-url-env-var-name VITE_CONVEX_URL
 ```
 
 which pushes Convex functions to production, then runs `vite build` with `VITE_CONVEX_URL` set to the production URL. Vercel needs `CONVEX_DEPLOY_KEY` (production deploy key). TanStack Start builds through Nitro with the `vercel` preset (`vite.config.ts`), which writes `.vercel/output` (Vercel Build Output API). Never deploy to production from a laptop.
+
+Preview deployments (every PR) build with `pnpm build` only: `vercel.json` skips `convex deploy` unless `VERCEL_ENV` is `production`, so a preview never touches the production deployment. Previews set `VITE_PREVIEW_MODE=1` and `VITE_CONVEX_URL` (the dev deployment) for the Preview environment, which turns on `?preview` with the fake fixture. Production never sets `VITE_PREVIEW_MODE`.
