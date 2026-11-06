@@ -6,6 +6,8 @@ import { convexAuth } from '@convex-dev/auth/server'
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [
     Google({
+      // Always show Google's account picker, so "Try another account" can switch accounts.
+      authorization: { params: { prompt: 'select_account' } },
       profile(p) {
         if (p.email_verified !== true) throw new Error('Google account email is not verified')
         return {

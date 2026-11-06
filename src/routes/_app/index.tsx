@@ -35,8 +35,7 @@ function Home() {
         <div>
           <p className="eyebrow-mono home-hello__date">{dateEyebrow(now)}</p>
           <h1 className="home-hello__title">
-            {greeting(now, me.firstName, firstRun)}
-            <br />
+            <span className="home-hello__greet">{greeting(now, me.firstName, firstRun)}</span>
             <span className="home-hello__line">{d.roundExists || firstRun ? phaseLine(r, today, { firstRun, phaseDone }) : 'Set up the round to get going.'}</span>
           </h1>
         </div>
@@ -175,6 +174,7 @@ function Checklist() {
   const r = d.round
   const phase = phaseOn(r, today) ?? nextPhase(r, today) ?? r.phases[r.phases.length - 1]
   const next = phase ? r.phases[r.phases.indexOf(phase) + 1] : undefined
+  const name = d.roundExists ? phase?.name : 'Prep'
   const saved = d.usePrepTicks(phase?.k ?? null)
   // Optimistic ticks so the box answers instantly; Convex catches up.
   const [pending, setPending] = useState<Record<number, boolean>>({})
@@ -227,7 +227,7 @@ function Checklist() {
     <Card ref={card} tone={done ? 'mint' : 'white'} riseIndex={3} className={`checklist ${done ? 'checklist--done' : ''}`} aria-labelledby="checklist-title">
       <header className="checklist__head">
         <h2 id="checklist-title" className="t-heading-m">
-          {phase ? `${phase.name} checklist` : 'Checklist'}
+          {name ? `${name} checklist` : 'Checklist'}
         </h2>
         <span className="checklist__count num" ref={countRef}>
           {count} / {todo.length}
@@ -247,7 +247,7 @@ function Checklist() {
       {done ? (
         <p className={`checklist__banner ${celebrate ? 'm-rise' : ''}`}>
           <Icon name="spark" size={18} className={`checklist__spark ${celebrate ? 'is-twinkle' : ''}`} />
-          {phase!.name}’s done.{next ? ` ${next.name} is ready to fly.` : ' Nice work.'}
+          {name}’s done.{next ? ` ${next.name} is ready to fly.` : ' Nice work.'}
         </p>
       ) : null}
     </Card>
