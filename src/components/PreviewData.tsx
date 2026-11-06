@@ -1,18 +1,20 @@
 // DEV ONLY: renders Home and the Raise views with in-memory writes, so the UI
 // can be checked without a Google sign-in. Never used in production builds.
 // Data: the fake fixture in src/preview/ (default), or internal/seed.json with `&seed`.
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { applyMove, applyUndo } from '../lib/board'
 import { todayIST } from '../lib/dates'
 import { applyAdvance, applySave, type Activity, type Investor } from '../lib/pipeline'
 import { DEFAULT_ROUND, diffRound, mergeRound, type Round } from '../lib/round'
 import { LABEL } from '../lib/stages'
-import { fixtureInvestors, fixtureRound } from '../preview/fixture'
+import { fixtureBoardExtras, fixtureInvestors, fixtureRound } from '../preview/fixture'
 import { RaiseContext, type LogRow, type RaiseData } from './data'
 
 type Seed = { round?: Partial<Round>; investors: (Omit<Investor, '_id'> & { slug: string })[] }
 export type PreviewHome = 'default' | 'firstrun' | 'prepdone'
 
-export function PreviewData({ source, home = 'default', children }: { source: 'fixture' | 'seed'; home?: PreviewHome; children: ReactNode }) {
+/** `board`: add the Pipeline board's extra fake cards (`&pipeline=…`). */
+export function PreviewData({ source, home = 'default', board = false, children }: { source: 'fixture' | 'seed'; home?: PreviewHome; board?: boolean; children: ReactNode }) {
   const [investors, setInvestors] = useState<Investor[] | null>(null)
   const [acts, setActs] = useState<Activity[]>([])
   const [round, setRound] = useState<Round>(DEFAULT_ROUND)
@@ -38,7 +40,7 @@ export function PreviewData({ source, home = 'default', children }: { source: 'f
       }
     }
     // The real seed file only exists locally; deployed previews always use the fixture.
-    if (source === 'fixture' || !import.meta.env.DEV) return load(fixtureInvestors(t), fixtureRound(t))
+    if (source === 'fixture' || !import.meta.env.DEV) return load([...fixtureInvestors(t), ...(board ? fixtureBoardExtras(t) : [])], fixtureRound(t))
     fetch('/internal/seed.json')
       .then((r) => r.json() as Promise<Seed>)
       .then((s) => {
@@ -48,12 +50,21 @@ export function PreviewData({ source, home = 'default', children }: { source: 'f
           mergeRound(s.round),
         )
       })
-  }, [source, home])
+  }, [source, home, board])
+
+  const latest = useRef(investors)
+  useEffect(() => {
+    latest.current = investors
+  }, [investors])
 
   const value = useMemo<RaiseData>(() => {
     const t = todayIST()
     let n = 0
-    const act = (a: Omit<Activity, '_id' | 'date' | 'by'>) => setActs((xs) => [{ ...a, _id: `p${Date.now()}${n++}`, date: t, by: 'Dev' }, ...xs])
+    const act = (a: Omit<Activity, '_id' | 'date' | 'by'>) => {
+      const _id = `p${Date.now()}${n++}`
+      setActs((xs) => [{ ...a, _id, date: t, by: 'Dev' }, ...xs])
+      return _id
+    }
     const list = investors ?? []
     return {
       loaded: !!investors,
@@ -78,6 +89,24 @@ export function PreviewData({ source, home = 'default', children }: { source: 'f
         setInvestors((xs) => (xs ?? []).map((x) => (x._id === id ? { ...x, stage: nx.stage, lastTouch: t, ...(nx.raiseMax ? { maxStage: nx.stage } : {}) } : x)))
         act({ investorId: id, kind: 'stage', stage: nx.stage })
         return { stage: nx.stage, label: LABEL[nx.stage] }
+      },
+      move: async (id, stage) => {
+        const i = list.find((x) => x._id === id)
+        if (!i) throw { data: 'That investor was deleted' }
+        const from = { stage: i.stage, lastTouch: i.lastTouch, maxStage: i.maxStage }
+        if (i.stage === stage) return { id, to: stage, from, activityId: null }
+        const { patch, logStage } = applyMove(i, stage, t)
+        setInvestors((xs) => (xs ?? []).map((x) => (x._id === id ? { ...x, ...patch } : x)))
+        const activityId = logStage ? act({ investorId: id, kind: 'stage', stage: logStage }) : null
+        return { id, to: stage, from, activityId }
+      },
+      undoMove: async (rec) => {
+        // Undo runs from a toast created before the move, so read the latest rows.
+        const i = latest.current?.find((x) => x._id === rec.id)
+        const back = i && applyUndo(i, rec)
+        if (!back) throw { data: 'It moved again since, so there’s nothing to undo' }
+        setInvestors((xs) => (xs ?? []).map((x) => (x._id === rec.id ? { ...x, ...back } : x)))
+        if (rec.activityId) setActs((xs) => xs.filter((a) => a._id !== rec.activityId))
       },
       logNote: async (id, note) => {
         act({ investorId: id, kind: 'note', note })

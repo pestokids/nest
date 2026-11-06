@@ -2,6 +2,8 @@
 //   &seed                    use internal/seed.json instead of the fixture
 //   &home=firstrun|prepdone  Home states
 //   &signin=<state>          a sign-in state: default, hover, checking, noaccess, error, signedout
+//   &pipeline=hidden|shown|end  Pipeline board states (adds a few fake cards; see components/pipeline/preview.ts)
+//   &stage=<key>             with &pipeline on a phone: the stage chip that starts selected
 import { AppShell } from '../components/AppShell'
 import { PreviewData, type PreviewHome } from '../components/PreviewData'
 import { LocalSounds, SessionContext } from '../components/session'
@@ -13,6 +15,8 @@ export function Preview() {
   const q = new URLSearchParams(location.search)
   if (q.has('seed')) sessionStorage.setItem('nest_preview_data', 'seed')
   else if (q.has('preview')) sessionStorage.removeItem('nest_preview_data')
+  if (q.has('pipeline')) sessionStorage.setItem('nest_preview_board', '1')
+  else if (q.has('preview')) sessionStorage.removeItem('nest_preview_board')
   const signin = q.get('signin') as SignInState | null
   if (signin && SIGN_IN_STATES.includes(signin))
     return (
@@ -24,7 +28,7 @@ export function Preview() {
   return (
     <LocalSounds>
       <SessionContext.Provider value={session}>
-        <PreviewData source={sessionStorage.getItem('nest_preview_data') === 'seed' ? 'seed' : 'fixture'} home={home}>
+        <PreviewData source={sessionStorage.getItem('nest_preview_data') === 'seed' ? 'seed' : 'fixture'} home={home} board={sessionStorage.getItem('nest_preview_board') === '1'}>
           <AppShell />
         </PreviewData>
       </SessionContext.Provider>
