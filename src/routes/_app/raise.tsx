@@ -56,19 +56,22 @@ function RaiseLayout() {
   // (or straight away if the Raise views unmount or the page is closing).
   const [hidden, setHidden] = useState<Set<string>>(() => new Set())
   const pending = useRef(new Map<string, ReturnType<typeof setTimeout>>())
-  const removeNow = raw.remove
-  const commit = useCallback(
-    (id: string) => {
-      const t = pending.current.get(id)
-      if (t === undefined) return
-      clearTimeout(t)
-      pending.current.delete(id)
-      void removeNow(id)
-        .catch(fail)
-        .finally(() => setHidden((s) => (s.has(id) ? new Set([...s].filter((x) => x !== id)) : s)))
-    },
-    [removeNow, fail],
-  )
+  // The data provider hands out new functions on every update; keep the latest in refs so a
+  // pending delete is only sent by its timer, Raise unmounting, or the page closing.
+  const latest = useRef({ remove: raw.remove, fail })
+  useEffect(() => {
+    latest.current = { remove: raw.remove, fail }
+  })
+  const commit = useCallback((id: string) => {
+    const t = pending.current.get(id)
+    if (t === undefined) return
+    clearTimeout(t)
+    pending.current.delete(id)
+    void latest.current
+      .remove(id)
+      .catch((e) => latest.current.fail(e))
+      .finally(() => setHidden((s) => (s.has(id) ? new Set([...s].filter((x) => x !== id)) : s)))
+  }, [])
   useEffect(() => {
     const flush = () => [...pending.current.keys()].forEach(commit)
     window.addEventListener('pagehide', flush)
