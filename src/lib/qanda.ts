@@ -9,6 +9,7 @@ import { matchScore } from './palette'
 import type { Activity, Investor } from './pipeline'
 import type { Material, MaterialVersion } from './materials'
 import { STAGE_TILE, TOUCH_LABEL, type Stage } from './stages'
+import type { NoteSource } from './meetingNotes'
 
 export const THEMES = ['Traction', 'Business model', 'Market', 'Product', 'Team', 'Round', 'Competition'] as const
 export const ASK_SOURCES = ['notes', 'manual', 'meeting'] as const
@@ -69,8 +70,10 @@ export type Note = {
   text: string
   /** The meeting, e.g. "1st meeting". */
   title?: string
-  /** First name of whoever pasted it. */
+  /** First name of whoever pasted it ("Wispr Flow" when it came in through MCP). */
   by: string
+  /** PST-277: pasted, Wispr Flow or an agent (absent: pasted). */
+  source?: NoteSource
   _creationTime?: number
 }
 

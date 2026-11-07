@@ -4,18 +4,17 @@
 // questions a brief shows) live in src/lib/qanda.ts. Removing and merging keep
 // the row (removedAt, mergedInto) so Undo can put it back; lists leave them out.
 //
-// TODO(PST-274): add two actions here on enrichment's Anthropic client
-// (convex/lib/anthropic.ts: research(), extractJson(), NoAIKey when no key is set):
-//   - "Draft an answer from past answers": read a question, its similar ones
-//     (similarQuestions) and their answers, and return a draft for the Answer panel.
-//     A draft is never saved on its own; it goes through `save` like a typed one.
-//   - "Pull questions out of notes": read a note's text and return the lines
-//     that are investor questions, for the Notes tab to offer; picking one still goes through `markLine`.
-import { ConvexError, v } from 'convex/values'
+//
+// PST-277: Claude reads saved notes (convex/noteReads.ts) and proposes the
+// questions they asked, matched against the bank; applying them goes through
+// `addNoteQuestions` here. "Draft from past answers" is noteReads.draftAnswer:
+// a draft is never saved on its own, it goes through `save` like a typed one.
+import { ConvexError, v, type Infer } from 'convex/values'
 import { mutation, query, type MutationCtx, type QueryCtx } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
 import { firstName, requireUser } from './lib/access'
-import { vAskSource } from './validators'
+import { vAskSource, type vSuggestionUndo } from './validators'
+import { startRead } from './lib/noteRead'
 import { isISODate, todayIST } from '../src/lib/dates'
 import { cleanQuestion, cleanTheme, guessTheme, LIMITS, needsAnswer, nextDeck, noteLines, sameText } from '../src/lib/qanda'
 
@@ -114,7 +113,11 @@ export const notesFor = query({
     ).filter((n) => !n.removedAt)
     rows.sort((a, b) => b.date.localeCompare(a.date) || b._creationTime - a._creationTime)
     const out = []
-    for (const n of rows) out.push({ _id: n._id, investorId: n.investorId, meetingId: n.meetingId, date: n.date, text: n.text, title: n.title, by: firstName(await ctx.db.get(n.createdBy)), _creationTime: n._creationTime })
+    for (const n of rows)
+      out.push({
+        _id: n._id, investorId: n.investorId, meetingId: n.meetingId, date: n.date, text: n.text, title: n.title, source: n.source,
+        by: n.createdBy ? firstName(await ctx.db.get(n.createdBy)) : n.source === 'wispr' ? 'Wispr Flow' : 'an agent', _creationTime: n._creationTime,
+      })
     return out
   },
 })
@@ -300,7 +303,7 @@ export const removeFromDeck = mutation({
 
 /* ---------- notes ---------- */
 
-/** "Paste notes": one meeting's notes for an investor. */
+/** "Paste notes": one meeting's notes for an investor. Nest reads them when that's on in Settings (PST-277). */
 export const addNote = mutation({
   args: { investorId: v.id('investors'), text: v.string(), date: v.optional(v.string()), title: v.optional(v.string()), meetingId: v.optional(v.id('meetings')) },
   handler: async (ctx, a) => {
@@ -308,7 +311,9 @@ export const addNote = mutation({
     if (!(await ctx.db.get(a.investorId))) throw new ConvexError('That investor was deleted.')
     const text = required(a.text, LIMITS.note, 'notes')
     const title = a.title?.replace(/\s+/g, ' ').trim().slice(0, LIMITS.title) || undefined
-    return await ctx.db.insert('notes', { investorId: a.investorId, meetingId: a.meetingId, date: dayOr(a.date), text, title, createdBy: userId })
+    const id = await ctx.db.insert('notes', { investorId: a.investorId, meetingId: a.meetingId, date: dayOr(a.date), text, title, createdBy: userId, source: 'paste' })
+    await startRead(ctx, id, { auto: true })
+    return id
   },
 })
 
@@ -387,3 +392,66 @@ export const unmarkLine = mutation({
     return rows.length
   },
 })
+
+/* ---------- PST-277: questions from a note Claude read ---------- */
+
+type QuestionsUndo = Extract<Infer<typeof vSuggestionUndo>, { op: 'questions' }>
+type NoteQuestionInput = { text: string; questionId?: Id<'questions'>; answer?: string; quote: string }
+
+/** The note line a quote came from, so the Notes tab shows it as picked. */
+function lineOf(text: string, quote: string): number | undefined {
+  const q = quote.toLowerCase().replace(/\s+/g, ' ').replace(/^["“'\s]+|["”'.,\s]+$/g, '')
+  return noteLines(text).find((l) => l.text.toLowerCase().replace(/\s+/g, ' ').includes(q))?.line
+}
+
+/**
+ * Apply "Q&A" from a note: each question onto the one already in the bank (by
+ * id, or the same words) or in as a new one, asked by the note's investor on
+ * its date, from its line. Dev's answer from the call fills in a question that
+ * has none yet; an answer already in the bank stays. Returns what Undo needs.
+ */
+export async function addNoteQuestions(ctx: MutationCtx, userId: Id<'users'>, noteId: Id<'notes'>, items: NoteQuestionInput[]): Promise<QuestionsUndo | null> {
+  const note = await ctx.db.get(noteId)
+  if (!note || note.removedAt || !(await ctx.db.get(note.investorId))) return null
+  const undo: QuestionsUndo = { op: 'questions', askIds: [], created: [], answered: [] }
+  for (const it of items) {
+    const text = cleanQuestion(it.text)
+    if (!text) continue
+    const byId = it.questionId ? await ctx.db.get(it.questionId) : null
+    let q = isLive(byId) ? byId : await sameQuestion(ctx, text)
+    if (!q) {
+      const id = await newQuestion(ctx, text)
+      undo.created.push(id)
+      q = (await ctx.db.get(id))!
+    }
+    const noteLine = lineOf(note.text, it.quote)
+    const asks = await asksOf(ctx, q._id)
+    if (!asks.some((a) => a.investorId === note.investorId && a.noteId === noteId)) {
+      undo.askIds.push(await ctx.db.insert('questionAsks', { questionId: q._id, investorId: note.investorId, date: note.date, source: 'notes', noteId, ...(noteLine !== undefined ? { noteLine } : {}) }))
+      await recount(ctx, q._id)
+    }
+    const answer = it.answer?.trim().slice(0, LIMITS.answer)
+    if (answer && needsAnswer(q)) {
+      undo.answered.push({ id: q._id, bestAnswer: q.bestAnswer, answerVersions: q.answerVersions })
+      await ctx.db.patch(q._id, { bestAnswer: answer, answerVersions: [...q.answerVersions, { text: answer, at: Date.now(), by: userId }], updatedAt: Date.now() })
+    }
+  }
+  return undo
+}
+
+/** Undo `addNoteQuestions`: the asks go, answers go back, and a question it created leaves the bank once nobody else asked it. */
+export async function removeNoteQuestions(ctx: MutationCtx, u: QuestionsUndo) {
+  const touched = new Set<Id<'questions'>>()
+  for (const id of u.askIds) {
+    const a = await ctx.db.get(id)
+    if (!a) continue
+    await ctx.db.delete(id)
+    touched.add(a.questionId)
+  }
+  for (const id of touched) await recount(ctx, id)
+  for (const x of u.answered) if (await ctx.db.get(x.id)) await ctx.db.patch(x.id, { bestAnswer: x.bestAnswer, answerVersions: x.answerVersions })
+  for (const id of u.created) {
+    const q = await ctx.db.get(id)
+    if (isLive(q) && !q.askedCount) await ctx.db.patch(id, { removedAt: Date.now() })
+  }
+}

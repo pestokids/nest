@@ -91,6 +91,13 @@ export const vSuggestionPatch = v.union(
   v.object({ op: v.literal('new_investor'), name: v.string(), firm: v.string(), email: v.optional(v.string()), note: v.optional(v.string()) }),
   v.object({ op: v.literal('merge') }),
   v.object({ op: v.literal('review') }),
+  // PST-277: from a meeting note (convex/noteReads.ts).
+  v.object({
+    op: v.literal('questions'),
+    noteId: v.id('notes'),
+    items: v.array(v.object({ text: v.string(), questionId: v.optional(v.id('questions')), answer: v.optional(v.string()), quote: v.string() })),
+  }),
+  v.object({ op: v.literal('warm_path'), text: v.string() }),
 )
 const vIdsBefore = <T extends 'meetings' | 'emailTouches'>(table: T) => v.array(v.object({ id: v.id(table), investorIds: v.array(v.id('investors')) }))
 /** What Undo needs after an accept: the values it replaced, the activity it wrote, or the card a merge deleted. */
@@ -111,6 +118,13 @@ export const vSuggestionUndo = v.union(
     threads: vIdsBefore('emailTouches'),
     keepKeys: v.array(v.string()),
     keepBefore: v.any(),
+  }),
+  // PST-277: questions from notes went into the bank: the asks added, questions created, and answers they filled in.
+  v.object({
+    op: v.literal('questions'),
+    askIds: v.array(v.id('questionAsks')),
+    created: v.array(v.id('questions')),
+    answered: v.array(v.object({ id: v.id('questions'), bestAnswer: v.string(), answerVersions: v.array(v.object({ text: v.string(), at: v.number(), by: v.optional(v.id('users')) })) })),
   }),
 )
 

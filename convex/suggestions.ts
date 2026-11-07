@@ -4,8 +4,8 @@
 // logNote's touch, the drawer's domains) and keeps what Undo needs on the row.
 // The checks run every morning at 09:00 IST (crons.ts), after each Google sync
 // (googleSync.ts) and on demand (`run`). Other features add rows through
-// `addSuggestion` / `insertSuggestion`: enrichment, and agents through the Nest
-// MCP server (PST-276, convex/mcp.ts).
+// `addSuggestion` / `insertSuggestion`: enrichment, meeting notes (PST-277), and
+// agents through the Nest MCP server (PST-276, convex/mcp.ts).
 import { ConvexError, v, type Infer, type ObjectType } from 'convex/values'
 import { internalMutation, mutation, query, type MutationCtx } from './_generated/server'
 import { internal } from './_generated/api'
@@ -13,6 +13,7 @@ import type { Doc, Id } from './_generated/dataModel'
 import { requireUser } from './lib/access'
 import { autoEnrich, forgetInvestor } from './lib/enrichQueue'
 import { saveInvestor } from './investors'
+import { addNoteQuestions, removeNoteQuestions } from './qanda'
 import { vSuggestionKind, vSuggestionPatch, vSuggestionSource, type vSuggestionUndo } from './validators'
 import { applyMove, applyUndo } from '../src/lib/board'
 import { dupKey } from '../src/lib/csv'
@@ -57,6 +58,8 @@ export const list = query({
 
 const fieldsOf = (d: SuggestionDraft) => ({
   ...d,
+  // The rule checks never make a notes patch, the only kind holding ids.
+  patch: d.patch as Row['patch'],
   investorId: d.investorId as Id<'investors'> | undefined,
   otherInvestorId: d.otherInvestorId as Id<'investors'> | undefined,
 })
@@ -111,7 +114,7 @@ export const run = mutation({
 
 /* ---------- accept ---------- */
 
-type Fields = Partial<Pick<Inv, 'nextStep' | 'nextDate' | 'expected' | 'domains'>>
+type Fields = Partial<Pick<Inv, 'nextStep' | 'nextDate' | 'expected' | 'domains' | 'notes'>>
 
 /** Patch some fields and remember what they were (a key missing from `before` was empty). */
 async function setFields(ctx: MutationCtx, i: Inv, set: Fields, stamp: Stamp): Promise<Undo> {
@@ -201,6 +204,8 @@ async function apply(ctx: MutationCtx, s: Row, userId: Id<'users'>): Promise<Und
     case 'next_step':
       return await setFields(ctx, i, { nextStep: p.step.trim(), nextDate: p.date && isISODate(p.date) ? p.date : undefined }, stamp)
     case 'expected':
+      // From meeting notes, Expected is only ever filled when empty (the drawer shows the clash instead).
+      if (s.source === 'notes' && i.expected) return null
       return await setFields(ctx, i, { expected: Math.max(0, p.amount) }, stamp)
     case 'domain': {
       const d = cleanDomains([p.domain])[0]
@@ -221,11 +226,18 @@ async function apply(ctx: MutationCtx, s: Row, userId: Id<'users'>): Promise<Und
       if (!drop || drop._id === i._id) return null
       return await merge(ctx, i, drop, stamp)
     }
+    case 'questions':
+      return await addNoteQuestions(ctx, userId, p.noteId, p.items)
+    case 'warm_path': {
+      const line = 'Warm path: ' + p.text.trim()
+      if (i.notes.includes(line)) return null
+      return await setFields(ctx, i, { notes: [i.notes.trim(), line].filter(Boolean).join('\n') }, stamp)
+    }
   }
 }
 
-/** Accept one open suggestion; false (and the row goes) when it no longer fits. */
-async function acceptOne(ctx: MutationCtx, s: Row, userId: Id<'users'>): Promise<boolean> {
+/** Accept one open suggestion; false (and the row goes) when it no longer fits. Also how the drawer applies a note's proposals. */
+export async function acceptOne(ctx: MutationCtx, s: Row, userId: Id<'users'>): Promise<boolean> {
   const undo = await apply(ctx, s, userId)
   if (!undo) {
     await ctx.db.delete(s._id)
@@ -312,7 +324,23 @@ async function revert(ctx: MutationCtx, s: Row, u: Undo, userId: Id<'users'>): P
       await ctx.db.patch(i._id, { ...Object.fromEntries(u.keepKeys.map((k) => [k, u.keepBefore[k]])), ...stamp })
       return back
     }
+    case 'questions':
+      await removeNoteQuestions(ctx, u)
+      return
   }
+}
+
+/** Put one accepted or dismissed suggestion back to open (an accept is reverted first). */
+export async function reopen(ctx: MutationCtx, s: Row, userId: Id<'users'>) {
+  if (s.status === 'open') return false
+  let otherInvestorId = s.otherInvestorId
+  if (s.status === 'accepted') {
+    if (!s.undo) throw new ConvexError('That one can’t be undone.')
+    otherInvestorId = (await revert(ctx, s, s.undo, userId)) ?? otherInvestorId
+  }
+  const created = s.undo?.op === 'new_investor' ? { investorId: undefined } : {}
+  await ctx.db.patch(s._id, { status: 'open', decidedAt: undefined, decidedBy: undefined, undo: undefined, otherInvestorId, ...created })
+  return true
 }
 
 /** Undo accepts and dismissals (one, or the batch from "Accept N safe ones"): each goes back to open. */
@@ -323,15 +351,7 @@ export const undo = mutation({
     let n = 0
     for (const id of [...ids].reverse()) {
       const s = await ctx.db.get(id)
-      if (!s || s.status === 'open') continue
-      let otherInvestorId = s.otherInvestorId
-      if (s.status === 'accepted') {
-        if (!s.undo) throw new ConvexError('That one can’t be undone.')
-        otherInvestorId = (await revert(ctx, s, s.undo, userId)) ?? otherInvestorId
-      }
-      const created = s.undo?.op === 'new_investor' ? { investorId: undefined } : {}
-      await ctx.db.patch(id, { status: 'open', decidedAt: undefined, decidedBy: undefined, undo: undefined, otherInvestorId, ...created })
-      n++
+      if (s && (await reopen(ctx, s, userId))) n++
     }
     return n
   },

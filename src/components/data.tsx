@@ -87,7 +87,7 @@ export type AIActions = {
   undoDismiss: (factId: string) => Promise<unknown>
   keepAll: (runId: string) => Promise<number>
   dismissAll: (runId: string) => Promise<number>
-  setAuto: (patch: Partial<Pick<AISettings, 'lookups' | 'enrichNew'>>) => Promise<unknown>
+  setAuto: (patch: Partial<Pick<AISettings, 'lookups' | 'enrichNew' | 'meetingNotes'>>) => Promise<unknown>
   /** Who's this?: a new investor (no id), or this person joins an existing one. Resolves with the investor's id. */
   addSender: (email: string, investorId?: string) => Promise<string>
   addPerson: (investorId: string, p: { name: string; title?: string; email?: string }) => Promise<unknown>

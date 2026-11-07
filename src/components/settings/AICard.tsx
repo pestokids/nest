@@ -31,7 +31,7 @@ export function AICard() {
   const ui = useUI()
   const [saving, setSaving] = useState<keyof AISettings | null>(null)
 
-  async function set(k: 'lookups' | 'enrichNew', on: boolean) {
+  async function set(k: keyof AISettings, on: boolean) {
     setSaving(k)
     try {
       await aiDo.setAuto({ [k]: on })
@@ -51,10 +51,10 @@ export function AICard() {
     )
 
   const off = !ai.connected
-  const switches: { k: keyof AISettings; title: string; sub: string; locked?: boolean }[] = [
+  const switches: { k: keyof AISettings; title: string; sub: string }[] = [
     { k: 'lookups', title: 'Look up new people you meet', sub: 'Shows them in Who’s this? with who they are · about 3¢ each' },
     { k: 'enrichNew', title: 'Enrich investors when you add or import them', sub: 'About 4¢ each · at most 30 automatic runs a day' },
-    { k: 'meetingNotes', title: 'Read meeting notes after investor meetings', sub: 'Needs Wispr Flow or pasted notes. Coming later.', locked: true },
+    { k: 'meetingNotes', title: 'Read meeting notes after investor meetings', sub: 'Pasted or from Wispr Flow: a summary and updates to apply · about 2¢ a note' },
   ]
   return (
     <section className="set-card set-ai" aria-labelledby="set-ai-title">
@@ -74,8 +74,8 @@ export function AICard() {
       </div>
       <p className="set-card__lede">
         {off
-          ? 'AI isn’t set up here. Add ANTHROPIC_API_KEY to this Convex deployment to turn on enrichment and Who’s this? lookups.'
-          : 'Nest uses your Anthropic key to look up investors and the new people you meet, with web search.'}
+          ? 'AI isn’t set up here. Add ANTHROPIC_API_KEY to this Convex deployment to turn on enrichment, Who’s this? lookups and reading meeting notes.'
+          : 'Nest uses your Anthropic key to look up investors and the new people you meet, with web search, and to read your meeting notes.'}
       </p>
       {!off ? (
         <div className="set-ai__spend">
@@ -84,13 +84,14 @@ export function AICard() {
             <strong className="set-ai__usd num">{'$' + ai.month.usd.toFixed(2)}</strong>
           </div>
           <span className="set-ai__counts">
-            {plural(ai.month.lookups, 'lookup')} · {plural(ai.month.enrichments, 'enrichment')} · {ai.capLeft} automatic left today
+            {plural(ai.month.lookups, 'lookup')} · {plural(ai.month.enrichments, 'enrichment')}
+            {ai.month.noteReads ? ' · ' + plural(ai.month.noteReads, 'note') + ' read' : ''} · {ai.capLeft} automatic left today
           </span>
         </div>
       ) : null}
       <ul className="set-ai__switches">
         {switches.map((s) => (
-          <li key={s.k} className={s.locked || off ? 'is-off' : undefined}>
+          <li key={s.k} className={off ? 'is-off' : undefined}>
             <div>
               <span className="set-ai__title" id={'set-ai-' + s.k}>
                 {s.title}
@@ -99,9 +100,9 @@ export function AICard() {
             </div>
             <Toggle
               aria-labelledby={'set-ai-' + s.k}
-              checked={!s.locked && ai.settings[s.k]}
-              disabled={off || s.locked || saving === s.k}
-              onChange={(e) => s.k !== 'meetingNotes' && void set(s.k, e.target.checked)}
+              checked={ai.settings[s.k]}
+              disabled={off || saving === s.k}
+              onChange={(e) => void set(s.k, e.target.checked)}
             />
           </li>
         ))}
@@ -130,6 +131,7 @@ export function ClaudeSees() {
     'Names, firms, email addresses and domains',
     'Your notes and next steps for that investor',
     'Subjects of matched emails and meeting titles, never bodies (Nest doesn’t store them)',
+    'Meeting notes you paste or send in, and the questions in your Q&A bank',
     'Pages it reads on the web, with links kept as sources',
   ]
   return (

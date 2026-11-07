@@ -195,7 +195,7 @@ describe('tools', () => {
   it('a read key can’t call a write tool, and nothing is written', async () => {
     const s = await setup()
     const before = await s.snapshot()
-    for (const name of ['log_touch', 'add_investor', 'suggest_change', 'enrich']) {
+    for (const name of ['log_touch', 'add_investor', 'suggest_change', 'enrich', 'add_meeting_notes']) {
       const r = await s.call(s.read.key, name, {})
       expect(r.body.error.code).toBe(CODE.invalidParams)
       expect(r.body.error.message).toContain('read only')
@@ -245,6 +245,29 @@ describe('tools', () => {
     expect(await err('suggest_change', { investorId: s.kite, kind: 'expected', value: 'lots', why: 'x' })).toContain('US dollars')
     expect(await err('enrich', { investorId: s.kite, email: 'a@b.example.com' })).toContain('exactly one')
     expect(await err('enrich', { investorId: s.kite })).toContain('AI isn’t set up')
+    expect((await s.snapshot()).suggestions).toHaveLength(0)
+  })
+
+  it('add_meeting_notes saves the notes on the matched investor, or keeps them in Unmatched notes (PST-277)', async () => {
+    const s = await setup()
+    const today = todayIST()
+    const hit = await s.call(s.grok.key, 'add_meeting_notes', { email: 'SAM@kite.example.com', meetingTitle: 'Pesto × Kite Angels', date: today, text: 'Liked the retention story.', source: 'wispr' })
+    expect(hit.body.result.isError).toBe(false)
+    expect(hit.body.result.structuredContent).toMatchObject({ saved: true, matched: true, investorId: s.kite })
+    expect(hit.body.result.structuredContent.message).toContain('Saved on Kite Angels')
+    const byId = await s.call(s.grok.key, 'add_meeting_notes', { investorId: s.lark, meetingTitle: 'Coffee', date: today, text: 'Wants the deck.' })
+    expect(byId.body.result.structuredContent).toMatchObject({ matched: true, investorId: s.lark })
+    const miss = await s.call(s.grok.key, 'add_meeting_notes', { email: 'someone@gmail.com', meetingTitle: 'Coffee', date: today, text: 'Talked about the market.' })
+    expect(miss.body.result.structuredContent).toMatchObject({ saved: true, matched: false })
+    const { notes, unmatched } = await s.t.run(async (ctx) => ({ notes: await ctx.db.query('notes').collect(), unmatched: await ctx.db.query('unmatchedNotes').collect() }))
+    expect(notes.map((n) => [n.investorId, n.source, n.text])).toEqual([
+      [s.kite, 'wispr', 'Liked the retention story.'],
+      [s.lark, 'agent', 'Wants the deck.'],
+    ])
+    expect(unmatched).toMatchObject([{ email: 'someone@gmail.com', meetingTitle: 'Coffee', source: 'agent' }])
+    const err = async (args: Record<string, unknown>) => (await s.call(s.grok.key, 'add_meeting_notes', args)).body.result.content[0].text as string
+    expect(await err({ investorId: 'nope', meetingTitle: 'x', date: today, text: 'x' })).toContain('no investor with that id')
+    expect(await err({ meetingTitle: 'x', date: '2099-01-01', text: 'x' })).toContain('future')
     expect((await s.snapshot()).suggestions).toHaveLength(0)
   })
 

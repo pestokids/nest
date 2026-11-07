@@ -148,7 +148,7 @@ function factsOf(seed: Seed, runId: string, o: { inv?: Investor; email?: string;
 const REVIEW_ONLY = ['person.name', 'person.title', 'person.rank', 'person.covers', 'person.linkedin', 'person.x', 'fund.size', 'fund.stage', 'fund.check', 'fund.leads', 'fund.geography', 'fund.recentDeals']
 
 function initial(state: PreviewAI, investors: Investor[], now: number): DB {
-  const db: DB = { runs: [], facts: [], people: [], settings: { lookups: true, enrichNew: true, meetingNotes: false }, connected: state !== 'nokey' }
+  const db: DB = { runs: [], facts: [], people: [], settings: { lookups: true, enrichNew: true, meetingNotes: true }, connected: state !== 'nokey' }
   if (state === 'nokey') return db
   const kite = investors.find((i) => i.name === 'Kite Angels')
   const done = (inv: Investor | undefined, seed: Seed, at: number, extra: Partial<Run> = {}): Run | undefined =>

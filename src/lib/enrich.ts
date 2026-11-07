@@ -323,7 +323,8 @@ export type AIData = {
   /** ANTHROPIC_API_KEY is set on this deployment. */
   connected: boolean
   settings: AISettings
-  month: { usd: number; lookups: number; enrichments: number }
+  /** PST-277: `noteReads` counts meeting notes Nest read (their cost is in `usd`). */
+  month: { usd: number; lookups: number; enrichments: number; noteReads?: number }
   /** Automatic lookups left today. */
   capLeft: number
   /** Each investor's latest run, with how many of its facts wait for review. */
@@ -334,5 +335,5 @@ export type AIData = {
 }
 export type InvestorAI = { run: Run | null; facts: Fact[]; people: Person[] }
 export const NO_AI: AIData = {
-  loaded: false, connected: false, settings: { lookups: true, enrichNew: true, meetingNotes: false }, month: { usd: 0, lookups: 0, enrichments: 0 }, capLeft: 30, runs: [], senders: [], recent: [],
+  loaded: false, connected: false, settings: { lookups: true, enrichNew: true, meetingNotes: true }, month: { usd: 0, lookups: 0, enrichments: 0 }, capLeft: 30, runs: [], senders: [], recent: [],
 }

@@ -4,6 +4,7 @@ import { useRaise } from '../../../components/data'
 import { GoogleToday } from '../../../components/GoogleToday'
 import { MaterialOpens } from '../../../components/materials/Opens'
 import { Suggestions } from '../../../components/Suggestions'
+import { UnmatchedNotes } from '../../../components/qanda/UnmatchedNotes'
 import { EggHatching, NestSleeping, NestWithEggs } from '../../../components/illustrations'
 import { PhaseBar } from '../../../components/PhaseBar'
 import { usePreviewState } from '../../../components/preview-state'
@@ -86,6 +87,7 @@ function Today() {
       <Moves moves={moves} note={movesNote(r, today)} asked={asked} onAsk={logAsk} />
       <Kpis today={today} />
       <GoogleToday today={today} />
+      <UnmatchedNotes />
       <MaterialOpens />
       <div className="today__lists">
         <DueToday today={today} />

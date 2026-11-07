@@ -8,7 +8,7 @@ import { Chip, type ChipTone, type ToastInput } from './ui'
 
 /* ---------- toast + drawer opener ---------- */
 /** Prefill for the drawer's "new" state: the stage of the column whose + was clicked, the name searched for ("Add “Name”"), or a person from Who's this? (name and email). */
-export type OpenOptions = { stage?: Stage; name?: string; email?: string; /** PST-282: open an investor on their Materials tab. */ tab?: 'materials' }
+export type OpenOptions = { stage?: Stage; name?: string; email?: string; /** PST-282: open an investor on their Materials tab (PST-277: or Notes). */ tab?: 'materials' | 'notes' }
 
 /*
  * Opening the drawer from outside the Raise views (the ⌘K palette lives in the

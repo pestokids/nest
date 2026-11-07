@@ -219,8 +219,16 @@ export function PreviewData({
           setActs((xs) => xs.map((a) => (moved.includes(a._id) ? { ...a, investorId: drop._id } : a)))
         }
       }
+      // PST-277: the preview's Q&A bank is its own store (PreviewQanda), so questions from notes change nothing here.
+      if (p.op === 'questions') return () => {}
       const set: Partial<Investor> =
-        p.op === 'next_step' ? { nextStep: p.step, nextDate: p.date } : p.op === 'expected' ? { expected: p.amount } : { domains: cleanDomains([...(i.domains ?? []), p.domain]) }
+        p.op === 'next_step'
+          ? { nextStep: p.step, nextDate: p.date }
+          : p.op === 'expected'
+            ? { expected: p.amount }
+            : p.op === 'warm_path'
+              ? { notes: [i.notes.trim(), 'Warm path: ' + p.text].filter(Boolean).join('\n') }
+              : { domains: cleanDomains([...(i.domains ?? []), p.domain]) }
       const before = Object.fromEntries(Object.keys(set).map((k) => [k, i[k as keyof Investor]])) as Partial<Investor>
       patchInv(i._id, set)
       return () => patchInv(i._id, before)
