@@ -110,14 +110,15 @@ describe('reading notes', () => {
     const { read } = await pasted(s)
     expect(claude.calls).toHaveLength(1)
     const req = claude.calls[0].body
-    expect(req.model).toBe('claude-sonnet-5-5')
+    expect(req.model).toBe('claude-haiku-5-5')
     expect(req.tools).toBeUndefined()
     expect(req.messages[0].content).toContain('Send week-8 retention in two weeks.')
     expect(req.messages[0].content).toContain(s.bank + ': What does retention look like after week 4?')
     expect(req.messages[0].content).toContain('1st meeting (key "m1")')
 
     expect(read).toMatchObject({ status: 'ready', summary: answer().summary })
-    expect(read.costUsd).toBeCloseTo((3000 * 2 + 600 * 10) / 1e6, 10)
+    expect(read.costUsd).toBeCloseTo((3000 * 0.1 + 600 * 0.5) / 1e6, 10)
+    expect(read).toMatchObject({ model: 'claude-haiku-5-5', usage: { input: 3000, output: 600, cacheRead: 0, cacheWrite: 0, webSearches: 0 } })
     expect(read.proposals.map((p) => [p.id, p.state])).toEqual([
       ['next_step', 'open'], ['stage', 'open'], ['expected', 'open'], ['questions', 'open'], ['warm_path:0', 'open'],
     ])
@@ -311,6 +312,29 @@ describe('notes from outside (Wispr Flow, agents)', () => {
     expect(await s.as.query(api.noteReads.unmatched, {})).toEqual([])
     expect((await s.as.query(api.qanda.notesFor, { investorId: s.kite })).some((n) => n._id === noteId && n.text === 'Talked about the market.')).toBe(true)
     await drain(s.t)
+  })
+})
+
+describe('the model (PST-273)', () => {
+  it('reads on the model Settings › AI picked for meeting notes, priced as that model', async () => {
+    const s = await setup()
+    await s.as.mutation(api.enrich.setModel, { feature: 'notes', model: 'claude-sonnet-5-5' })
+    const { read } = await pasted(s)
+    expect(claude.calls[0].body.model).toBe('claude-sonnet-5-5')
+    expect(read).toMatchObject({ status: 'ready', model: 'claude-sonnet-5-5' })
+    expect(read.costUsd).toBeCloseTo((3000 * 2 + 600 * 10) / 1e6, 10)
+  })
+
+  it('reads Haiku’s answer when it puts line breaks inside strings or writes on after the JSON', async () => {
+    const a = answer()
+    // A raw line break inside a string isn't valid JSON; extractJson escapes it.
+    const raw = JSON.stringify({ ...a, summary: ['Warm, MARK keen on the kids angle', ...a.summary.slice(1)] }, null, 2).replace('MARK ', '\n')
+    claude.reply = () => message('Here is what I found.\n\n```json\n' + raw + '\n```\n\nLet me know if you want more.')
+    const s = await setup()
+    const { read } = await pasted(s)
+    expect(read.status).toBe('ready')
+    expect(read.summary[0]).toMatch(/^Warm,\s+keen on the kids angle$/)
+    expect(read.proposals.length).toBeGreaterThan(0)
   })
 })
 

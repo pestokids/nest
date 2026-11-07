@@ -59,7 +59,8 @@ describe('parseAnswer', () => {
 describe('the lines around it', () => {
   it('says what it read and what it cost', () => {
     expect(sourcesLine({ investors: 40, threads: 12, meetings: 3 }, 0.012)).toBe('From 40 investors, 12 email threads and 3 meetings · 1¢')
-    expect(sourcesLine({ investors: 1, threads: 0, meetings: 2 }, 0.004)).toBe('From 1 investor and 2 meetings · <1¢')
+    expect(sourcesLine({ investors: 1, threads: 0, meetings: 2 }, 0.004)).toBe('From 1 investor and 2 meetings · 0.4¢')
+    expect(sourcesLine({ investors: 3, threads: 0, meetings: 0 }, 0.004, 'claude-haiku-5-5')).toBe('From 3 investors · Haiku · 0.4¢')
     expect(sourcesLine({ investors: 0, threads: 0, meetings: 0 }, 0.031)).toBe('From Nest’s data · 3¢')
   })
   it('says what it is doing while it reads', () => {

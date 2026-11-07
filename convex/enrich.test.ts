@@ -7,8 +7,9 @@ import { api, internal } from './_generated/api'
 import type { Id } from './_generated/dataModel'
 import schema from './schema'
 import { autoLookup, DAILY_AUTO_CAP } from './lib/enrichQueue'
-import { costOf, NoAIKey, PRICES, research } from './lib/anthropic'
+import { AI_MODEL, costOf, extractJson, HAIKU, NoAIKey, OPUS, PRICES, research, SONNET, TOOLS } from './lib/anthropic'
 import { cardState, NO_AI_KEY } from '../src/lib/enrich'
+import { estimate, type Feature } from '../src/lib/models'
 
 const modules = import.meta.glob('./**/*.ts')
 const D = 864e5
@@ -81,7 +82,8 @@ function answerEvents(answer: unknown, opts: { stop?: string; usage?: Ev } = {})
   ]
 }
 
-let claude: { calls: { headers: Record<string, string>; body: { model: string; tools: { type: string }[]; messages: { role: string; content: unknown }[]; system: string } }[]; reply: () => Response; onCall?: () => Promise<void> }
+type Tool = { type: string; max_uses?: number; max_content_tokens?: number }
+let claude: { calls: { headers: Record<string, string>; body: { model: string; tools: Tool[]; messages: { role: string; content: unknown }[]; system: { text: string; cache_control?: unknown }[] } }[]; reply: () => Response; onCall?: () => Promise<void> }
 
 async function fakeFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
@@ -141,9 +143,19 @@ describe('enrich', () => {
     const call = claude.calls[0]
     expect(call.headers['x-api-key']).toBe('test-key-not-real')
     expect(call.headers['anthropic-version']).toBeTruthy()
-    expect(call.body.model).toBe('claude-sonnet-5-5')
-    expect(call.body.tools.map((x) => x.type)).toEqual(['web_search_20260318', 'web_fetch_20260318'])
-    expect(call.body.system).toContain('"additionalProperties":false')
+    expect(call.body.model).toBe(HAIKU)
+    expect(call.body.tools).toEqual([
+      { type: 'web_search_20260318', name: 'web_search', max_uses: 4 },
+      { type: 'web_fetch_20260318', name: 'web_fetch', max_uses: 3, max_content_tokens: 8000 },
+    ])
+    // The tools and the system prompt are cached for the turns after a pause.
+    expect(call.body.system).toHaveLength(1)
+    expect(call.body.system[0].cache_control).toEqual({ type: 'ephemeral' })
+    expect(call.body.system[0].text).toContain('"additionalProperties":false')
+    // Haiku is told to match on the firm and the email's domain, leave out what it isn't sure of, and source every fact.
+    expect(call.body.system[0].text).toMatch(/Many people share a name\. Use a page only when it ties this person to their firm or to their email’s domain/)
+    expect(call.body.system[0].text).toMatch(/If you aren’t sure, use null/)
+    expect(call.body.system[0].text).toMatch(/Every fact needs source: the full URL/)
     expect(String(call.body.messages[0].content)).toContain('Kite Angels')
 
     const { run, facts, people } = await asDev.query(api.enrich.forInvestor, { investorId: kite })
@@ -155,7 +167,8 @@ describe('enrich', () => {
       ['done', '$25K–$50K, leads sometimes', 'kite.example.com'],
       ['done', 'Two more partners', undefined],
     ])
-    expect(run?.costUsd).toBeCloseTo(costOf(USAGE), 6)
+    expect(run?.costUsd).toBeCloseTo(costOf(USAGE, AI_MODEL), 10)
+    expect(run).toMatchObject({ model: HAIKU, usage: { input: 12_000, output: 2_000, cacheRead: 4_000, cacheWrite: 0, webSearches: 3 } })
     expect(run?.factCount).toBe(EXPECTED_FACTS)
     expect(facts).toHaveLength(EXPECTED_FACTS)
     expect(facts.every((f) => f.status === 'pending' && /^https:\/\//.test(f.source))).toBe(true)
@@ -187,7 +200,47 @@ describe('enrich', () => {
     const resumed = claude.calls[1].body.messages
     expect(resumed[1]).toMatchObject({ role: 'assistant', content: [{ type: 'server_tool_use', input: { query: 'Kite' } }] })
     const { run } = await asDev.query(api.enrich.forInvestor, { investorId: kite })
-    expect(run?.costUsd).toBeCloseTo(costOf({ ...USAGE, input_tokens: USAGE.input_tokens + 5000, output_tokens: USAGE.output_tokens + 100, server_tool_use: { web_search_requests: 4 } }), 6)
+    expect(run?.costUsd).toBeCloseTo(costOf({ ...USAGE, input_tokens: USAGE.input_tokens + 5000, output_tokens: USAGE.output_tokens + 100, server_tool_use: { web_search_requests: 4 } }, AI_MODEL), 10)
+    expect(run?.usage).toMatchObject({ input: 17_000, output: 2_100, webSearches: 4 })
+  })
+
+  it('redoes one run on Opus without changing the setting, and runs on the Enrichment model Settings › AI picks', async () => {
+    const { t, asDev, kite } = await setup()
+    await asDev.mutation(api.enrich.enrich, { investorId: kite, model: OPUS })
+    await drain(t)
+    expect(claude.calls[0].body.model).toBe(OPUS)
+    let run = (await asDev.query(api.enrich.forInvestor, { investorId: kite })).run
+    expect(run?.model).toBe(OPUS)
+    expect(run?.costUsd).toBeCloseTo((12_000 * 4 + 2_000 * 20 + 4_000 * 0.2) / 1e6 + 3 * 0.01, 10)
+    expect((await asDev.query(api.enrich.data, {})).models).toEqual({ default: HAIKU, features: {} })
+    // A plain Refresh is back on the default.
+    await asDev.mutation(api.enrich.enrich, { investorId: kite })
+    await drain(t)
+    expect(claude.calls[1].body.model).toBe(HAIKU)
+    // Enrichment on its own model; the default stays.
+    expect(await asDev.mutation(api.enrich.setModel, { feature: 'enrich', model: SONNET })).toEqual({ default: HAIKU, features: { enrich: SONNET } })
+    await asDev.mutation(api.enrich.enrich, { investorId: kite })
+    await drain(t)
+    expect(claude.calls[2].body.model).toBe(SONNET)
+    run = (await asDev.query(api.enrich.forInvestor, { investorId: kite })).run
+    expect(run?.costUsd).toBeCloseTo(costOf(USAGE, SONNET), 10)
+    // Back to the default, then a new default.
+    await asDev.mutation(api.enrich.setModel, { feature: 'enrich', model: null })
+    expect(await asDev.mutation(api.enrich.setModel, { model: OPUS })).toEqual({ default: OPUS, features: {} })
+    const ai = await asDev.query(api.enrich.data, {})
+    expect(ai.features.enrich.month).toBe(3)
+    expect(ai.features.enrich.real?.runs).toBe(3)
+    expect(ai.spend.byModel[OPUS] + ai.spend.byModel[HAIKU] + ai.spend.byModel[SONNET]).toBeCloseTo(ai.month.usd, 10)
+    expect(ai.recent.map((r) => r.model)).toEqual([SONNET, HAIKU, OPUS])
+  })
+
+  it('counts runs from before PST-273 as Sonnet, the model they ran on', async () => {
+    const { t, asDev } = await setup()
+    await t.run((ctx) => ctx.db.insert('enrichRuns', { email: 'a@x.example.com', auto: false, status: 'done', steps: [], costUsd: 0.6, startedAt: Date.now() }))
+    const ai = await asDev.query(api.enrich.data, {})
+    expect(ai.spend.byModel[SONNET]).toBeCloseTo(0.6, 10)
+    expect(ai.recent[0].model).toBe(SONNET)
+    expect(ai.features.enrich.real).toBeNull()
   })
 
   it('keeps a fact into an empty field, and never overwrites a value Dev typed (a clash note instead)', async () => {
@@ -358,7 +411,7 @@ describe('automatic lookups', () => {
 describe('missing key', () => {
   it('raises NoAIKey from the client, refuses to start, and a run records it so the UI shows the not-set-up state', async () => {
     vi.stubEnv('ANTHROPIC_API_KEY', '')
-    await expect(research({ system: 's', prompt: 'p' })).rejects.toBeInstanceOf(NoAIKey)
+    await expect(research({ model: HAIKU, system: 's', prompt: 'p' })).rejects.toBeInstanceOf(NoAIKey)
     expect(claude.calls).toEqual([])
 
     const { t, asDev, kite } = await setup()
@@ -379,14 +432,50 @@ describe('missing key', () => {
   })
 })
 
+describe('reading Claude’s JSON', () => {
+  it('takes the last fenced block, else the outermost braces', () => {
+    expect(extractJson('STEP 1 | x | -\n```json\n{"a":1}\n```')).toEqual({ a: 1 })
+    expect(extractJson('```json\n{"a":1}\n```\nthen\n```json\n{"a":2}\n```')).toEqual({ a: 2 })
+    expect(extractJson('Here: {"a": {"b": 2}} and that’s all.')).toEqual({ a: { b: 2 } })
+  })
+
+  it('reads the ways Haiku slips: a fence on one line, line breaks typed inside strings, a broken fence', () => {
+    expect(extractJson('```json {"a":1}```')).toEqual({ a: 1 })
+    expect(extractJson('{"subject": "Hi", "body": "Hi Sam,\n\nThanks.\tDev"}')).toEqual({ subject: 'Hi', body: 'Hi Sam,\n\nThanks.\tDev' })
+    expect(extractJson('```js\n{"a":1}\n```')).toEqual({ a: 1 })
+    expect(() => extractJson('No JSON here.')).toThrow(/without readable JSON/)
+  })
+})
+
 describe('cost', () => {
   it('prices tokens, cache reads and writes, and web searches (fetches are free)', () => {
-    const p = PRICES['claude-sonnet-5-5']
-    expect(costOf(USAGE)).toBeCloseTo((12_000 * p.input + 2_000 * p.output + 4_000 * p.cacheRead) / 1e6 + 3 * 0.01, 10)
-    expect(costOf(USAGE)).toBeCloseTo(0.024 + 0.02 + 0.0004 + 0.03, 10)
-    expect(costOf({ cache_creation_input_tokens: 1_000_000 })).toBeCloseTo(2.5, 10)
-    expect(costOf({ cache_creation: { ephemeral_1h_input_tokens: 1_000_000 }, cache_creation_input_tokens: 1_000_000 })).toBeCloseTo(4, 10)
-    expect(costOf({ server_tool_use: { web_fetch_requests: 10 } })).toBe(0)
+    const p = PRICES[HAIKU]
+    expect(costOf(USAGE, HAIKU)).toBeCloseTo((12_000 * p.input + 2_000 * p.output + 4_000 * p.cacheRead) / 1e6 + 3 * 0.01, 10)
+    expect(costOf(USAGE, HAIKU)).toBeCloseTo(0.0012 + 0.001 + 0.00004 + 0.03, 10)
+    expect(costOf(USAGE, SONNET)).toBeCloseTo(0.024 + 0.02 + 0.0004 + 0.03, 10)
+    expect(costOf({ cache_creation_input_tokens: 1_000_000 }, SONNET)).toBeCloseTo(2.5, 10)
+    expect(costOf({ cache_creation: { ephemeral_1h_input_tokens: 1_000_000 }, cache_creation_input_tokens: 1_000_000 }, SONNET)).toBeCloseTo(4, 10)
+    expect(costOf({ server_tool_use: { web_fetch_requests: 10 } }, HAIKU)).toBe(0)
+  })
+
+  it('what Settings › AI says about Haiku holds: lookups and enrichment about 2–5¢, notes and Ask under 1¢', () => {
+    const cents = (f: Feature) => Math.round(estimate(f, HAIKU).usd * 1000) / 10
+    expect(cents('enrich')).toBeGreaterThanOrEqual(2)
+    expect(cents('enrich')).toBeLessThanOrEqual(5)
+    for (const f of ['notes', 'drafts', 'ask', 'brief'] as const) expect(cents(f)).toBeLessThan(1)
+    // The most a research run can read with TOOLS' limits: every search and page used, each step reading all before it.
+    const [search, fetch] = TOOLS
+    const steps = [...Array(search.max_uses).fill(4_000), ...Array(fetch.max_uses).fill(fetch.max_content_tokens)]
+    let context = 3_000
+    let input = 0
+    for (const added of steps) {
+      input += context
+      context += added
+    }
+    input += context
+    expect(input).toBeGreaterThan(100_000)
+    const worst = costOf({ input_tokens: input, output_tokens: 3_000, server_tool_use: { web_search_requests: search.max_uses } }, HAIKU, false)
+    expect(worst).toBeLessThan(0.06)
   })
 
   it('sums this month’s runs for Settings', async () => {

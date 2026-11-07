@@ -9,18 +9,20 @@ import { action, internalMutation, internalQuery, mutation, query, type Mutation
 import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
 import { firstName, requireUser } from './lib/access'
-import { AIError, complete, hasAIKey, MODEL, NoAIKey } from './lib/anthropic'
+import { AIError, complete, hasAIKey, NoAIKey, usageRow } from './lib/anthropic'
 import { draftPrompt, DRAFT_SYSTEM, parseDraft, type DraftContext, type LinkedMaterial } from './lib/draftPrompt'
 import { emailReady, sendEmail } from './lib/email'
 import { randomToken } from './lib/token'
 import { siteOrigin } from './materials'
 import { vDraftType, vTweak } from './draftsSchema'
+import { vModel, vUsage } from './validators'
 import { blanks, firstLine, isEmail, LINK_SLOTS, mainContact, MAX_BODY, MAX_SUBJECT, touchNote, warmPathContact, type Known } from '../src/lib/drafts'
 import { fieldLabel, NO_AI_KEY } from '../src/lib/enrich'
 import { todayIST } from '../src/lib/dates'
 import { normEmail } from '../src/lib/google'
 import { DEFAULT_OPTIONS, shareUrl, type MaterialKind } from '../src/lib/materials'
 import { LABEL } from '../src/lib/stages'
+import { addRunUsage } from '../src/lib/models'
 
 const noKey = () => new ConvexError({ code: NO_AI_KEY, message: 'AI isn’t set up here.' })
 const vInput = { draftId: v.optional(v.id('drafts')), investorId: v.id('investors'), type: vDraftType, to: v.string(), subject: v.string(), body: v.string() }
@@ -130,18 +132,20 @@ export const context = internalQuery({
   },
 })
 
-/** A generated draft: a new row, or the dialog's row rewritten (its cost added up). A sent draft is never rewritten. */
+/** A generated draft: a new row, or the dialog's row rewritten (its cost and usage added up). A sent draft is never rewritten. */
 export const saveGenerated = internalMutation({
-  args: { draftId: v.optional(v.id('drafts')), investorId: v.id('investors'), type: vDraftType, subject: v.string(), body: v.string(), costUsd: v.number() },
+  args: { draftId: v.optional(v.id('drafts')), investorId: v.id('investors'), type: vDraftType, subject: v.string(), body: v.string(), costUsd: v.number(), model: vModel, usage: vUsage },
   handler: async (ctx, a) => {
     const { userId } = await requireUser(ctx)
     const prev = a.draftId ? await ctx.db.get(a.draftId) : null
     if (prev && prev.investorId === a.investorId && prev.status !== 'sent') {
       const costUsd = prev.costUsd + a.costUsd
-      await ctx.db.patch(prev._id, { type: a.type, subject: a.subject, body: a.body, costUsd })
+      await ctx.db.patch(prev._id, { type: a.type, subject: a.subject, body: a.body, costUsd, model: a.model, usage: prev.usage ? addRunUsage(prev.usage, a.usage) : a.usage })
       return { draftId: prev._id, costUsd }
     }
-    const draftId = await ctx.db.insert('drafts', { investorId: a.investorId, type: a.type, subject: a.subject, body: a.body, status: 'draft', costUsd: a.costUsd, createdAt: Date.now(), createdBy: userId })
+    const draftId = await ctx.db.insert('drafts', {
+      investorId: a.investorId, type: a.type, subject: a.subject, body: a.body, status: 'draft', costUsd: a.costUsd, model: a.model, usage: a.usage, createdAt: Date.now(), createdBy: userId,
+    })
     return { draftId, costUsd: a.costUsd }
   },
 })
@@ -162,16 +166,19 @@ export const generate = action({
     if (!hasAIKey()) throw noKey()
     const c: DraftContext = await ctx.runQuery(internal.drafts.context, { investorId: a.investorId })
     if (a.tweak === 'deck' && !c.deck) throw new ConvexError('There’s no deck in Materials yet. Add it there, then Nest can link it.')
+    const model = await ctx.runQuery(internal.enrich.modelOf, { feature: 'drafts' })
     let out
     try {
-      const r = await complete({ model: MODEL, system: DRAFT_SYSTEM, prompt: draftPrompt(c, a.type, { tweak: a.tweak, current: a.current }), maxTokens: 2000 })
-      out = { ...parseDraft(r.text), costUsd: r.costUsd }
+      const r = await complete({ model, system: DRAFT_SYSTEM, prompt: draftPrompt(c, a.type, { tweak: a.tweak, current: a.current }), maxTokens: 2000 })
+      out = { ...parseDraft(r.text), costUsd: r.costUsd, usage: usageRow(r.usage) }
     } catch (e) {
       if (e instanceof NoAIKey) throw noKey()
       console.warn('drafts.generate failed', a.investorId, e instanceof AIError ? e.message : 'error')
       throw new ConvexError(e instanceof AIError ? 'Couldn’t write it: ' + e.message + '. Try again.' : 'Couldn’t write it. Try again.')
     }
-    const saved: { draftId: Id<'drafts'>; costUsd: number } = await ctx.runMutation(internal.drafts.saveGenerated, { draftId: a.draftId, investorId: a.investorId, type: a.type, subject: out.subject, body: out.body, costUsd: out.costUsd })
+    const saved: { draftId: Id<'drafts'>; costUsd: number } = await ctx.runMutation(internal.drafts.saveGenerated, {
+      draftId: a.draftId, investorId: a.investorId, type: a.type, subject: out.subject, body: out.body, costUsd: out.costUsd, model, usage: out.usage,
+    })
     return { draftId: saved.draftId, subject: out.subject, body: out.body, costUsd: saved.costUsd }
   },
 })

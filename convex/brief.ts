@@ -1,7 +1,7 @@
 // PST-279: the morning brief. At 08:00 IST (crons.ts) Nest writes down what
 // happened since yesterday (replies waiting on Dev, materials opened, meetings
 // done, open suggestions) and today's three moves, each with a one-line reason
-// Claude Haiku writes from the facts (under a cent). Without a key, or if Claude
+// Claude writes from the facts (on Haiku, under a cent; Settings › AI can pick another model). Without a key, or if Claude
 // fails, the moves keep Today's own why. One brief per IST day; Today shows it
 // until Dev dismisses it, then it's one line. Background work: never a sound.
 import { v, type Infer } from 'convex/values'
@@ -9,11 +9,12 @@ import { internalAction, internalMutation, internalQuery, mutation, query } from
 import { internal } from './_generated/api'
 import type { Id } from './_generated/dataModel'
 import { requireUser } from './lib/access'
-import { complete, hasAIKey, HAIKU } from './lib/anthropic'
+import { complete, hasAIKey, usageRow, type Model, type RunUsage } from './lib/anthropic'
 import { parseReasons, reasonsPrompt, REASONS_SYSTEM, sinceLines, type MoveFacts } from './lib/brief'
 import { aiSettings } from './lib/enrichQueue'
 import { movesNow } from './mcp'
 import { vBriefMove, vBriefSince } from './askSchema'
+import { vModel, vUsage } from './validators'
 import { sinceYesterday } from '../src/lib/brief'
 import { todayIST } from '../src/lib/dates'
 import { DAY_MS } from '../src/lib/google'
@@ -71,7 +72,7 @@ export const facts = internalQuery({
 
 /** Keep the first brief of the day; a second one for the same day is dropped. */
 export const save = internalMutation({
-  args: { day: v.string(), builtAt: v.number(), since: vBriefSince, moves: v.array(vBriefMove), costUsd: v.number() },
+  args: { day: v.string(), builtAt: v.number(), since: vBriefSince, moves: v.array(vBriefMove), costUsd: v.number(), model: v.optional(vModel), usage: v.optional(vUsage) },
   handler: async (ctx, b) => {
     const had = await ctx.db.query('briefs').withIndex('by_day', (q) => q.eq('day', b.day)).first()
     return had ? had._id : await ctx.db.insert('briefs', b)
@@ -87,11 +88,14 @@ export const run = internalAction({
     if (!job) return null
     let moves = job.moves
     let cost = 0
+    let used: { model: Model; usage: RunUsage } | undefined
     let ai = 'none'
     if (hasAIKey() && job.facts.length) {
+      const model = await ctx.runQuery(internal.enrich.modelOf, { feature: 'brief' })
       try {
-        const out = await complete({ model: HAIKU, system: REASONS_SYSTEM, prompt: reasonsPrompt(job.facts), maxTokens: 400 })
+        const out = await complete({ model, system: REASONS_SYSTEM, prompt: reasonsPrompt(job.facts), maxTokens: 400 })
         cost = out.costUsd
+        used = { model, usage: usageRow(out.usage) }
         const reasons = parseReasons(out.text, job.facts)
         moves = moves.map((m, i) => (reasons[i] ? { ...m, reason: reasons[i] } : m))
         ai = reasons.filter(Boolean).length + '/' + moves.length
@@ -99,7 +103,7 @@ export const run = internalAction({
         ai = 'failed'
       }
     }
-    const id = await ctx.runMutation(internal.brief.save, { day: job.day, builtAt: now, since: job.since, moves, costUsd: cost })
+    const id = await ctx.runMutation(internal.brief.save, { day: job.day, builtAt: now, since: job.since, moves, costUsd: cost, ...used })
     console.log('brief day=' + job.day + ' id=' + id + ' moves=' + moves.length + ' reasons=' + ai + ' cost=$' + cost.toFixed(5))
     return id
   },

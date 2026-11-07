@@ -22,6 +22,7 @@ import { RaiseContext, type LogRow, type RaiseData } from './data'
 import { PreviewQanda } from '../preview/PreviewQanda'
 import { useAgentsPreview, type PreviewAgents } from '../preview/agentsFixture'
 import { useAskPreview, type PreviewAsk, type PreviewBrief } from '../preview/askFixture'
+import { modelFor } from '../lib/models'
 
 type Seed = { round?: Partial<Round>; investors: (Omit<Investor, '_id'> & { slug: string })[] }
 export type PreviewHome = 'default' | 'firstrun' | 'prepdone'
@@ -391,6 +392,7 @@ export function PreviewData({
   // `&ask=…` and `&brief=…`: pretend Ask Nest runs and a made-up morning brief.
   const asking = useAskPreview({
     ask: askState, brief: briefState, investors, ready, acts, round, google, suggestions: value.suggestions, today: todayIST(), fail: !!extra.fail,
+    askModel: modelFor(enrich.ai.models, 'ask'),
   })
   return (
     <RaiseContext.Provider value={{ ...value, ...enrich, ...agents, ...asking }}>

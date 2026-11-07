@@ -13,6 +13,7 @@ import type { Activity, Investor } from '../lib/pipeline'
 import type { Round } from '../lib/round'
 import type { Suggestion } from '../lib/suggestions'
 import { nextMoves } from '../lib/today'
+import { estimate, type Model } from '../lib/models'
 
 export const PREVIEW_ASK = ['empty', 'thinking', 'streaming', 'answer', 'verbal', 'prep', 'deck', 'unknown', 'failed'] as const
 export type PreviewAsk = (typeof PREVIEW_ASK)[number]
@@ -129,6 +130,8 @@ export function useAskPreview(o: {
   suggestions: Suggestion[]
   today: string
   fail: boolean
+  /** PST-273: the Ask model Settings › AI picked (the Ask chip can pick another for one question). */
+  askModel: Model
 }) {
   const [runs, setRuns] = useState<Record<string, Pretend>>({})
   const timers = useRef<ReturnType<typeof setTimeout>[]>([])
@@ -136,35 +139,36 @@ export function useAskPreview(o: {
   const latest = useRef({ investors: o.investors, google: o.google })
   latest.current = { investors: o.investors, google: o.google }
 
-  const play = useCallback((id: string, question: string, stopAt?: 'thinking' | 'streaming' | 'failed') => {
+  const play = useCallback((id: string, question: string, model: Model, stopAt?: 'thinking' | 'streaming' | 'failed') => {
     const topic = topicOf(question)
     const text = answerFor(topic, latest.current.investors ?? [], latest.current.google ?? { loaded: true, me: null, team: [], meetings: [], threads: [] })
     const set = (patch: Partial<AskRun>) => setRuns((rs) => (rs[id] ? { ...rs, [id]: { ...rs[id], run: { ...rs[id].run, ...patch } } } : rs))
     const later = (ms: number, fn: () => void) => timers.current.push(setTimeout(fn, ms))
-    setRuns((rs) => ({ ...rs, [id]: { text, run: { _id: id, question, status: 'thinking', text: '', tools: [], sources: { investors: 0, threads: 0, meetings: 0 }, costUsd: 0 } } }))
+    setRuns((rs) => ({ ...rs, [id]: { text, run: { _id: id, question, status: 'thinking', text: '', tools: [], sources: { investors: 0, threads: 0, meetings: 0 }, costUsd: 0, model } } }))
     TOOLS[topic].forEach((t, i) => later(350 + i * 650, () => set({ tools: TOOLS[topic].slice(0, i + 1) })))
     const t0 = 350 + TOOLS[topic].length * 650
     if (stopAt === 'thinking') return
-    if (stopAt === 'failed') return later(t0, () => set({ status: 'failed', error: 'Claude request failed (529)', costUsd: 0.004 }))
+    const cost = estimate('ask', model).usd * (TOOLS[topic].length + 1) / 4
+    if (stopAt === 'failed') return later(t0, () => set({ status: 'failed', error: 'Claude request failed (529)', costUsd: cost / 2 }))
     const end = stopAt === 'streaming' ? Math.floor(text.length * 0.45) : text.length
     for (let n = 0, k = 0; n < end; k++) {
       n = Math.min(end, n + 6)
       const upTo = n
       later(t0 + k * 28, () => set({ status: 'answering', text: text.slice(0, upTo) }))
     }
-    if (stopAt !== 'streaming') later(t0 + Math.ceil(end / 6) * 28 + 40, () => set({ status: 'done', text, sources: SOURCES[topic], costUsd: topic === 'chase' ? 0.012 : 0.008 }))
+    if (stopAt !== 'streaming') later(t0 + Math.ceil(end / 6) * 28 + 40, () => set({ status: 'done', text, sources: SOURCES[topic], costUsd: cost }))
   }, [])
 
   const ask = useCallback(
-    async (question: string) => {
+    async (question: string, model?: Model) => {
       await new Promise((r) => setTimeout(r, 120))
       if (o.fail) throw new Error('preview')
       const id = 'pask-' + Date.now()
       const st = o.ask === 'thinking' || o.ask === 'streaming' || o.ask === 'failed' ? o.ask : undefined
-      play(id, question, st)
+      play(id, question, model ?? o.askModel, st)
       return id
     },
-    [o.fail, o.ask, play],
+    [o.fail, o.ask, o.askModel, play],
   )
   const useAskRun = useCallback((runId: string | null) => (runId ? (runs[runId]?.run ?? null) : null), [runs])
 

@@ -3,11 +3,12 @@
 // Claude cites investors as [[investor:<id>|Name]] and offers actions as
 // [[action:open|prep|ask|<id>]] lines (convex/lib/ask.ts asks for both). Pure (unit-tested).
 import { cents } from './enrich'
+import { modelName, type Model } from './models'
 
 export const ASK_STATUSES = ['thinking', 'answering', 'done', 'failed'] as const
 export type AskStatus = (typeof ASK_STATUSES)[number]
 export type Sources = { investors: number; threads: number; meetings: number }
-export type AskRun = { _id: string; question: string; status: AskStatus; text: string; tools: string[]; sources: Sources; costUsd: number; error?: string }
+export type AskRun = { _id: string; question: string; status: AskStatus; text: string; tools: string[]; sources: Sources; costUsd: number; error?: string; model?: Model }
 
 /** Read tool calls per question; after the last one Claude has to answer with what it has. */
 export const MAX_TOOL_CALLS = 6
@@ -35,10 +36,10 @@ export const workingLine = (tools: readonly string[]) => (STEP[tools[tools.lengt
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
 const and = (xs: string[]) => (xs.length > 1 ? xs.slice(0, -1).join(', ') + ' and ' + xs[xs.length - 1] : (xs[0] ?? ''))
 
-/** "From 40 investors, 12 email threads and 3 meetings · 1¢". Parts with nothing are left out. */
-export function sourcesLine(s: Sources, costUsd: number): string {
+/** "From 40 investors, 12 email threads and 3 meetings · Haiku · 0.4¢". Parts with nothing are left out. */
+export function sourcesLine(s: Sources, costUsd: number, model?: Model): string {
   const parts = [s.investors && plural(s.investors, 'investor'), s.threads && plural(s.threads, 'email thread'), s.meetings && plural(s.meetings, 'meeting')].filter((x): x is string => !!x)
-  return (parts.length ? 'From ' + and(parts) : 'From Nest’s data') + ' · ' + cents(costUsd)
+  return (parts.length ? 'From ' + and(parts) : 'From Nest’s data') + (model ? ' · ' + modelName(model) : '') + ' · ' + cents(costUsd)
 }
 
 /* ---------- reading the answer ---------- */

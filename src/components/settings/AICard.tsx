@@ -2,15 +2,24 @@
 // on this deployment, this month's spend, the automatic-lookup switches and the
 // last few runs. "What Claude sees" sits in the side column. The key lives only in
 // Convex's environment (ANTHROPIC_API_KEY); nothing here ever sees it.
+// PST-273: the Model section (a default model and each feature's own, with what a
+// run and a month at Dev's pace would cost) and this month's spend by model and feature.
 import { useState } from 'react'
-import { cents, type AISettings, type RecentRun } from '../../lib/enrich'
+import { cents, type AIData, type AISettings, type RecentRun } from '../../lib/enrich'
 import { todayIST } from '../../lib/dates'
 import { timeOf } from '../../lib/google'
+import { estimate, FEATURE_LABEL, FEATURES, MODEL_INFO, modelFor, modelName, MODELS, monthPace, PRICES, type Feature, type Model } from '../../lib/models'
 import { useRaise } from '../data'
 import { useUI } from '../raise-ui'
-import { Chip, Icon, Toggle } from '../ui'
+import { Chip, Icon, Select, Toggle } from '../ui'
 
 const plural = (n: number, one: string) => n + ' ' + one + (n === 1 ? '' : 's')
+/** "≈ 4¢", or "<0.1¢" as it is. */
+const approx = (usd: number) => (cents(usd).startsWith('<') ? cents(usd) : '≈ ' + cents(usd))
+const perMTok = (usd: number) => '$' + (usd < 1 ? usd.toFixed(2) : String(usd))
+
+/** What one run of a feature costs on its model now, from its real runs once it has enough. */
+const runCost = (ai: AIData, f: Feature) => estimate(f, modelFor(ai.models, f), ai.features[f].real)
 
 function when(at: number) {
   const day = todayIST(at)
@@ -35,12 +44,23 @@ function runText(r: RecentRun) {
 export function AICard() {
   const { ai, aiDo } = useRaise()
   const ui = useUI()
-  const [saving, setSaving] = useState<keyof AISettings | null>(null)
+  const [saving, setSaving] = useState<keyof AISettings | Feature | 'model' | null>(null)
 
   async function set(k: keyof AISettings, on: boolean) {
     setSaving(k)
     try {
       await aiDo.setAuto({ [k]: on })
+    } catch (e) {
+      ui.fail(e)
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  async function pick(feature: Feature | null, model: Model | null) {
+    setSaving(feature ?? 'model')
+    try {
+      await aiDo.setModel(feature, model)
     } catch (e) {
       ui.fail(e)
     } finally {
@@ -58,10 +78,10 @@ export function AICard() {
 
   const off = !ai.connected
   const switches: { k: keyof AISettings; title: string; sub: string }[] = [
-    { k: 'lookups', title: 'Look up new people you meet', sub: 'Shows them in Who’s this? with who they are · about 3¢ each' },
-    { k: 'enrichNew', title: 'Enrich investors when you add or import them', sub: 'About 4¢ each · at most 30 automatic runs a day' },
-    { k: 'meetingNotes', title: 'Read meeting notes after investor meetings', sub: 'Pasted or from Wispr Flow: a summary and updates to apply · about 2¢ a note' },
-    { k: 'morningBrief', title: 'Morning brief at 08:00', sub: 'Since yesterday and today’s three moves, on Today · under 1¢ a day' },
+    { k: 'lookups', title: 'Look up new people you meet', sub: 'Shows them in Who’s this? with who they are · ' + approx(runCost(ai, 'enrich').usd) + ' each' },
+    { k: 'enrichNew', title: 'Enrich investors when you add or import them', sub: approx(runCost(ai, 'enrich').usd) + ' each · at most 30 automatic runs a day' },
+    { k: 'meetingNotes', title: 'Read meeting notes after investor meetings', sub: 'Pasted or from Wispr Flow: a summary and updates to apply · ' + approx(runCost(ai, 'notes').usd) + ' a note' },
+    { k: 'morningBrief', title: 'Morning brief at 08:00', sub: 'Since yesterday and today’s three moves, on Today · ' + approx(runCost(ai, 'brief').usd) + ' a day' },
   ]
   return (
     <section className="set-card set-ai" aria-labelledby="set-ai-title">
@@ -95,6 +115,7 @@ export function AICard() {
             {ai.month.noteReads ? ' · ' + plural(ai.month.noteReads, 'note') + ' read' : ''}
             {ai.month.asks ? ' · ' + plural(ai.month.asks, 'question') : ''} · {ai.capLeft} automatic left today
           </span>
+          {ai.month.usd > 0 ? <SpendSplit ai={ai} /> : null}
         </div>
       ) : null}
       <ul className="set-ai__switches">
@@ -115,6 +136,7 @@ export function AICard() {
           </li>
         ))}
       </ul>
+      <ModelSection ai={ai} off={off} saving={saving} onPick={pick} />
       {ai.recent.length ? (
         <>
           <h3 className="set-sub">Recent runs</h3>
@@ -123,13 +145,127 @@ export function AICard() {
               <li key={r._id}>
                 <span className="set-ai__when">{when(r.at)}</span>
                 <span className="set-ai__what">{runText(r)}</span>
-                <span className="set-ai__cost num">{cents(r.costUsd)}</span>
+                <span className="set-ai__cost num">
+                  {r.model ? (
+                    <Chip tone="outline" dot={false} className="chip--sm">
+                      {modelName(r.model)}
+                    </Chip>
+                  ) : null}
+                  <span className="set-ai__cost-n">{cents(r.costUsd)}</span>
+                </span>
               </li>
             ))}
           </ul>
         </>
       ) : null}
     </section>
+  )
+}
+
+/** IST: today's date in the month, and the month's length (for "a month at your pace"). */
+function monthDays() {
+  const [y, m, d] = todayIST().split('-').map(Number)
+  return { day: d, days: new Date(Date.UTC(y, m, 0)).getUTCDate() }
+}
+
+/** The default model as three cards, then each feature with its own picker and what it costs. */
+function ModelSection({ ai, off, saving, onPick }: { ai: AIData; off: boolean; saving: string | null; onPick: (f: Feature | null, m: Model | null) => void }) {
+  const { day, days } = monthDays()
+  return (
+    <>
+      <h3 className="set-sub" id="set-ai-model">
+        Model
+      </h3>
+      <div className="set-ai__models" role="radiogroup" aria-labelledby="set-ai-model">
+        {MODELS.map((m) => (
+          <button
+            key={m}
+            type="button"
+            role="radio"
+            aria-checked={ai.models.default === m}
+            className="set-ai__model"
+            disabled={off || saving === 'model'}
+            onClick={() => ai.models.default !== m && onPick(null, m)}
+          >
+            <span className="set-ai__model-name">
+              {MODEL_INFO[m].name}
+              {ai.models.default === m ? <Icon name="check" size={16} strokeWidth={2.5} className="set-ai__model-check" /> : null}
+            </span>
+            <span className="set-ai__model-price num">
+              {perMTok(PRICES[m].input)} in · {perMTok(PRICES[m].output)} out
+            </span>
+            <span className="set-ai__model-unit">per million tokens</span>
+            <span className="set-ai__model-good">{MODEL_INFO[m].goodFor}</span>
+          </button>
+        ))}
+      </div>
+      <ul className="set-ai__switches set-ai__features">
+        {FEATURES.map((f) => {
+          const own = ai.models.features[f]
+          const e = runCost(ai, f)
+          const { month, real } = ai.features[f]
+          return (
+            <li key={f} className={off ? 'is-off' : undefined}>
+              <div>
+                <span className="set-ai__title" id={'set-ai-model-' + f}>
+                  {FEATURE_LABEL[f]}
+                </span>
+                <span className="set-ai__sub">
+                  {approx(e.usd)} a run{e.real && real ? ', from your last ' + plural(real.runs, 'run') : ', typical'} ·{' '}
+                  {month ? approx(monthPace(month, day, days) * e.usd) + ' a month at your pace' : 'not used yet this month'}
+                </span>
+              </div>
+              <Select
+                className="set-ai__pick"
+                aria-labelledby={'set-ai-model-' + f}
+                value={own ?? 'default'}
+                disabled={off || saving === f}
+                onChange={(ev) => onPick(f, ev.target.value === 'default' ? null : (ev.target.value as Model))}
+              >
+                <option value="default">Default · {MODEL_INFO[ai.models.default].name}</option>
+                {MODELS.map((m) => (
+                  <option key={m} value={m}>
+                    {MODEL_INFO[m].name}
+                  </option>
+                ))}
+              </Select>
+            </li>
+          )
+        })}
+      </ul>
+    </>
+  )
+}
+
+/** This month's spend as two stacked bars, by model and by feature, each with its legend. */
+function SpendSplit({ ai }: { ai: AIData }) {
+  const total = ai.month.usd
+  const bar = (title: string, parts: { key: string; label: string; usd: number }[]) => {
+    const shown = parts.filter((p) => p.usd > 0)
+    return (
+      <div className="set-ai__split">
+        <span className="set-ai__k">{title}</span>
+        <div className="set-ai__bar" role="img" aria-label={title + ': ' + shown.map((p) => p.label + ' ' + cents(p.usd)).join(', ')}>
+          {shown.map((p) => (
+            <span key={p.key} className={'set-ai__seg set-ai__seg--' + p.key} style={{ width: (p.usd / total) * 100 + '%' }} />
+          ))}
+        </div>
+        <ul className="set-ai__legend" aria-hidden="true">
+          {shown.map((p) => (
+            <li key={p.key}>
+              <span className={'set-ai__swatch set-ai__seg--' + p.key} />
+              {p.label} <span className="num">{cents(p.usd)}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    )
+  }
+  return (
+    <div className="set-ai__splits">
+      {bar('By model', MODELS.map((m) => ({ key: MODEL_INFO[m].name.toLowerCase(), label: MODEL_INFO[m].name, usd: ai.spend.byModel[m] })))}
+      {bar('By feature', FEATURES.map((f) => ({ key: f, label: FEATURE_LABEL[f], usd: ai.spend.byFeature[f] })))}
+    </div>
   )
 }
 

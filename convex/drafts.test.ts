@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from './_generated/api'
 import type { Id } from './_generated/dataModel'
 import schema from './schema'
-import { costOf, MODEL } from './lib/anthropic'
+import { AI_MODEL, costOf, HAIKU } from './lib/anthropic'
 import { DEFAULT_OPTIONS, shareUrl } from '../src/lib/materials'
 import { NO_AI_KEY } from '../src/lib/enrich'
 import { todayIST } from '../src/lib/dates'
@@ -101,11 +101,11 @@ describe('writing a draft', () => {
     expect(r.body).toContain('up from [__]% at week 4')
     expect(r.body).not.toMatch(/hope this finds you well/i)
     expect(r.subject).toBe(ANSWER.subject)
-    expect(r.costUsd).toBeCloseTo(costOf(USAGE), 8)
+    expect(r.costUsd).toBeCloseTo(costOf(USAGE, AI_MODEL), 8)
 
     expect(calls).toHaveLength(1)
     const req = calls[0].body as { model: string; system: string; tools?: unknown }
-    expect(req.model).toBe(MODEL)
+    expect(req.model).toBe(HAIKU)
     expect(req.tools).toBeUndefined()
     expect(req.system).toMatch(/Never invent numbers, names or commitments/)
     expect(req.system).toContain('write [__] exactly')
@@ -121,12 +121,13 @@ describe('writing a draft', () => {
     expect(prompt).toContain('Pesto: notes from Friday')
 
     const row = await t.run((ctx) => ctx.db.get(r.draftId))
-    expect(row).toMatchObject({ investorId: kite, type: 'followup', status: 'draft', body: r.body })
+    expect(row).toMatchObject({ investorId: kite, type: 'followup', status: 'draft', body: r.body, model: HAIKU, usage: { input: 3_000, output: 250, cacheRead: 0, cacheWrite: 0, webSearches: 0 } })
 
     // A tweak rewrites the same row and adds up the cost.
     const again = await as.action(api.drafts.generate, { investorId: kite, type: 'followup', draftId: r.draftId, tweak: 'shorter', current: { subject: r.subject, body: r.body } })
     expect(again.draftId).toBe(r.draftId)
-    expect(again.costUsd).toBeCloseTo(2 * costOf(USAGE), 8)
+    expect(again.costUsd).toBeCloseTo(2 * costOf(USAGE, AI_MODEL), 8)
+    expect((await t.run((ctx) => ctx.db.get(r.draftId)))?.usage).toMatchObject({ input: 6_000, output: 500 })
     expect(promptOf(calls[1])).toMatch(/Make it shorter[\s\S]*The current draft/)
   })
 

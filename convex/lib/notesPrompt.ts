@@ -30,7 +30,7 @@ export const SYSTEM = [
   '- questions: the questions the investor asked, in their words as one clean question each. If one is the same question as one in the bank (given below with ids), set questionId to that id, else null. If Dev answered it in the meeting, answer is his answer in a sentence or two and answerQuote quotes it; otherwise both null.',
   '- warmPaths: intros or warm paths the investor offered ("Sam offered an intro to Orchard Capital").',
   '',
-  'Write the answer as one fenced json block matching this JSON Schema, and nothing after it:',
+  'Write the answer as one fenced json block matching this JSON Schema, and nothing after it. Valid JSON only: every key present (null or [] when there’s nothing), double quotes, no comments, no trailing commas. The schema:',
   JSON.stringify(toJsonSchema(vNoteAnswer)),
 ].join('\n')
 

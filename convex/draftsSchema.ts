@@ -4,6 +4,7 @@
 import { defineTable } from 'convex/server'
 import { v } from 'convex/values'
 import { DRAFT_STATUSES, DRAFT_TYPES, TWEAKS } from '../src/lib/drafts'
+import { runModelFields } from './validators'
 
 const lit = <T extends string>(xs: readonly T[]) => v.union(...xs.map((x) => v.literal(x)))
 export const vDraftType = lit(DRAFT_TYPES)
@@ -27,5 +28,9 @@ export const draftTables = {
     via: v.optional(vDraftVia),
     /** When it was sent, and its email touch logged. */
     sentAt: v.optional(v.number()),
-  }).index('by_investor', ['investorId', 'createdAt']),
+    /** PST-273: the model of the latest write, and the usage of every write added up (like costUsd). */
+    ...runModelFields,
+  })
+    .index('by_investor', ['investorId', 'createdAt'])
+    .index('by_created', ['createdAt']),
 }

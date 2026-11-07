@@ -10,6 +10,7 @@ import { INVESTOR_STEPS, SENDER_STEPS } from './research'
 import { firmDomain, investorWrite } from '../../src/lib/enrich'
 import { todayIST } from '../../src/lib/dates'
 import { DAY_MS, domainOf, GENERIC_DOMAINS, isOurs, normEmail } from '../../src/lib/google'
+import { AI_MODEL, modelFor, type Feature, type Model, type ModelChoice } from '../../src/lib/models'
 
 export const MAX_RUNNING = 2
 export const DAILY_AUTO_CAP = 30
@@ -30,6 +31,16 @@ export async function aiSettings(ctx: QueryCtx) {
   }
 }
 
+/** PST-273: Settings › AI's models: the default (AI_MODEL until one is picked) and each feature's own. */
+export async function modelChoice(ctx: QueryCtx): Promise<ModelChoice> {
+  const row = await ctx.db.query('settings').withIndex('by_key', (q) => q.eq('key', 'ai')).unique()
+  if (row?.key !== 'ai') return { default: AI_MODEL, features: {} }
+  return { default: row.model ?? AI_MODEL, features: row.models ?? {} }
+}
+
+/** The model a feature runs on now. */
+export const featureModel = async (ctx: QueryCtx, f: Feature): Promise<Model> => modelFor(await modelChoice(ctx), f)
+
 /** Automatic lookups still allowed today (IST): cache hits don't count. */
 export async function capLeft(ctx: QueryCtx, now = Date.now()) {
   const since = Date.parse(todayIST(now) + 'T00:00:00+05:30')
@@ -37,7 +48,8 @@ export async function capLeft(ctx: QueryCtx, now = Date.now()) {
   return Math.max(0, DAILY_AUTO_CAP - runs.filter((r) => r.auto && !r.cached).length)
 }
 
-type Target = { investorId?: Id<'investors'>; email?: string; domain?: string; auto: boolean }
+/** `model`: a one-off on another model (Redo with Sonnet); left out, the run uses the Enrichment model when it starts. */
+type Target = { investorId?: Id<'investors'>; email?: string; domain?: string; auto: boolean; model?: Model }
 
 /** Queue a lookup and start it if a slot is free. */
 export async function queue(ctx: MutationCtx, t: Target): Promise<Id<'enrichRuns'>> {
@@ -58,7 +70,8 @@ export async function pump(ctx: MutationCtx) {
   if (live >= MAX_RUNNING) return
   const next = await ctx.db.query('enrichRuns').withIndex('by_status', (q) => q.eq('status', 'queued')).take(MAX_RUNNING - live)
   for (const r of next) {
-    await ctx.db.patch(r._id, { status: 'running', startedAt: now, steps: r.steps.map((s, i) => (i === 0 ? { ...s, state: 'running' as const } : s)) })
+    const model = r.model ?? (await featureModel(ctx, 'enrich'))
+    await ctx.db.patch(r._id, { status: 'running', startedAt: now, model, steps: r.steps.map((s, i) => (i === 0 ? { ...s, state: 'running' as const } : s)) })
     await ctx.scheduler.runAfter(0, internal.enrich.execute, { runId: r._id })
   }
 }

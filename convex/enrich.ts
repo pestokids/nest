@@ -8,21 +8,25 @@ import { internalAction, internalMutation, internalQuery, mutation, query, type 
 import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
 import { requireUser } from './lib/access'
-import { AIError, extractJson, hasAIKey, NoAIKey, PRICES, research } from './lib/anthropic'
+import { AIError, extractJson, hasAIKey, NoAIKey, PRICES, research, usageRow, type RunUsage } from './lib/anthropic'
 import { conform, SchemaError } from './lib/jsonSchema'
 import { factsFrom, investorPrompt, parseStep, senderPrompt, SYSTEM, vResearch } from './lib/research'
-import { aiSettings, CACHE_DAYS, capLeft, pump, queue, syncReview } from './lib/enrichQueue'
+import { aiSettings, CACHE_DAYS, capLeft, featureModel, modelChoice, pump, queue, syncReview } from './lib/enrichQueue'
 import { saveInvestor } from './investors'
 import { vNewFact, vStep, vVerdict } from './enrichSchema'
+import { vFeature, vModel, vUsage } from './validators'
 import { asRank, firmDomain, investorWrite, NO_AI_KEY, type RecentRun } from '../src/lib/enrich'
 import { todayIST } from '../src/lib/dates'
 import { DAY_MS, domainOf, GENERIC_DOMAINS, nameFromEmail, normEmail } from '../src/lib/google'
 import { fieldsOf, NEW_INVESTOR } from '../src/lib/pipeline'
+import { averageUsage, FEATURES, LEGACY_MODEL, MODELS, type Feature, type Model } from '../src/lib/models'
 
 const noKey = () => new ConvexError({ code: NO_AI_KEY, message: 'AI isn’t set up here.' })
 const active = (r: Doc<'enrichRuns'>) => r.status === 'queued' || r.status === 'running'
 const factKey = (f: { group: string; field: string; value: string }) => f.group + '.' + f.field + ':' + f.value.trim().toLowerCase()
 const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
+/** PST-273: the latest runs with stored usage that a feature's estimate averages. */
+const REAL_RUNS = 50
 
 /* ---------- what the app reads ---------- */
 
@@ -61,20 +65,49 @@ export const data = query({
     const recent: RecentRun[] = []
     for (const r of runs.slice(0, 8)) {
       const inv = r.investorId ? await ctx.db.get(r.investorId) : null
-      recent.push({ _id: r._id, at: r.finishedAt ?? r.startedAt, investor: inv?.name, email: r.email, wasInvestor: !!r.investorId, facts: r.factCount ?? 0, costUsd: r.costUsd, status: r.status, cached: !!r.cached })
+      recent.push({
+        _id: r._id, at: r.finishedAt ?? r.startedAt, investor: inv?.name, email: r.email, wasInvestor: !!r.investorId, facts: r.factCount ?? 0, costUsd: r.costUsd, status: r.status, cached: !!r.cached,
+        ...(r.cached || r.status === 'queued' ? {} : { model: r.model ?? LEGACY_MODEL.enrich }),
+      })
     }
     for (const a of asks.slice(-8))
       recent.push({
         _id: a._id, at: a.finishedAt ?? a.startedAt, kind: 'ask', ...(a.userId === userId ? { question: a.question } : {}), tools: a.tools.length, wasInvestor: false, facts: 0, costUsd: a.costUsd,
-        status: a.status === 'done' || a.status === 'failed' ? a.status : 'running', cached: false,
+        status: a.status === 'done' || a.status === 'failed' ? a.status : 'running', cached: false, model: a.model ?? LEGACY_MODEL.ask,
       })
-    for (const b of briefs.slice(-8)) recent.push({ _id: b._id, at: b.builtAt, kind: 'brief', moves: b.moves.length, wasInvestor: false, facts: 0, costUsd: b.costUsd, status: 'done', cached: false })
+    for (const b of briefs.slice(-8)) recent.push({ _id: b._id, at: b.builtAt, kind: 'brief', moves: b.moves.length, wasInvestor: false, facts: 0, costUsd: b.costUsd, status: 'done', cached: false, model: b.model ?? LEGACY_MODEL.brief })
     recent.sort((x, y) => y.at - x.at)
+    // PST-273: Drafts count toward the spend too, and every feature's runs this month (by model) and its real usage feed Settings › AI's Model section.
+    const drafts = await ctx.db.query('drafts').withIndex('by_created', (q) => q.gte('createdAt', monthStart)).collect()
+    const rows: Record<Feature, { model?: Model; usage?: RunUsage; costUsd: number }[]> = {
+      enrich: month.filter((r) => !r.cached), notes: reads.filter((r) => r.status !== 'reading'), drafts: drafts.filter((d) => d.costUsd > 0), ask: asks, brief: briefs,
+    }
+    const lastRuns = {
+      enrich: runs.filter((r) => !r.cached),
+      notes: await ctx.db.query('noteReads').withIndex('by_started').order('desc').take(REAL_RUNS * 4),
+      drafts: await ctx.db.query('drafts').withIndex('by_created').order('desc').take(REAL_RUNS * 4),
+      ask: await ctx.db.query('askRuns').withIndex('by_started').order('desc').take(REAL_RUNS * 4),
+      brief: await ctx.db.query('briefs').withIndex('by_built').order('desc').take(REAL_RUNS * 2),
+    }
+    const byModel = Object.fromEntries(MODELS.map((m) => [m, 0])) as Record<Model, number>
+    const byFeature = Object.fromEntries(FEATURES.map((k) => [k, 0])) as Record<Feature, number>
+    const features = {} as Record<Feature, { month: number; real: ReturnType<typeof averageUsage> }>
+    for (const k of FEATURES) {
+      for (const r of rows[k]) {
+        byModel[r.model ?? LEGACY_MODEL[k]] += r.costUsd
+        byFeature[k] += r.costUsd
+      }
+      const used = (lastRuns[k] as { usage?: RunUsage }[]).flatMap((r) => (r.usage ? [r.usage] : [])).slice(0, REAL_RUNS)
+      features[k] = { month: rows[k].length, real: averageUsage(used) }
+    }
     return {
       connected: hasAIKey(),
       settings: await aiSettings(ctx),
+      models: await modelChoice(ctx),
+      features,
+      spend: { byModel, byFeature },
       month: {
-        usd: [...month, ...reads, ...asks, ...briefs].reduce((s, r) => s + r.costUsd, 0),
+        usd: [...month, ...reads, ...asks, ...briefs, ...drafts].reduce((s, r) => s + r.costUsd, 0),
         asks: asks.length,
         noteReads: reads.filter((r) => r.status !== 'reading').length,
         lookups: month.filter((r) => !r.investorId && !r.cached).length,
@@ -112,15 +145,15 @@ async function openRun(ctx: MutationCtx, investorId: Id<'investors'>) {
   return (await ctx.db.query('enrichRuns').withIndex('by_investor', (q) => q.eq('investorId', investorId)).order('desc').take(5)).find(active)
 }
 
-/** Enrich (or Refresh) in the drawer: always a fresh lookup, never the cache. */
+/** Enrich (or Refresh) in the drawer: always a fresh lookup, never the cache. PST-273: `model` makes it a one-off on that model (Redo with Sonnet), leaving the setting alone. */
 export const enrich = mutation({
-  args: { investorId: v.id('investors') },
-  handler: async (ctx, { investorId }) => {
+  args: { investorId: v.id('investors'), model: v.optional(vModel) },
+  handler: async (ctx, { investorId, model }) => {
     await requireUser(ctx)
     if (!hasAIKey()) throw noKey()
     const inv = await ctx.db.get(investorId)
     if (!inv) throw new ConvexError('That investor was deleted')
-    return (await openRun(ctx, investorId))?._id ?? (await queue(ctx, targetOf(inv, false)))
+    return (await openRun(ctx, investorId))?._id ?? (await queue(ctx, { ...targetOf(inv, false), ...(model ? { model } : {}) }))
   },
 })
 
@@ -354,6 +387,26 @@ export const setAuto = mutation({
   },
 })
 
+/** PST-273: Settings › AI's Model section: the default model (`feature` left out), or one feature's own (null: back to the default). */
+export const setModel = mutation({
+  args: { feature: v.optional(vFeature), model: v.union(vModel, v.null()) },
+  handler: async (ctx, { feature, model }) => {
+    await requireUser(ctx)
+    const row = await ctx.db.query('settings').withIndex('by_key', (q) => q.eq('key', 'ai')).unique()
+    const had = row?.key === 'ai' ? row.models : undefined
+    const patch = feature ? { models: Object.fromEntries(Object.entries({ ...had, [feature]: model }).filter(([, m]) => m)) } : { model: model ?? undefined }
+    if (row) await ctx.db.patch(row._id, patch)
+    else await ctx.db.insert('settings', { key: 'ai', ...patch })
+    return await modelChoice(ctx)
+  },
+})
+
+/** PST-273: the model a feature runs on now (for actions: Drafts, Draft from past answers, the brief). */
+export const modelOf = internalQuery({
+  args: { feature: vFeature },
+  handler: async (ctx, { feature }) => await featureModel(ctx, feature),
+})
+
 /* ---------- the run itself ---------- */
 
 /** What the action needs: the prompt (names, addresses, notes, next step, email subjects; never bodies). Null when the run isn't running. */
@@ -372,6 +425,7 @@ export const input = internalQuery({
         .map((t) => t.subject)
       return {
         steps: run.steps,
+        model: run.model ?? (await featureModel(ctx, 'enrich')),
         what: 'investor:' + i._id,
         prompt: investorPrompt({ name: i.name, firm: i.firm, type: i.type, email: i.email, emails: i.emails, domains: i.domains, notes: i.notes, nextStep: i.nextStep, subjects: [...new Set(subjects)].slice(0, 8) }),
       }
@@ -380,7 +434,7 @@ export const input = internalQuery({
     if (!e) return null
     const ms = (await ctx.db.query('meetings').withIndex('by_start', (q) => q.gte('start', now - 31 * DAY_MS)).collect()).filter((m) => m.people.some((p) => p.email === e))
     const name = ms.flatMap((m) => m.people).find((p) => p.email === e && p.name)?.name
-    return { steps: run.steps, what: 'sender', prompt: senderPrompt({ email: e, name, seenIn: [...new Set(ms.map((m) => m.title))].slice(0, 3) }) }
+    return { steps: run.steps, model: run.model ?? (await featureModel(ctx, 'enrich')), what: 'sender', prompt: senderPrompt({ email: e, name, seenIn: [...new Set(ms.map((m) => m.title))].slice(0, 3) }) }
   },
 })
 
@@ -397,12 +451,12 @@ export const progress = internalMutation({
 
 /** Store what a run found as pending facts (older pending ones go; kept and dismissed ones aren't asked again), then start the next run. */
 export const finish = internalMutation({
-  args: { runId: v.id('enrichRuns'), facts: v.array(vNewFact), verdict: vVerdict, summary: v.string(), costUsd: v.number() },
+  args: { runId: v.id('enrichRuns'), facts: v.array(vNewFact), verdict: vVerdict, summary: v.string(), costUsd: v.number(), model: vModel, usage: vUsage },
   handler: async (ctx, a) => {
     const run = await ctx.db.get(a.runId)
     if (!run) return
     if (run.status !== 'running') {
-      await ctx.db.patch(run._id, { costUsd: a.costUsd })
+      await ctx.db.patch(run._id, { costUsd: a.costUsd, model: a.model, usage: a.usage })
       return
     }
     const inv = run.investorId ? await ctx.db.get(run.investorId) : null
@@ -424,6 +478,7 @@ export const finish = internalMutation({
     }
     await ctx.db.patch(run._id, {
       status: 'done', steps: run.steps.map((s) => ({ ...s, state: 'done' as const })), costUsd: a.costUsd, finishedAt: Date.now(), factCount: n, verdict: a.verdict, summary: a.summary,
+      model: a.model, usage: a.usage,
     })
     await syncReview(ctx, run._id)
     await pump(ctx)
@@ -432,12 +487,14 @@ export const finish = internalMutation({
 
 /** A run that failed or was stopped: record it, then start the next one. */
 export const end = internalMutation({
-  args: { runId: v.id('enrichRuns'), status: v.union(v.literal('failed'), v.literal('stopped')), error: v.optional(v.string()), costUsd: v.number() },
+  args: { runId: v.id('enrichRuns'), status: v.union(v.literal('failed'), v.literal('stopped')), error: v.optional(v.string()), costUsd: v.number(), usage: v.optional(vUsage) },
   handler: async (ctx, a) => {
     const r = await ctx.db.get(a.runId)
     if (!r) return
     const stopped = r.status === 'stopped'
-    await ctx.db.patch(r._id, { status: stopped ? 'stopped' : a.status, costUsd: a.costUsd, finishedAt: r.finishedAt ?? Date.now(), ...(a.error && !stopped ? { error: a.error } : {}) })
+    await ctx.db.patch(r._id, {
+      status: stopped ? 'stopped' : a.status, costUsd: a.costUsd, finishedAt: r.finishedAt ?? Date.now(), ...(a.error && !stopped ? { error: a.error } : {}), ...(a.usage ? { usage: a.usage } : {}),
+    })
     await pump(ctx)
   },
 })
@@ -491,19 +548,21 @@ export const execute = internalAction({
     let status: 'done' | 'failed' | 'stopped' = 'done'
     let found = 0
     let cost = 0
+    let usage: RunUsage | undefined
     try {
-      const out = await research({ system: SYSTEM, prompt: job.prompt, hooks: { onText, onToolUse, signal: ctl.signal } })
+      const out = await research({ model: job.model, system: SYSTEM, prompt: job.prompt, hooks: { onText, onToolUse, signal: ctl.signal } })
       cost = out.costUsd
+      usage = usageRow(out.usage)
       const answer = conform(vResearch, extractJson(out.text + '\n'))
       const facts = factsFrom(answer)
       found = facts.length
-      await ctx.runMutation(internal.enrich.finish, { runId, facts, verdict: answer.verdict, summary: answer.summary.trim().slice(0, 200), costUsd: cost })
+      await ctx.runMutation(internal.enrich.finish, { runId, facts, verdict: answer.verdict, summary: answer.summary.trim().slice(0, 200), costUsd: cost, model: job.model, usage })
     } catch (e) {
       status = stopped ? 'stopped' : 'failed'
       cost = Math.max(cost, searches * PRICES.webSearch)
       const error = stopped ? undefined : e instanceof NoAIKey ? NO_AI_KEY : e instanceof AIError || e instanceof SchemaError ? e.message.slice(0, 200) : 'Something went wrong while looking this up.'
-      await ctx.runMutation(internal.enrich.end, { runId, status, error, costUsd: cost })
+      await ctx.runMutation(internal.enrich.end, { runId, status, error, costUsd: cost, usage })
     }
-    console.log('enrich run=' + runId + ' what=' + job.what + ' status=' + status + ' facts=' + found + ' cost=$' + cost.toFixed(4) + ' secs=' + Math.round((Date.now() - t0) / 1000))
+    console.log('enrich run=' + runId + ' what=' + job.what + ' status=' + status + ' facts=' + found + ' cost=$' + cost.toFixed(4) + ' model=' + job.model + ' secs=' + Math.round((Date.now() - t0) / 1000))
   },
 })

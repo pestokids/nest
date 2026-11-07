@@ -6,6 +6,7 @@ import { v } from 'convex/values'
 import { ASK_STATUSES } from '../src/lib/ask'
 import { NOTE_STATES } from '../src/lib/brief'
 import { vMaterialKind } from './materialsSchema'
+import { runModelFields } from './validators'
 
 const lit = <T extends string>(xs: readonly T[]) => v.union(...xs.map((x) => v.literal(x)))
 
@@ -49,6 +50,8 @@ export const askTables = {
     startedAt: v.number(),
     finishedAt: v.optional(v.number()),
     error: v.optional(v.string()),
+    /** PST-273: the model it ran on (the Ask chip can pick one for this question only). */
+    ...runModelFields,
   })
     .index('by_user', ['userId', 'startedAt'])
     .index('by_started', ['startedAt']),
@@ -60,6 +63,7 @@ export const askTables = {
     since: vBriefSince,
     moves: v.array(vBriefMove),
     costUsd: v.number(),
+    ...runModelFields,
     /** Dismissed on Today: it collapses to one line. */
     dismissedAt: v.optional(v.number()),
   })
