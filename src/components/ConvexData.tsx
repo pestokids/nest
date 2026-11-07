@@ -22,6 +22,7 @@ const useMembers = () => useQuery(api.access.members)
 const useInvestorAI = (investorId: string | null) => useQuery(api.enrich.forInvestor, investorId ? { investorId: investorId as Id<'investors'> } : 'skip')
 const useAgentActivity = (keyId: string | null) => useQuery(api.agents.activity, keyId ? { keyId: keyId as Id<'agentKeys'> } : 'skip')
 const NO_AGENTS = { loaded: false, serverUrl: '', keys: [] }
+const useAskRun = (runId: string | null) => useQuery(api.ask.get, runId ? { id: runId as Id<'askRuns'> } : 'skip')
 const usePrepTicks = (phaseKey: string | null) => {
   const rows = useQuery(api.prep.list, phaseKey ? { phaseKey } : 'skip')
   return useMemo(() => rows?.map((r) => r.item), [rows])
@@ -102,7 +103,7 @@ export function ConvexData({ children }: { children: ReactNode }) {
       undoDismiss: (factId: string) => aiUndo({ factId: factId as Id<'facts'> }),
       keepAll: (runId: string) => aiKeepAll({ runId: runId as Id<'enrichRuns'> }),
       dismissAll: (runId: string) => aiDismissAll({ runId: runId as Id<'enrichRuns'> }),
-      setAuto: (patch: { lookups?: boolean; enrichNew?: boolean; meetingNotes?: boolean }) => aiSetAuto(patch),
+      setAuto: (patch: { lookups?: boolean; enrichNew?: boolean; meetingNotes?: boolean; morningBrief?: boolean }) => aiSetAuto(patch),
       addSender: (email: string, investorId?: string) => aiAddSender({ email, investorId: investorId as Id<'investors'> | undefined }),
       addPerson: (investorId: string, p: { name: string; title?: string; email?: string }) => aiAddPerson({ investorId: investorId as Id<'investors'>, ...p }),
       setPrimary: (personId: string) => aiSetPrimary({ personId: personId as Id<'people'> }),
@@ -120,6 +121,9 @@ export function ConvexData({ children }: { children: ReactNode }) {
     }),
     [agentCreate, agentRevoke],
   )
+  const askStart = useMutation(api.ask.start)
+  const brief = useQuery(api.brief.today)
+  const briefDismiss = useMutation(api.brief.setDismissed)
   // Gone quiet reads email and meeting dates too (`lastContact`): attach them to each investor.
   const withSignals = useMemo(() => withContact(investors ?? [], google, Date.now()), [investors, google])
   const googleDo = useMemo(
@@ -168,8 +172,12 @@ export function ConvexData({ children }: { children: ReactNode }) {
       agents,
       agentsDo,
       useAgentActivity,
+      ask: (question) => askStart({ question }),
+      useAskRun,
+      brief,
+      setBriefDismissed: (id, dismissed) => briefDismiss({ id: id as Id<'briefs'>, dismissed }),
     }),
-    [investors, withSignals, acts, settings, me, upsert, advance, move, undoMove, logNote, remove, importMany, updateRound, setTick, google, googleDo, suggestionRows, suggest, ai, aiDo, agents, agentsDo],
+    [investors, withSignals, acts, settings, me, upsert, advance, move, undoMove, logNote, remove, importMany, updateRound, setTick, google, googleDo, suggestionRows, suggest, ai, aiDo, agents, agentsDo, askStart, brief, briefDismiss],
   )
   return (
     <RaiseContext.Provider value={value}>

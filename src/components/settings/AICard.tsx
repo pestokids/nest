@@ -20,6 +20,12 @@ function when(at: number) {
 }
 
 function runText(r: RecentRun) {
+  // PST-279: Ask Nest questions (only yours show their words) and morning briefs.
+  if (r.kind === 'ask') {
+    const q = r.question ? (r.question.length > 48 ? `Asked “${r.question.slice(0, 47)}…”` : `Asked “${r.question}”`) : 'Asked Nest a question'
+    return q + (r.status === 'failed' ? ' · didn’t finish' : r.tools ? ' · ' + plural(r.tools, 'lookup') : '')
+  }
+  if (r.kind === 'brief') return 'Morning brief · ' + plural(r.moves ?? 0, 'move')
   const who = r.investor ?? r.email ?? 'someone'
   const verb = r.status === 'running' || r.status === 'queued' ? (r.wasInvestor ? 'Enriching ' : 'Looking up ') : r.wasInvestor ? 'Enriched ' : 'Looked up '
   const tail = r.status === 'failed' ? ' · didn’t finish' : r.status === 'stopped' ? ' · stopped' : r.status === 'done' && r.facts ? ' · ' + plural(r.facts, 'fact') : ''
@@ -55,6 +61,7 @@ export function AICard() {
     { k: 'lookups', title: 'Look up new people you meet', sub: 'Shows them in Who’s this? with who they are · about 3¢ each' },
     { k: 'enrichNew', title: 'Enrich investors when you add or import them', sub: 'About 4¢ each · at most 30 automatic runs a day' },
     { k: 'meetingNotes', title: 'Read meeting notes after investor meetings', sub: 'Pasted or from Wispr Flow: a summary and updates to apply · about 2¢ a note' },
+    { k: 'morningBrief', title: 'Morning brief at 08:00', sub: 'Since yesterday and today’s three moves, on Today · under 1¢ a day' },
   ]
   return (
     <section className="set-card set-ai" aria-labelledby="set-ai-title">
@@ -74,8 +81,8 @@ export function AICard() {
       </div>
       <p className="set-card__lede">
         {off
-          ? 'AI isn’t set up here. Add ANTHROPIC_API_KEY to this Convex deployment to turn on enrichment, Who’s this? lookups and reading meeting notes.'
-          : 'Nest uses your Anthropic key to look up investors and the new people you meet, with web search, and to read your meeting notes.'}
+          ? 'AI isn’t set up here. Add ANTHROPIC_API_KEY to this Convex deployment to turn on enrichment, Who’s this? lookups, reading meeting notes and Ask Nest. The morning brief still comes, with Today’s own reasons.'
+          : 'Nest uses your Anthropic key to look up investors and the new people you meet, with web search, to read your meeting notes, for Ask Nest and for the morning brief.'}
       </p>
       {!off ? (
         <div className="set-ai__spend">
@@ -85,13 +92,14 @@ export function AICard() {
           </div>
           <span className="set-ai__counts">
             {plural(ai.month.lookups, 'lookup')} · {plural(ai.month.enrichments, 'enrichment')}
-            {ai.month.noteReads ? ' · ' + plural(ai.month.noteReads, 'note') + ' read' : ''} · {ai.capLeft} automatic left today
+            {ai.month.noteReads ? ' · ' + plural(ai.month.noteReads, 'note') + ' read' : ''}
+            {ai.month.asks ? ' · ' + plural(ai.month.asks, 'question') : ''} · {ai.capLeft} automatic left today
           </span>
         </div>
       ) : null}
       <ul className="set-ai__switches">
         {switches.map((s) => (
-          <li key={s.k} className={off ? 'is-off' : undefined}>
+          <li key={s.k} className={off && s.k !== 'morningBrief' ? 'is-off' : undefined}>
             <div>
               <span className="set-ai__title" id={'set-ai-' + s.k}>
                 {s.title}
@@ -101,7 +109,7 @@ export function AICard() {
             <Toggle
               aria-labelledby={'set-ai-' + s.k}
               checked={ai.settings[s.k]}
-              disabled={off || saving === s.k}
+              disabled={(off && s.k !== 'morningBrief') || saving === s.k}
               onChange={(e) => void set(s.k, e.target.checked)}
             />
           </li>

@@ -4,6 +4,7 @@ import { useRaise } from '../../../components/data'
 import { openDraft } from '../../../components/drafts/data'
 import { GoogleToday } from '../../../components/GoogleToday'
 import { MaterialOpens } from '../../../components/materials/Opens'
+import { MorningBrief } from '../../../components/MorningBrief'
 import { Suggestions } from '../../../components/Suggestions'
 import { UnmatchedNotes } from '../../../components/qanda/UnmatchedNotes'
 import { EggHatching, NestSleeping, NestWithEggs } from '../../../components/illustrations'
@@ -18,7 +19,7 @@ import { money } from '../../../lib/money'
 import { dueDate, dueList, fieldsOf, funnel, quietList, totals, type Investor } from '../../../lib/pipeline'
 import { play } from '../../../lib/sound'
 import { STAGE_RULE, STAGE_TILE, type PipelineStage } from '../../../lib/stages'
-import { addDays, daysLine, kpis, movesNote, nextMoves, quietDays, type Move } from '../../../lib/today'
+import { ASK_NOTE, askFollowUp, daysLine, kpis, movesNote, nextMoves, quietDays, type Move } from '../../../lib/today'
 
 export const Route = createFileRoute('/_app/raise/today')({ component: Today })
 
@@ -50,10 +51,10 @@ function Today() {
       setWinning(true)
       clearTimeout(winTimer.current)
       winTimer.current = setTimeout(() => setWinning(false), WIN_MS)
-      const follow = addDays(today, 3)
-      ui.toast({ tone: 'win', message: `Ask logged. Follow-up set for ${dayMonth(follow)}.`, action: { label: 'View', onClick: () => ui.open(id) }, durationMs: WIN_MS })
+      const next = askFollowUp(today)
+      ui.toast({ tone: 'win', message: `Ask logged. Follow-up set for ${dayMonth(next.date)}.`, action: { label: 'View', onClick: () => ui.open(id) }, durationMs: WIN_MS })
       try {
-        await d.logNote(id, 'Asked for a specific amount, confirmed in writing.', { touch: 'ask', next: { step: 'Follow up on the ask', date: follow } })
+        await d.logNote(id, ASK_NOTE, { touch: 'ask', next })
       } catch (e) {
         setAsked((s) => new Set([...s].filter((x) => x !== id)))
         setWinning(false)
@@ -83,6 +84,7 @@ function Today() {
 
   return (
     <section className="today" aria-label="Today">
+      <MorningBrief />
       <Suggestions today={today} />
       <Summary won={winning} today={today} />
       <Moves moves={moves} note={movesNote(r, today)} asked={asked} onAsk={logAsk} />

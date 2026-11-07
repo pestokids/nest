@@ -1,21 +1,27 @@
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { QUESTION_MAX } from '../../lib/ask'
 import { onOpenCommandPalette, recentInvestors, rememberInvestor } from '../../lib/commandPalette'
 import { todayIST } from '../../lib/dates'
 import { addressesOf, gmailSearchLink } from '../../lib/google'
+import { dayMonth } from '../../lib/home'
 import { dayLabel, isQuiet } from '../../lib/investorView'
 import { matchScore, rankInvestors, searchNotes, searchSections, titleCase } from '../../lib/palette'
 import { searchQuestions } from '../../lib/qanda'
 import type { Investor } from '../../lib/pipeline'
 import { play } from '../../lib/sound'
 import { IDX, STAGE_TILE, STAGES } from '../../lib/stages'
-import { useRaise } from '../data'
+import { ASK_NOTE, askFollowUp } from '../../lib/today'
+import { errorMessage, useRaise } from '../data'
+import { openDraft } from '../drafts/data'
 import { NestEmpty } from '../illustrations'
 import { useQanda } from '../qanda/data'
+import { openPanel, playPrepOpen } from '../qanda/panels'
+import { AskBody } from './AskNest'
 import type { OpenOptions } from '../raise-ui'
 import { Icon, Kbd, useToast, type IconName } from '../ui'
 import { Modal } from './Modal'
-import { usePreviewState } from '../preview-state'
+import { PREVIEW_ASK_QUESTIONS, usePreviewState } from '../preview-state'
 import { useSaveAction } from './useSaveAction'
 
 type Item = { id: string; icon: IconName; label: ReactNode; meta?: ReactNode; keys?: string[]; run: () => void }
@@ -24,20 +30,27 @@ type Group = { title: string; items: Item[] }
 const isTyping = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))
 const first = (name: string) => name.trim().split(/\s+/)[0]
 
+type Mode = 'search' | 'ask'
+
 /**
  * ⌘K (system/cmdk-*.png): search investors by name and firm, act on the top
  * match, jump to a section. ↑↓ move, ↵ opens, Esc closes. A full-height sheet
  * on phones. Also owns the single-key shortcuts it advertises (N, I, G then P…).
+ * PST-279: Tab (or the chips) switches to Ask, where ↵ asks Nest the question.
  */
 export function CommandPalette() {
   const flags = usePreviewState()
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
+  const [mode, setMode] = useState<Mode>('search')
+  const [autoAsk, setAutoAsk] = useState(false)
 
   useEffect(
     () =>
       onOpenCommandPalette((query) => {
         setQ(query ?? '')
+        setMode('search')
+        setAutoAsk(false)
         setOpen(true)
       }),
     [],
@@ -51,6 +64,17 @@ export function CommandPalette() {
       setOpen(true)
     }
   }, [flags?.system])
+
+  // ?preview&ask=…: open in Ask mode, asking that state's question.
+  useEffect(() => {
+    const s = flags?.ask
+    if (!s) return
+    const question = PREVIEW_ASK_QUESTIONS[s] ?? ''
+    setQ(question)
+    setMode('ask')
+    setAutoAsk(!!question)
+    setOpen(true)
+  }, [flags?.ask])
 
   const actions = usePaletteActions()
 
@@ -83,7 +107,7 @@ export function CommandPalette() {
   }, [open, actions])
 
   if (!open) return null
-  return <Palette initial={q} onClose={() => setOpen(false)} actions={actions} recentsFallback={flags?.system === 'cmdk-empty'} />
+  return <Palette initial={q} initialMode={mode} autoAsk={autoAsk} onClose={() => setOpen(false)} actions={actions} recentsFallback={flags?.system === 'cmdk-empty'} />
 }
 
 function usePaletteActions() {
@@ -110,6 +134,27 @@ function usePaletteActions() {
       reviewSuggestions: () => void navigate({ to: '/raise/today', state: (s) => ({ ...s, suggestions: true }) }),
       // PST-281: a question from the bank opens its Answer panel on Q&A.
       openQuestion: (id: string) => void navigate({ to: '/raise/qanda', state: (s) => ({ ...s, question: id }) }),
+      // PST-279: Ask Nest's buttons. The prep brief lives in the Raise views; open it there.
+      openPrep: (meetingId: string) => {
+        if (!inRaise) void navigate({ to: '/raise/today' })
+        playPrepOpen(meetingId)
+        openPanel({ kind: 'prep', meetingId })
+      },
+      // PST-278's draft dialog, which also lives in the Raise views.
+      draft: (i: Investor) => {
+        if (!inRaise) void navigate({ to: '/raise/today' })
+        openDraft({ investorId: i._id })
+      },
+      logAsk: (i: Investor) => {
+        const next = askFollowUp(todayIST())
+        void save(() => d.logNote(i._id, ASK_NOTE, { touch: 'ask', next }), {
+          failMessage: `Couldn’t log the ask for ${i.name}.`,
+          onDone: () => {
+            play('ask-logged')
+            toast(`Ask logged for ${i.name}. Follow-up set for ${dayMonth(next.date)}.`)
+          },
+        })
+      },
       advance: (i: Investor) =>
         void save(() => d.advance(i._id), {
           failMessage: `Couldn’t move ${i.name}.`,
@@ -125,10 +170,44 @@ function usePaletteActions() {
 
 type Actions = ReturnType<typeof usePaletteActions>
 
-function Palette({ initial, onClose, actions, recentsFallback }: { initial: string; onClose: () => void; actions: Actions; recentsFallback: boolean }) {
-  const { investors, round, google, suggestions } = useRaise()
+function Palette({
+  initial, initialMode, autoAsk, onClose, actions, recentsFallback,
+}: { initial: string; initialMode: Mode; autoAsk: boolean; onClose: () => void; actions: Actions; recentsFallback: boolean }) {
+  const d = useRaise()
+  const { investors, round, google, suggestions } = d
   const { questions } = useQanda()
   const [q, setQ] = useState(initial)
+  const [mode, setMode] = useState<Mode>(initialMode)
+  const [runId, setRunId] = useState<string | null>(null)
+  const [askError, setAskError] = useState<string | null>(null)
+  const input = useRef<HTMLInputElement>(null)
+  const asking = mode === 'ask'
+
+  const ask = useCallback(
+    async (question: string) => {
+      const text = question.trim()
+      if (!text || !d.ai.connected) return
+      setQ(text)
+      setAskError(null)
+      setRunId(null)
+      try {
+        setRunId(await d.ask(text))
+      } catch (e) {
+        setAskError(errorMessage(e))
+      }
+    },
+    [d],
+  )
+  const asked = useRef(false)
+  useEffect(() => {
+    if (!autoAsk || asked.current || !d.loaded || !d.ai.loaded) return
+    asked.current = true
+    void ask(initial)
+  }, [autoAsk, d.loaded, d.ai.loaded, ask, initial])
+  const switchMode = (m: Mode) => {
+    setMode(m)
+    input.current?.focus()
+  }
   const [active, setActive] = useState(0)
   const list = useRef<HTMLDivElement>(null)
   const today = todayIST()
@@ -210,7 +289,15 @@ function Palette({ initial, onClose, actions, recentsFallback }: { initial: stri
   }, [at])
 
   const onKey = (e: React.KeyboardEvent) => {
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    if (e.key === 'Tab') {
+      e.preventDefault()
+      switchMode(asking ? 'search' : 'ask')
+    } else if (asking) {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        void ask(q)
+      }
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault()
       const n = items.length
       if (n) setActive((x) => (Math.min(x, n - 1) + (e.key === 'ArrowDown' ? 1 : n - 1)) % n)
@@ -250,57 +337,81 @@ function Palette({ initial, onClose, actions, recentsFallback }: { initial: stri
   }
 
   return (
-    <Modal onClose={onClose} label="Search Nest" variant="palette" className="cmdk">
+    <Modal onClose={onClose} label={asking ? 'Ask Nest' : 'Search Nest'} variant="palette" className={`cmdk${asking ? ' cmdk--ask' : ''}`}>
       <div className="cmdk-search">
-        <Icon name="search" size={20} />
+        {asking ? <Icon name="spark" size={20} className="enrich-spark" /> : <Icon name="search" size={20} />}
         <input
+          ref={input}
           autoFocus
           className="cmdk-input"
           role="combobox"
-          aria-expanded="true"
+          aria-expanded={!asking}
           aria-controls="cmdk-list"
-          aria-autocomplete="list"
-          aria-activedescendant={items[at] ? `cmdk-${items[at].id}` : undefined}
-          aria-label="Search investors, or type a command"
-          placeholder="Search investors, or type a command…"
+          aria-autocomplete={asking ? 'none' : 'list'}
+          aria-activedescendant={!asking && items[at] ? `cmdk-${items[at].id}` : undefined}
+          aria-label={asking ? 'Ask Nest a question about the raise' : 'Search investors, or type a command'}
+          placeholder={asking ? 'Ask about the raise…' : 'Search investors, or type a command…'}
           value={q}
+          maxLength={asking ? QUESTION_MAX : undefined}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={onKey}
-          enterKeyHint="go"
+          enterKeyHint={asking ? 'send' : 'go'}
           autoComplete="off"
-          spellCheck={false}
+          spellCheck={asking}
         />
+        {asking ? <span className="cmdk-ask-tag" aria-hidden="true">Ask</span> : null}
         <button type="button" className="cmdk-close" onClick={onClose} aria-label="Close search">
           <Icon name="close" size={20} />
         </button>
       </div>
-      <div className="cmdk-list" id="cmdk-list" role="listbox" aria-label="Results" ref={list}>
-        {none ? (
-          <>
-            <div className="cmdk-none">
-              <NestEmpty size={72} />
-              <div>
-                <p className="cmdk-none__title">Nothing in the nest for “{query}”.</p>
-                <p className="cmdk-none__sub">Check the spelling, or add them now.</p>
-              </div>
-            </div>
-            {items.map(option)}
-          </>
-        ) : (
-          groups.map((g) => (
-            <div role="group" aria-label={g.title} key={g.title} className="cmdk-group">
-              <div className="cmdk-group__title" aria-hidden="true">
-                {g.title}
-              </div>
-              {g.items.map(option)}
-            </div>
-          ))
-        )}
+      <div className="cmdk-modes" role="group" aria-label="Search or ask">
+        {(['search', 'ask'] as const).map((m) => (
+          <button key={m} type="button" className="cmdk-mode" aria-pressed={mode === m} onClick={() => switchMode(m)}>
+            {m === 'search' ? 'Search' : 'Ask'}
+          </button>
+        ))}
       </div>
+      {asking ? (
+        <div className="cmdk-list cmdk-list--ask" id="cmdk-list">
+          <AskBody runId={runId} error={askError} onAsk={(x) => void ask(x)} onClose={onClose} actions={actions} />
+        </div>
+      ) : (
+        <div className="cmdk-list" id="cmdk-list" role="listbox" aria-label="Results" ref={list}>
+          {none ? (
+            <>
+              <div className="cmdk-none">
+                <NestEmpty size={72} />
+                <div>
+                  <p className="cmdk-none__title">Nothing in the nest for “{query}”.</p>
+                  <p className="cmdk-none__sub">Check the spelling, or add them now.</p>
+                </div>
+              </div>
+              {items.map(option)}
+            </>
+          ) : (
+            groups.map((g) => (
+              <div role="group" aria-label={g.title} key={g.title} className="cmdk-group">
+                <div className="cmdk-group__title" aria-hidden="true">
+                  {g.title}
+                </div>
+                {g.items.map(option)}
+              </div>
+            ))
+          )}
+        </div>
+      )}
       <div className="cmdk-foot" aria-hidden="true">
-        <span>↑↓ to move</span>
+        {asking ? (
+          <span>↵ to ask</span>
+        ) : (
+          <>
+            <span>↑↓ to move</span>
+            <span>·</span>
+            <span>↵ to open</span>
+          </>
+        )}
         <span>·</span>
-        <span>↵ to open</span>
+        <span>tab to {asking ? 'search' : 'ask'}</span>
         <span>·</span>
         <span>esc to close</span>
         <span className="cmdk-foot__sp" />

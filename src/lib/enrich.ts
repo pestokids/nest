@@ -314,17 +314,33 @@ export function initials(name: string): string {
 
 /* ---------- what the app gets ---------- */
 
-export type AISettings = { lookups: boolean; enrichNew: boolean; meetingNotes: boolean }
+/** PST-279: morningBrief is the 08:00 brief on Today. */
+export type AISettings = { lookups: boolean; enrichNew: boolean; meetingNotes: boolean; morningBrief: boolean }
 export type InvestorRun = Run & { pending: number }
 export type Sender = { email: string; run: Run; facts: Fact[] }
-export type RecentRun = { _id: string; at: number; investor?: string; email?: string; wasInvestor: boolean; facts: number; costUsd: number; status: RunStatus; cached: boolean }
+export type RecentRun = {
+  _id: string
+  at: number
+  investor?: string
+  email?: string
+  wasInvestor: boolean
+  facts: number
+  costUsd: number
+  status: RunStatus
+  cached: boolean
+  /** PST-279: an Ask Nest question (its words only for whoever asked it, and how many lookups it took) or a morning brief (its moves). Absent: a lookup. */
+  kind?: 'ask' | 'brief'
+  question?: string
+  tools?: number
+  moves?: number
+}
 export type AIData = {
   loaded: boolean
   /** ANTHROPIC_API_KEY is set on this deployment. */
   connected: boolean
   settings: AISettings
-  /** PST-277: `noteReads` counts meeting notes Nest read (their cost is in `usd`). */
-  month: { usd: number; lookups: number; enrichments: number; noteReads?: number }
+  /** PST-277: `noteReads` counts meeting notes Nest read; PST-279: `asks` counts Ask Nest questions (their costs, and the briefs', are in `usd`). */
+  month: { usd: number; lookups: number; enrichments: number; noteReads?: number; asks?: number }
   /** Automatic lookups left today. */
   capLeft: number
   /** Each investor's latest run, with how many of its facts wait for review. */
@@ -335,5 +351,5 @@ export type AIData = {
 }
 export type InvestorAI = { run: Run | null; facts: Fact[]; people: Person[] }
 export const NO_AI: AIData = {
-  loaded: false, connected: false, settings: { lookups: true, enrichNew: true, meetingNotes: true }, month: { usd: 0, lookups: 0, enrichments: 0 }, capLeft: 30, runs: [], senders: [], recent: [],
+  loaded: false, connected: false, settings: { lookups: true, enrichNew: true, meetingNotes: true, morningBrief: true }, month: { usd: 0, lookups: 0, enrichments: 0 }, capLeft: 30, runs: [], senders: [], recent: [],
 }

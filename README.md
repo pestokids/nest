@@ -116,7 +116,7 @@ Agents (Grok Bot, Claude, Capy, anything that speaks MCP) can read the raise and
 - **Server**: `https://nest.pestokids.com/mcp` (rewritten to Convex by `vercel.json`, on the production host only, so preview deployments never reach production Convex). If the rewrite isn't in place, use the deployment's own URL, `https://grandiose-armadillo-852.convex.site/mcp` for production. Streamable HTTP, one JSON-RPC request per POST answered as `application/json` (no SSE, no sessions). It serves MCP 2026-07-28 statelessly (`server/discover`, `params._meta` version plus matching `MCP-Protocol-Version` / `Mcp-Method` / `Mcp-Name` headers) and the 2025-03-26, 2025-06-18 and 2025-11-25 versions through `initialize`. Code: `convex/mcpHttp.ts` (protocol), `convex/mcp.ts` (tools), tool definitions and the skill in `src/lib/agents.ts`.
 - **Skill**: `GET /mcp/skill` returns the Nest skill as markdown (suggest, never edit; the stage rules; never invent numbers). Settings › Agents copies it too.
 - **Keys**: made on Raise › Settings › Agents and sent as `Authorization: Bearer nest_ak_…`. A key is shown once; Convex keeps only its SHA-256 and the 8 characters after `nest_ak_` (`agentKeys` in `convex/agentsSchema.ts`). Revoke stops it on the next call. Each key gets 60 calls a minute (then 429 with `Retry-After`).
-- **Scopes**: *Read only* keys see `search_investors`, `get_investor`, `todays_moves` and `list_questions`. *Can suggest changes* keys also get `log_touch`, `add_investor` (a "new investor" suggestion; accepting creates the investor, Undo removes it), `suggest_change` (stage, next step or Expected) and `enrich` (starts the existing lookup as an automatic run, within the daily cap).
+- **Scopes**: *Read only* keys see `search_investors`, `get_investor`, `todays_moves`, `list_questions`, `round_totals` (committed, verbal and signed against the target), `material_opens` (who opened which material) and `meetings_between` (meetings in a time range). *Can suggest changes* keys also get `log_touch`, `add_investor` (a "new investor" suggestion; accepting creates the investor, Undo removes it), `suggest_change` (stage, next step or Expected) and `enrich` (starts the existing lookup as an automatic run, within the daily cap).
 - **Activity**: each call is logged in `agentCalls` with the tool, time, outcome and duration, never arguments or results; Settings shows a key's last 50. Email bodies are never stored, so no tool can return one.
 
 Connect an agent: create a key, add the server URL with the key as a Bearer token, then give the agent the Nest skill.
@@ -130,6 +130,16 @@ Claude (`claude-sonnet-5-5`, with the web search and web fetch tools) looks up a
 - Spend is worked out from each run's token and search counts and shown on Settings with the last few runs. Logs carry ids, never names or emails.
 
 What goes to Claude: the investor's name, firm, type, email addresses and domains, your notes and next step for them and the subjects of their matched emails; for Who's this?, the person's email, the name on the invite and the meeting title. Never email bodies (Nest doesn't store them).
+
+## Ask Nest and the morning brief
+
+**Ask**: ⌘K, then Tab (or the Ask chip) asks Claude (`claude-sonnet-5-5`, no web tools) a question about the raise. It answers only with the MCP read tools (the same definitions and handlers as agents, through `internal.mcp.read`), at most 6 calls a question; a refused call still counts. Ask never writes: it offers the existing buttons (Open, the prep brief, Draft, Log the ask) instead, and nothing happens until Dev clicks one. The answer streams, cites investors as `[[investor:<id>|Name]]` (chips that open the drawer), ends with "From N investors, M email threads and K meetings · cost", and says "I don't know from Nest's data." rather than guess a number. Rules and parsing in `src/lib/ask.ts`, the loop in `convex/lib/ask.ts`, runs in `convex/ask.ts` (`askRuns`).
+
+**Morning brief**: a cron at 08:00 IST (`convex/crons.ts`) builds one brief a day (`convex/brief.ts`, `briefs`): since yesterday (replies, decks opened, meetings done with notes read or not, open suggestions), and today's three moves with a one-line reason from `claude-haiku-5-5`. A reason that's too long or has a number that isn't in the facts is dropped, and the move's own why is shown instead (also without a key). It sits at the top of Today until dismissed, then shrinks to one line. Turn it off with "Morning brief at 08:00" on Settings › AI; it costs well under 1¢ a day.
+
+Ask and brief runs show in Settings › AI's recent runs with their cost and count toward the month's spend. Both tables are in `convex/askSchema.ts`. What goes to Claude: the question and what the read tools return (never email bodies); for the brief, the three moves and their why text, plus each investor's name, stage, next step and date, last touch, Expected, committed and what happened since yesterday.
+
+Preview: `&ask=empty|thinking|streaming|answer|verbal|prep|deck|unknown|failed` (with `&ai=nokey` for "AI isn't set up here") and `&brief=default|fallback|quiet|dismissed` on Today.
 
 ## System states
 

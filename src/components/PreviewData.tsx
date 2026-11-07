@@ -21,6 +21,7 @@ import { fixtureCloseInvestors, type PreviewClose } from '../preview/closeFixtur
 import { RaiseContext, type LogRow, type RaiseData } from './data'
 import { PreviewQanda } from '../preview/PreviewQanda'
 import { useAgentsPreview, type PreviewAgents } from '../preview/agentsFixture'
+import { useAskPreview, type PreviewAsk, type PreviewBrief } from '../preview/askFixture'
 
 type Seed = { round?: Partial<Round>; investors: (Omit<Investor, '_id'> & { slug: string })[] }
 export type PreviewHome = 'default' | 'firstrun' | 'prepdone'
@@ -35,7 +36,7 @@ const stamp = (now: number) => (d: SuggestionDraft, k: number): Suggestion => ({
 
 /** `board`: add the Pipeline board's extra fake cards (`&pipeline=…`). `today`: the Raise · Today preview state. `extra`: the Investors, Plan and system states. */
 export function PreviewData({
-  source, home = 'default', board = false, today: todayState = 'default', extra = {}, google: googleState = 'none', suggestions: suggestionsState = 'default', ai: aiState = 'default', close = null, agents: agentsState = 'default', children,
+  source, home = 'default', board = false, today: todayState = 'default', extra = {}, google: googleState = 'none', suggestions: suggestionsState = 'default', ai: aiState = 'default', close = null, agents: agentsState = 'default', ask: askState = null, brief: briefState = null, children,
 }: {
   source: 'fixture' | 'seed'
   home?: PreviewHome
@@ -51,6 +52,9 @@ export function PreviewData({
   close?: PreviewClose | null
   /** PST-276 `&agents=…` */
   agents?: PreviewAgents
+  /** PST-279 `&ask=…` and `&brief=…` */
+  ask?: PreviewAsk | null
+  brief?: PreviewBrief | null
   children: ReactNode
 }) {
   const [investors, setInvestors] = useState<Investor[] | null>(null)
@@ -150,7 +154,7 @@ export function PreviewData({
     latestActs.current = acts
   }, [investors, acts])
 
-  const value = useMemo<Omit<RaiseData, 'ai' | 'aiDo' | 'useInvestorAI' | 'agents' | 'agentsDo' | 'useAgentActivity'>>(() => {
+  const value = useMemo<Omit<RaiseData, 'ai' | 'aiDo' | 'useInvestorAI' | 'agents' | 'agentsDo' | 'useAgentActivity' | 'ask' | 'useAskRun' | 'brief' | 'setBriefDismissed'>>(() => {
     const t = todayIST()
     let n = 0
     const act = (a: Omit<Activity, '_id' | 'date' | 'by'> & { date?: string }) => {
@@ -384,8 +388,12 @@ export function PreviewData({
   const enrich = useAIPreview(aiState, investors, value.save, !!extra.fail)
   // `&agents=…`: made-up agent keys and calls (Settings › Agents).
   const agents = useAgentsPreview(agentsState, !!extra.fail)
+  // `&ask=…` and `&brief=…`: pretend Ask Nest runs and a made-up morning brief.
+  const asking = useAskPreview({
+    ask: askState, brief: briefState, investors, ready, acts, round, google, suggestions: value.suggestions, today: todayIST(), fail: !!extra.fail,
+  })
   return (
-    <RaiseContext.Provider value={{ ...value, ...enrich, ...agents }}>
+    <RaiseContext.Provider value={{ ...value, ...enrich, ...agents, ...asking }}>
       <PreviewQanda fail={!!extra.fail}>{children}</PreviewQanda>
     </RaiseContext.Provider>
   )

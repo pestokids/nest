@@ -26,6 +26,9 @@
 //   &agents=<state>          Settings › Agents (PST-276): empty, create (new key), created (shown once), activity, revoke
 //   &drafts=<state>          Drafts (PST-278): followup, intro, blurb, nudge, thanks, dataroom, writing, nokey, noemail, copied, failed,
 //                            history (see preview/draftsFixture.ts). Without it, Draft still works with made-up text
+//   &ask=<state>             Ask Nest in ⌘K (PST-279): empty, thinking, streaming, answer, verbal, prep, deck, unknown, failed
+//                            (pair with &ai=nokey for "AI isn't set up here"; prep implies &google=connected)
+//   &brief=<state>           the morning brief on Today (PST-279): default, fallback (no AI: Today's own whys), quiet, dismissed
 //   &fail                    every write fails (save-failed toast with Retry)
 //   any unknown path         the 404, e.g. /nowhere?preview
 import { useEffect } from 'react'
@@ -44,6 +47,7 @@ import { OpenToasts } from '../components/materials/Opens'
 import { DraftsProvider } from '../components/drafts/data'
 import { closePreview, rememberClosePreview } from './closeFixture'
 import { PREVIEW_DRAFTS, type PreviewDrafts } from './draftsFixture'
+import { PREVIEW_ASK, PREVIEW_BRIEF, type PreviewAsk, type PreviewBrief } from './askFixture'
 
 const session = { me: { firstName: 'Dev', name: 'Dev Preview', email: 'dev@example.com' }, signOut: () => {} }
 
@@ -68,9 +72,11 @@ export function Preview() {
   const suggestions = (PREVIEW_SUGGESTIONS as readonly string[]).includes(q.get('suggestions') ?? '') ? (q.get('suggestions') as PreviewSuggestions) : 'default'
   const materials = (PREVIEW_MATERIALS as readonly string[]).includes(q.get('materials') ?? '') ? (q.get('materials') as MaterialsState) : 'default'
   const agents = (PREVIEW_AGENTS as readonly string[]).includes(q.get('agents') ?? '') ? (q.get('agents') as PreviewAgents) : 'default'
-  const state = { today, drawer, sheet: q.has('sheet'), investors: q.get('investors'), plan: q.get('plan'), settings: q.get('settings'), system: q.get('system'), suggestions, qanda: q.get('qanda'), materials, agents, notes: q.get('notes'), drafts }
+  const ask = (PREVIEW_ASK as readonly string[]).includes(q.get('ask') ?? '') ? (q.get('ask') as PreviewAsk) : null
+  const brief = (PREVIEW_BRIEF as readonly string[]).includes(q.get('brief') ?? '') ? (q.get('brief') as PreviewBrief) : null
+  const state = { today, drawer, sheet: q.has('sheet'), investors: q.get('investors'), plan: q.get('plan'), settings: q.get('settings'), system: q.get('system'), suggestions, qanda: q.get('qanda'), materials, agents, notes: q.get('notes'), drafts, ask }
   const extra = { loading: state.system === 'loading', mid: state.plan === 'mid', fail: q.has('fail') }
-  const google: PreviewGoogle = (PREVIEW_GOOGLE as readonly string[]).includes(q.get('google') ?? '') ? (q.get('google') as PreviewGoogle) : drawer === 'emails' || q.get('qanda') === 'prep' ? 'connected' : 'none'
+  const google: PreviewGoogle = (PREVIEW_GOOGLE as readonly string[]).includes(q.get('google') ?? '') ? (q.get('google') as PreviewGoogle) : drawer === 'emails' || q.get('qanda') === 'prep' || ask === 'prep' ? 'connected' : 'none'
   const ai: PreviewAI = (PREVIEW_AI as readonly string[]).includes(q.get('ai') ?? '') ? (q.get('ai') as PreviewAI) : 'default'
   return (
     <LocalSounds>
@@ -87,6 +93,8 @@ export function Preview() {
             ai={ai}
             close={closePreview()}
             agents={agents}
+            ask={ask}
+            brief={brief}
           >
             <PreviewMaterials state={materials}>
               <DraftsProvider>

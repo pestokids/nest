@@ -5,6 +5,8 @@
 // enrich only starts the existing lookup, within its daily cap, and what it finds
 // waits for review too. Arguments arrive checked against each tool's JSON Schema
 // (src/lib/agents.ts checkArgs). Email bodies are never stored, so never returned.
+// PST-279: Ask Nest calls the same read tools (convex/ask.ts), and each read also
+// says what it looked at (`seen`), for Ask's "From N investors…" line.
 import { v } from 'convex/values'
 import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from './_generated/server'
 import type { Id } from './_generated/dataModel'
@@ -17,21 +19,25 @@ import { CACHE_DAYS, capLeft, queue } from './lib/enrichQueue'
 import { loadRound } from './lib/round'
 import { parseAmount } from '../src/lib/agents'
 import { dupKey } from '../src/lib/csv'
-import { todayIST } from '../src/lib/dates'
+import { ladder, RUNG_LABEL, RUNGS } from '../src/lib/close'
+import { dayDiff, todayIST } from '../src/lib/dates'
 import { fieldLabel, firmDomain } from '../src/lib/enrich'
 import { addressesOf, contactSignals, DAY_MS, dayOf, domainOf, GENERIC_DOMAINS, isOurs, normEmail, timeOf } from '../src/lib/google'
 import { dayLabel } from '../src/lib/investorView'
+import { KIND_LABEL, linkState } from '../src/lib/materials'
 import { money } from '../src/lib/money'
 import { dueDate, dueList, lastContact, quietFor, quietList } from '../src/lib/pipeline'
-import { LABEL, STAGE_KEYS, STAGE_TILE, TOUCH_LABEL, WARM, type TouchKind } from '../src/lib/stages'
+import { ACTIVE, LABEL, STAGE_KEYS, STAGE_TILE, TOUCH_LABEL, WARM, type TouchKind } from '../src/lib/stages'
 import type { SuggestionKind, SuggestionPatch } from '../src/lib/suggestions'
 import { nextMoves } from '../src/lib/today'
 
-type Out = { ok: true; data: Record<string, unknown> } | { ok: false; error: string }
+/** What a read looked at, by id (Ask adds them up across its calls). */
+export type Seen = { investors?: string[]; threads?: string[]; meetings?: string[] }
+type Out = { ok: true; data: Record<string, unknown>; seen?: Seen } | { ok: false; error: string }
 type Args = Record<string, unknown>
 /** What an agent can suggest (meeting notes' question and warm path rows come only from Nest's own read). */
 type AgentPatch = Exclude<SuggestionPatch, { op: 'questions' | 'warm_path' }>
-const done = (data: Record<string, unknown>): Out => ({ ok: true, data })
+const done = (data: Record<string, unknown>, seen?: Seen): Out => ({ ok: true, data, ...(seen ? { seen } : {}) })
 const nope = (error: string): Out => ({ ok: false, error })
 const NO_INVESTOR = 'There’s no investor with that id. Use search_investors to find the right one.'
 const SIGNAL_DAYS = 120
@@ -57,12 +63,22 @@ async function signals(ctx: QueryCtx, now: number) {
 }
 
 /** Every investor, with the email and meeting days that count as a touch (gone quiet, last touch). */
-async function investorsWithContact(ctx: QueryCtx, now: number) {
+async function investorsWithContact(ctx: QueryCtx, now: number, sig?: Awaited<ReturnType<typeof signals>>) {
   const investors = await ctx.db.query('investors').collect()
-  const s = contactSignals(await signals(ctx, now), now)
+  const s = contactSignals(sig ?? (await signals(ctx, now)), now)
   return investors.map((i) => ({ ...i, contact: s.get(i._id) }))
 }
 type Inv = Awaited<ReturnType<typeof investorsWithContact>>[number]
+
+/** Today's three moves as Today works them out, over every investor with their email and meeting touches. Also the morning brief's (brief.ts). */
+export async function movesNow(ctx: QueryCtx, now: number) {
+  const today = todayIST(now)
+  const { round } = await loadRound(ctx)
+  const sig = await signals(ctx, now)
+  const investors = await investorsWithContact(ctx, now, sig)
+  const acts = await ctx.db.query('activities').withIndex('by_date').order('desc').take(1000)
+  return { today, round, investors, signals: sig, moves: nextMoves({ investors, acts, round, today }) }
+}
 
 /** An investor in a list. */
 const brief = (i: Inv) => ({
@@ -80,11 +96,14 @@ async function searchInvestors(ctx: QueryCtx, a: Args): Promise<Out> {
       return words.every((w) => text.includes(w))
     })
     .sort((x, y) => x.name.localeCompare(y.name))
-  return done({
-    count: found.length,
-    investors: found.slice(0, 50).map(brief),
-    ...(found.length > 50 ? { note: `Showing 50 of ${found.length}. Narrow it down with query, stage or wave.` } : {}),
-  })
+  return done(
+    {
+      count: found.length,
+      investors: found.slice(0, 50).map(brief),
+      ...(found.length > 50 ? { note: `Showing 50 of ${found.length}. Narrow it down with query, stage or wave.` } : {}),
+    },
+    { investors: found.slice(0, 50).map((i) => i._id) },
+  )
 }
 
 async function getInvestor(ctx: QueryCtx, a: Args): Promise<Out> {
@@ -139,35 +158,30 @@ async function getInvestor(ctx: QueryCtx, a: Args): Promise<Out> {
     meetings: meetings.slice(0, 20).map((m) => ({ title: m.title, date: dayOf(m.start), time: timeOf(m.start) + ' IST', past: m.end <= now })),
     factsKept: facts.map((f) => ({ about: f.group, field: fieldLabel(f.group, f.field), value: f.value, source: f.source })),
     questionsAsked: questions,
-  })
+  }, { investors: [i._id], threads: threads.slice(0, 20).map((t) => t._id), meetings: meetings.slice(0, 20).map((m) => m._id) })
 }
 
 async function todaysMoves(ctx: QueryCtx): Promise<Out> {
   const now = Date.now()
-  const today = todayIST(now)
-  const { round } = await loadRound(ctx)
-  const investors = await investorsWithContact(ctx, now)
-  const acts = await ctx.db.query('activities').withIndex('by_date').order('desc').take(1000)
+  const { today, round, investors, signals: sig, moves } = await movesNow(ctx, now)
   const names = new Map<string, string>(investors.map((i) => [i._id, i.name]))
   const from = Date.parse(today + 'T00:00:00+05:30')
   const seen = new Set<string>()
-  const meetings = (
-    await ctx.db
-      .query('meetings')
-      .withIndex('by_start', (q) => q.gte('start', from).lt('start', from + DAY_MS))
-      .collect()
-  ).filter((m) => m.investorIds.length && !seen.has(m.eventId) && seen.add(m.eventId))
-  return done({
-    today,
-    dueToday: dueList(investors, today).map((i) => ({ ...brief(i), due: dueDate(i) })),
-    goneQuiet: quietList(investors, today, round.quietDays).map((i) => {
-      const days = quietFor(i, today, round.quietDays)
-      return { ...brief(i), quietFor: days === Infinity ? 'never touched' : `${days} days` }
-    }),
-    quietAfterDays: round.quietDays,
-    meetingsToday: meetings.sort((x, y) => x.start - y.start).map((m) => ({ title: m.title, time: timeOf(m.start) + ' IST', investors: m.investorIds.map((id) => names.get(id)).filter(Boolean) })),
-    nextMoves: nextMoves({ investors, acts, round, today }).map((m) => ({ title: m.title, why: m.why, ...('investorId' in m.action ? { investorId: m.action.investorId } : {}) })),
-  })
+  const meetings = sig.meetings.filter((m) => m.start >= from && m.start < from + DAY_MS && !seen.has(m.eventId) && seen.add(m.eventId))
+  return done(
+    {
+      today,
+      dueToday: dueList(investors, today).map((i) => ({ ...brief(i), due: dueDate(i) })),
+      goneQuiet: quietList(investors, today, round.quietDays).map((i) => {
+        const days = quietFor(i, today, round.quietDays)
+        return { ...brief(i), quietFor: days === Infinity ? 'never touched' : `${days} days` }
+      }),
+      quietAfterDays: round.quietDays,
+      meetingsToday: meetings.sort((x, y) => x.start - y.start).map((m) => ({ id: m._id, title: m.title, time: timeOf(m.start) + ' IST', investors: m.investorIds.map((id) => names.get(id)).filter(Boolean) })),
+      nextMoves: moves.map((m) => ({ title: m.title, why: m.why, ...('investorId' in m.action ? { investorId: m.action.investorId } : {}) })),
+    },
+    { investors: investors.map((i) => i._id), threads: sig.threads.map((t) => t._id), meetings: meetings.map((m) => m._id) },
+  )
 }
 
 async function listQuestions(ctx: QueryCtx, a: Args): Promise<Out> {
@@ -181,6 +195,112 @@ async function listQuestions(ctx: QueryCtx, a: Args): Promise<Out> {
   })
 }
 
+/* PST-279: read helpers for Ask Nest (agents get them too). */
+
+/** The money ladder (Close): soft, verbal, SAFE sent, signed, wired, with who and how much. */
+async function roundTotals(ctx: QueryCtx): Promise<Out> {
+  const { round } = await loadRound(ctx)
+  const l = ladder(await ctx.db.query('investors').collect(), await ctx.db.query('closings').collect())
+  const rung = (r: (typeof RUNGS)[number]) => {
+    const rows = l.rows.filter((x) => x.rung === r)
+    return { label: RUNG_LABEL[r], amount: l.rungs[r].amount, count: rows.length, investors: rows.map((x) => ({ id: x.investor._id, name: x.investor.name, amount: x.amount })) }
+  }
+  return done(
+    {
+      currency: 'USD',
+      softCircle: rung('soft'),
+      verbal: rung('verbal'),
+      safeSent: rung('sent'),
+      signed: rung('signed'),
+      wired: rung('wired'),
+      verbalNotSigned: { amount: l.rungs.verbal.amount + l.rungs.sent.amount, count: l.rungs.verbal.count + l.rungs.sent.count },
+      committed: l.committed,
+      target: round.target,
+      stretch: round.stretch,
+      note: 'Each amount is the closing record’s, else Committed, else Expected. Committed is verbal and later; soft circles are not in it.',
+    },
+    { investors: l.rows.map((x) => x.investor._id) },
+  )
+}
+
+/** Materials, the links shared with investors and what they opened. */
+async function materialOpens(ctx: QueryCtx, a: Args): Promise<Out> {
+  const who = a.investorId === undefined ? null : await investorById(ctx, a.investorId)
+  if (a.investorId !== undefined && !who) return nope(NO_INVESTOR)
+  const words = String(a.material ?? '').toLowerCase().split(/\s+/).filter(Boolean)
+  const version = typeof a.version === 'number' ? a.version : undefined
+  const materials = (await ctx.db.query('materials').collect()).filter((m) => words.every((w) => `${m.title} ${KIND_LABEL[m.kind]} ${m.kind}`.toLowerCase().includes(w)))
+  const versions = await ctx.db.query('materialVersions').collect()
+  const investors = await ctx.db.query('investors').collect()
+  const names = new Map<string, string>(investors.map((i) => [i._id, i.name]))
+  const now = Date.now()
+  const links = []
+  for (const m of materials) {
+    for (const l of await ctx.db.query('shareLinks').withIndex('by_material', (q) => q.eq('materialId', m._id)).collect()) {
+      if (!l.investorId || !names.has(l.investorId) || (who && l.investorId !== who._id)) continue
+      const n = versions.find((x) => x._id === (l.versionId === 'current' ? m.currentVersionId : l.versionId))?.n
+      if (version !== undefined && n !== version) continue
+      const views = await ctx.db.query('views').withIndex('by_link', (q) => q.eq('linkId', l._id)).collect()
+      const pages = new Map<number, number>()
+      for (const w of views) for (const p of w.pages) pages.set(p.page, (pages.get(p.page) ?? 0) + p.ms)
+      const ms = [...pages.values()].reduce((s, x) => s + x, 0)
+      const longest = [...pages.entries()].sort((x, y) => y[1] - x[1])[0]
+      links.push({
+        investorId: l.investorId, investor: names.get(l.investorId)!, material: m.title, version: n ? `v${n}` : null, followsCurrent: l.versionId === 'current',
+        sharedOn: dayOf(l.createdAt), link: linkState(l, now), opened: views.length > 0, opens: views.length,
+        ...(views.length ? { firstOpened: dayOf(Math.min(...views.map((w) => w.startedAt))), lastOpened: dayOf(Math.max(...views.map((w) => w.lastAt))), minutesRead: Math.round(ms / 6e3) / 10 } : {}),
+        ...(longest ? { longestPage: longest[0] } : {}),
+      })
+    }
+  }
+  const linked = new Set(links.map((x) => x.investorId))
+  const without = words.length && !who ? investors.filter((i) => ACTIVE.has(i.stage) && !linked.has(i._id)).map((i) => ({ id: i._id, name: i.name, stage: LABEL[i.stage] })) : null
+  return done(
+    {
+      materials: materials.map((m) => ({ title: m.title, kind: KIND_LABEL[m.kind], current: `v${versions.find((x) => x._id === m.currentVersionId)?.n ?? '?'}`, versions: versions.filter((x) => x.materialId === m._id).map((x) => `v${x.n}`) })),
+      links: links.sort((x, y) => Number(y.opened) - Number(x.opened) || x.investor.localeCompare(y.investor)),
+      ...(without ? { investorsWithoutLink: without } : {}),
+    },
+    { investors: [...linked] },
+  )
+}
+
+/** Investor meetings in a range of days (India time), with their ids for the prep brief. */
+async function meetingsBetween(ctx: QueryCtx, a: Args): Promise<Out> {
+  const from = a.from as string
+  const to = (a.to as string | undefined) ?? from
+  if (to < from) return nope('to must be the same day as from or later.')
+  if (dayDiff(to, from) > 31) return nope('At most 31 days at a time.')
+  const start = Date.parse(from + 'T00:00:00+05:30')
+  const end = Date.parse(to + 'T00:00:00+05:30') + DAY_MS
+  const now = Date.now()
+  const seen = new Set<string>()
+  const meetings = (
+    await ctx.db
+      .query('meetings')
+      .withIndex('by_start', (q) => q.gte('start', start).lt('start', end))
+      .collect()
+  )
+    .filter((m) => m.investorIds.length && !seen.has(m.eventId) && seen.add(m.eventId))
+    .sort((x, y) => x.start - y.start)
+  const out = []
+  for (const m of meetings) {
+    const investors = []
+    let notes = false
+    for (const id of m.investorIds) {
+      const i = await ctx.db.get(id)
+      if (i) investors.push({ id: i._id, name: i.name })
+      const ns = await ctx.db
+        .query('notes')
+        .withIndex('by_investor', (q) => q.eq('investorId', id))
+        .collect()
+      notes ||= ns.some((n) => !n.removedAt && (n.meetingId === m._id || n.date === dayOf(m.start)))
+    }
+    out.push({ id: m._id, title: m.title, day: dayOf(m.start), start: timeOf(m.start) + ' IST', end: timeOf(m.end) + ' IST', past: m.end <= now, investors, notesSaved: notes })
+  }
+  return done({ from, to, now: `${dayOf(now)} ${timeOf(now)} IST`, count: out.length, meetings: out }, { meetings: meetings.map((m) => m._id), investors: [...new Set(out.flatMap((m) => m.investors.map((i) => i.id)))] })
+}
+
 export const read = internalQuery({
   args: { tool: v.string(), args: v.any() },
   handler: async (ctx, { tool, args }): Promise<Out> => {
@@ -188,6 +308,9 @@ export const read = internalQuery({
     if (tool === 'get_investor') return await getInvestor(ctx, args)
     if (tool === 'todays_moves') return await todaysMoves(ctx)
     if (tool === 'list_questions') return await listQuestions(ctx, args)
+    if (tool === 'round_totals') return await roundTotals(ctx)
+    if (tool === 'material_opens') return await materialOpens(ctx, args)
+    if (tool === 'meetings_between') return await meetingsBetween(ctx, args)
     return nope(`${tool} isn’t a read tool.`)
   },
 })

@@ -137,6 +137,10 @@ const DONE_LINE: Partial<Record<Stage, string>> = {
 }
 
 /** Investor ids with an ask already logged. */
+/** What "Log the ask" writes (Today's ask move, and Ask Nest's button): the note, and a follow-up three days on. */
+export const ASK_NOTE = 'Asked for a specific amount, confirmed in writing.'
+export const askFollowUp = (today: string) => ({ step: 'Follow up on the ask', date: addDays(today, 3) })
+
 export const askedIds = (acts: Pick<Activity, 'investorId' | 'touch'>[]) => new Set(acts.filter((a) => a.touch === 'ask').map((a) => a.investorId))
 
 /**

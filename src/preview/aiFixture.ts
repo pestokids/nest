@@ -5,7 +5,8 @@
 // bulk Enrich plays a pretend run. Invented people at example.com addresses only.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { AIActions } from '../components/data'
-import { investorWrite, NO_AI, type AIData, type AISettings, type Fact, type FactPerson, type InvestorAI, type Person, type Rank, type Run } from '../lib/enrich'
+import { investorWrite, NO_AI, type AIData, type AISettings, type Fact, type FactPerson, type InvestorAI, type Person, type Rank, type RecentRun, type Run } from '../lib/enrich'
+import { todayIST } from '../lib/dates'
 import { fieldsOf, NEW_INVESTOR, type Investor, type InvestorFields } from '../lib/pipeline'
 
 export const PREVIEW_AI = ['default', 'enriching', 'review', 'nokey', 'bulk'] as const
@@ -98,6 +99,16 @@ const SENDERS: Record<string, Seed> = {
   'mina@fieldnote.example.com': { verdict: 'unknown', summary: 'Couldn’t find her. Nothing on the web ties this address to a firm.', person: {}, fund: {}, partners: [], found: [['Nothing found'], ['No firm found'], ['Couldn’t tell']] },
 }
 
+/** Settings › AI's recent runs: a question asked two hours ago and today's 08:00 brief. */
+function asksAndBriefs(): RecentRun[] {
+  const at8 = Date.parse(todayIST() + 'T08:00:00+05:30')
+  const base = { wasInvestor: false, facts: 0, cached: false, status: 'done' as const }
+  return [
+    { ...base, _id: 'pask-recent', at: Math.max(at8 + 6e4, Date.now() - 2 * H), kind: 'ask', question: 'Who should I chase today?', tools: 2, costUsd: 0.012 },
+    { ...base, _id: 'pbrief-recent', at: at8, kind: 'brief', moves: 3, costUsd: 0.0004 },
+  ]
+}
+
 const PEOPLE_NAMES = ['Ines Halloway', 'Theo Marchetti', 'Nadia Brook', 'Omar Castell', 'Lena Varga', 'Felix Amari']
 
 /** A made-up lookup for any other fixture investor, from its name. */
@@ -148,7 +159,7 @@ function factsOf(seed: Seed, runId: string, o: { inv?: Investor; email?: string;
 const REVIEW_ONLY = ['person.name', 'person.title', 'person.rank', 'person.covers', 'person.linkedin', 'person.x', 'fund.size', 'fund.stage', 'fund.check', 'fund.leads', 'fund.geography', 'fund.recentDeals']
 
 function initial(state: PreviewAI, investors: Investor[], now: number): DB {
-  const db: DB = { runs: [], facts: [], people: [], settings: { lookups: true, enrichNew: true, meetingNotes: true }, connected: state !== 'nokey' }
+  const db: DB = { runs: [], facts: [], people: [], settings: { lookups: true, enrichNew: true, meetingNotes: true, morningBrief: true }, connected: state !== 'nokey' }
   if (state === 'nokey') return db
   const kite = investors.find((i) => i.name === 'Kite Angels')
   const done = (inv: Investor | undefined, seed: Seed, at: number, extra: Partial<Run> = {}): Run | undefined =>
@@ -377,10 +388,13 @@ export function useAIPreview(state: PreviewAI, investors: Investor[] | null, sav
       capLeft: 24,
       runs: [...runs.values()].map((r) => ({ ...r, pending: db.facts.filter((f) => f.investorId === r.investorId && f.status === 'pending').length })),
       senders: [...senders.entries()].map(([email, run]) => ({ email, run, facts: db.facts.filter((f) => f.runId === run._id && f.status !== 'dismissed' && !f.investorId) })),
-      recent: [...db.runs]
-        .sort((a, b) => (b.finishedAt ?? b.startedAt) - (a.finishedAt ?? a.startedAt))
-        .slice(0, 6)
-        .map((r) => ({ _id: r._id, at: r.finishedAt ?? r.startedAt, investor: r.investorId ? names.get(r.investorId) : undefined, email: r.email, wasInvestor: !!r.investorId, facts: r.factCount ?? 0, costUsd: r.costUsd, status: r.status, cached: !!r.cached })),
+      recent: [
+        ...[...db.runs].map((r): RecentRun => ({ _id: r._id, at: r.finishedAt ?? r.startedAt, investor: r.investorId ? names.get(r.investorId) : undefined, email: r.email, wasInvestor: !!r.investorId, facts: r.factCount ?? 0, costUsd: r.costUsd, status: r.status, cached: !!r.cached })),
+        // PST-279: an Ask Nest question and this morning's brief.
+        ...(db.connected ? asksAndBriefs() : []),
+      ]
+        .sort((a, b) => b.at - a.at)
+        .slice(0, 8),
     }
   }, [db, investors])
 

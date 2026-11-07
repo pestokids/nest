@@ -7,6 +7,7 @@ import { closeTables, roundCapTableField } from './closeSchema'
 import { agentTables } from './agentsSchema'
 import { notesReadTables, vNoteSource } from './notesSchema'
 import { draftTables } from './draftsSchema'
+import { askSettingsFields, askTables } from './askSchema'
 import { roundFields, vGeo, vMeetingAnswer, vPipelineStage, vStage, vSyncSource, vTier, vTouch, vType, vWarmth, vWave } from './validators'
 import { vSuggestionKind, vSuggestionPatch, vSuggestionSource, vSuggestionStatus, vSuggestionUndo } from './validators'
 import { vAnswerVersion, vAskSource, vQuestionMerge } from './validators'
@@ -62,9 +63,9 @@ export default defineSchema({
     .index('by_investor', ['investorId'])
     .index('by_date', ['date']),
 
-  // The round row (key "round"), and PST-274's AI toggles (key "ai").
+  // The round row (key "round"), and PST-274's AI toggles (key "ai"; PST-279 adds morningBrief, see askSchema.ts).
   // PST-283: the round row also holds the cap table inputs (`capTable`, optional; see closeSchema.ts).
-  settings: defineTable(v.union(v.object({ key: v.literal('round'), ...roundFields, ...roundCapTableField }), v.object(aiSettingsFields))).index('by_key', ['key']),
+  settings: defineTable(v.union(v.object({ key: v.literal('round'), ...roundFields, ...roundCapTableField }), v.object({ ...aiSettingsFields, ...askSettingsFields }))).index('by_key', ['key']),
 
   settingsLog: defineTable({
     userId: v.id('users'),
@@ -256,4 +257,8 @@ export default defineSchema({
   /* ---------- PST-278: Drafts (drafts; convex/draftsSchema.ts) ---------- */
   ...draftTables,
   /* ---------- end PST-278 ---------- */
+
+  /* ---------- PST-279: Ask Nest and the morning brief (askRuns, briefs; see askSchema.ts) ---------- */
+  ...askTables,
+  /* ---------- end PST-279 ---------- */
 })
