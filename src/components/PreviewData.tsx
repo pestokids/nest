@@ -18,6 +18,7 @@ import {
   fixtureAgentSuggestion, fixtureExtraSuggestions, fixtureSuggestionInvestors, fixtureSuggestionMeetings, type PreviewSuggestions,
 } from '../preview/suggestionsFixture'
 import { RaiseContext, type LogRow, type RaiseData } from './data'
+import { PreviewQanda } from '../preview/PreviewQanda'
 
 type Seed = { round?: Partial<Round>; investors: (Omit<Investor, '_id'> & { slug: string })[] }
 export type PreviewHome = 'default' | 'firstrun' | 'prepdone'
@@ -360,5 +361,9 @@ export function PreviewData({
 
   // `&ai=…`: made-up enrichment; Keep writes through the preview's own save.
   const enrich = useAIPreview(aiState, investors, value.save, !!extra.fail)
-  return <RaiseContext.Provider value={{ ...value, ...enrich }}>{children}</RaiseContext.Provider>
+  return (
+    <RaiseContext.Provider value={{ ...value, ...enrich }}>
+      <PreviewQanda fail={!!extra.fail}>{children}</PreviewQanda>
+    </RaiseContext.Provider>
+  )
 }

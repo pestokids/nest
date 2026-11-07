@@ -64,6 +64,7 @@ export const SECTIONS: Section[] = [
   { label: 'Today', to: '/raise/today', keys: ['G', 'T'] },
   { label: 'Pipeline', to: '/raise/pipeline', keys: ['G', 'P'] },
   { label: 'Investors', to: '/raise/investors', keys: ['G', 'I'] },
+  { label: 'Q&A', to: '/raise/qanda', keys: ['G', 'Q'] },
   { label: 'Plan', to: '/raise/plan', keys: ['G', 'L'] },
   { label: 'Settings', to: '/raise/settings', keys: ['G', 'S'] },
 ]

@@ -9,6 +9,7 @@ import { DEFAULT_ROUND } from '../lib/round'
 import { NO_AI, type AIData } from '../lib/enrich'
 import type { Suggestion } from '../lib/suggestions'
 import { RaiseContext, type RaiseData } from './data'
+import { ConvexQanda } from './qanda/ConvexQanda'
 
 const NO_SUGGESTIONS: Suggestion[] = []
 import { useSession } from './session'
@@ -153,5 +154,9 @@ export function ConvexData({ children }: { children: ReactNode }) {
     }),
     [investors, withSignals, acts, settings, me, upsert, advance, move, undoMove, logNote, remove, importMany, updateRound, setTick, google, googleDo, suggestionRows, suggest, ai, aiDo],
   )
-  return <RaiseContext.Provider value={value}>{children}</RaiseContext.Provider>
+  return (
+    <RaiseContext.Provider value={value}>
+      <ConvexQanda>{children}</ConvexQanda>
+    </RaiseContext.Provider>
+  )
 }

@@ -22,13 +22,14 @@ import { addDays, celebrates, stageChange } from '../lib/today'
 import { useRaise } from './data'
 import { InvestorEnrich } from './enrich/InvestorEnrich'
 import { Egg, EggCracking, EggHatching } from './illustrations'
+import { NotesTab } from './qanda/NotesTab'
 import { useUI } from './raise-ui'
 import { Button, buttonClass, Checkbox, Chip, Icon, Input, Segmented, Select, SubTabButtons, Textarea, Toggle, type ChipTone } from './ui'
 import { Link } from '@tanstack/react-router'
 
-export type DrawerStart = 'view' | 'edit' | 'advance' | 'touch' | 'history' | 'emails' | 'delete'
+export type DrawerStart = 'view' | 'edit' | 'advance' | 'touch' | 'history' | 'emails' | 'notes' | 'delete'
 type Mode = 'view' | 'edit' | 'advance' | 'touch' | 'park' | 'delete'
-type Tab = 'details' | 'history' | 'emails'
+type Tab = 'details' | 'history' | 'emails' | 'notes'
 
 const PROGRESS = STAGES.slice(1) // Asked … Money in
 const WARM_SHORT: Record<Investor['warmth'], [string, ChipTone]> = {
@@ -140,8 +141,8 @@ export function Drawer({ id, start = 'view', forceSheet, onClose }: { id: string
   const sheet = !!forceSheet || phone
   const inv = id ? d.investors.find((i) => i._id === id) : undefined
   const isNew = !id
-  const [mode, setMode] = useState<Mode>(isNew ? 'edit' : start === 'history' || start === 'emails' ? 'view' : start)
-  const [tab, setTab] = useState<Tab>(start === 'history' ? 'history' : start === 'emails' ? 'emails' : 'details')
+  const [mode, setMode] = useState<Mode>(isNew ? 'edit' : start === 'history' || start === 'emails' || start === 'notes' ? 'view' : start)
+  const [tab, setTab] = useState<Tab>(start === 'history' || start === 'emails' || start === 'notes' ? start : 'details')
   const [closing, setClosing] = useState(false)
   /** A touch was just logged: History slides its newest entry in. */
   const [fresh, setFresh] = useState(false)
@@ -291,6 +292,7 @@ export function Drawer({ id, start = 'view', forceSheet, onClose }: { id: string
               ...(d.google.team.length || emailCount
                 ? [{ value: 'emails' as const, label: emailCount ? <>Emails <span className="tab-count">{emailCount}</span></> : 'Emails' }]
                 : []),
+              { value: 'notes', label: 'Notes' },
             ]}
           />
         ) : null}
@@ -309,6 +311,8 @@ export function Drawer({ id, start = 'view', forceSheet, onClose }: { id: string
             <History inv={inv} log={log} fresh={fresh} />
           ) : tab === 'emails' ? (
             <Emails inv={inv} onEdit={() => setMode('edit')} />
+          ) : tab === 'notes' ? (
+            <NotesTab inv={inv} />
           ) : (
             <Details inv={inv} log={log} sheet={sheet} onDelete={() => setMode('delete')} onEdit={() => setMode('edit')} />
           )}

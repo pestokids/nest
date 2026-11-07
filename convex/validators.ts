@@ -109,3 +109,13 @@ export const vSuggestionUndo = v.union(
     keepBefore: v.any(),
   }),
 )
+
+/* ---------- PST-281: Q&A bank ---------- */
+
+export const vAskSource = v.union(v.literal('notes'), v.literal('manual'), v.literal('meeting'))
+export const vAnswerVersion = v.object({ text: v.string(), at: v.number(), by: v.optional(v.id('users')) })
+/** On a merged-away question: the asks it handed over, and the kept question's fields before the merge. */
+export const vQuestionMerge = v.object({
+  askIds: v.array(v.id('questionAsks')),
+  keepBefore: v.object({ bestAnswer: v.string(), answerVersions: v.array(vAnswerVersion), slideRef: v.optional(v.string()), onDeck: v.boolean() }),
+})

@@ -7,6 +7,7 @@ import { ViewSkeleton } from '../../components/system/Skeleton'
 import { usePreviewState } from '../../components/preview-state'
 import { UIContext, useAdvance, useFail, type OpenOptions, type UI } from '../../components/raise-ui'
 import { Button, buttonClass, Icon, SubTabs, useToast, type TabItem } from '../../components/ui'
+import { QandaHost } from '../../components/qanda/QandaHost'
 import { PendingDeletes } from '../../lib/pendingDelete'
 import type { Investor } from '../../lib/pipeline'
 import { play } from '../../lib/sound'
@@ -15,6 +16,7 @@ const TABS: TabItem[] = [
   { to: '/raise/today', label: 'Today' },
   { to: '/raise/pipeline', label: 'Pipeline' },
   { to: '/raise/investors', label: 'Investors' },
+  { to: '/raise/qanda', label: 'Q&A' },
   { to: '/raise/plan', label: 'Plan' },
   { to: '/raise/settings', label: 'Settings' },
 ]
@@ -166,6 +168,7 @@ function RaiseLayout() {
           {status && (d.loaded || slow) ? <div className="notice">{status}</div> : null}
           <div className="raise-view">{d.loaded ? <Outlet /> : <ViewSkeleton />}</div>
           {d.loaded ? <TargetHitWatcher /> : null}
+          {d.loaded ? <QandaHost /> : null}
         </div>
         {drawer ? null : (
           <button type="button" className="fab" aria-label="Add investor" onClick={() => open(null)}>
