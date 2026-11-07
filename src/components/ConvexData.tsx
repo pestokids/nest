@@ -7,7 +7,10 @@ import { todayIST } from '../lib/dates'
 import { NO_GOOGLE, withContact, type GoogleData } from '../lib/google'
 import { DEFAULT_ROUND } from '../lib/round'
 import { NO_AI, type AIData } from '../lib/enrich'
+import type { Suggestion } from '../lib/suggestions'
 import { RaiseContext, type RaiseData } from './data'
+
+const NO_SUGGESTIONS: Suggestion[] = []
 import { useSession } from './session'
 
 const useLog = (investorId: string | null) =>
@@ -52,6 +55,22 @@ export function ConvexData({ children }: { children: ReactNode }) {
   const gSync = useMutation(api.google.syncNow)
   const gAnswer = useMutation(api.google.answerMeeting)
   const gDismiss = useMutation(api.google.dismissPerson)
+  const suggestionRows = useQuery(api.suggestions.list)
+  const sAccept = useMutation(api.suggestions.accept)
+  const sDismiss = useMutation(api.suggestions.dismiss)
+  const sAcceptSafe = useMutation(api.suggestions.acceptSafe)
+  const sUndo = useMutation(api.suggestions.undo)
+  const sRun = useMutation(api.suggestions.run)
+  const suggest = useMemo(
+    () => ({
+      accept: (id: string) => sAccept({ id: id as Id<'suggestions'> }),
+      dismiss: (id: string) => sDismiss({ id: id as Id<'suggestions'> }),
+      acceptSafe: () => sAcceptSafe({}),
+      undo: (ids: string[]) => sUndo({ ids: ids as Id<'suggestions'>[] }),
+      check: () => sRun({}),
+    }),
+    [sAccept, sDismiss, sAcceptSafe, sUndo, sRun],
+  )
   const google = useMemo<GoogleData>(() => (g ? { loaded: true, ...g } : { ...NO_GOOGLE, loaded: false }), [g])
   const a = useQuery(api.enrich.data)
   const ai = useMemo<AIData>(() => (a ? { loaded: true, ...a } : NO_AI), [a])
@@ -126,11 +145,13 @@ export function ConvexData({ children }: { children: ReactNode }) {
       useMembers,
       google,
       googleDo,
+      suggestions: suggestionRows ?? NO_SUGGESTIONS,
+      suggest,
       ai,
       aiDo,
       useInvestorAI,
     }),
-    [investors, withSignals, acts, settings, me, upsert, advance, move, undoMove, logNote, remove, importMany, updateRound, setTick, google, googleDo, ai, aiDo],
+    [investors, withSignals, acts, settings, me, upsert, advance, move, undoMove, logNote, remove, importMany, updateRound, setTick, google, googleDo, suggestionRows, suggest, ai, aiDo],
   )
   return <RaiseContext.Provider value={value}>{children}</RaiseContext.Provider>
 }

@@ -11,7 +11,7 @@ import { requireUser } from './lib/access'
 import { AIError, extractJson, hasAIKey, NoAIKey, PRICES, research } from './lib/anthropic'
 import { conform, SchemaError } from './lib/jsonSchema'
 import { factsFrom, investorPrompt, parseStep, senderPrompt, SYSTEM, vResearch } from './lib/research'
-import { aiSettings, CACHE_DAYS, capLeft, pump, queue } from './lib/enrichQueue'
+import { aiSettings, CACHE_DAYS, capLeft, pump, queue, syncReview } from './lib/enrichQueue'
 import { saveInvestor } from './investors'
 import { vNewFact, vStep, vVerdict } from './enrichSchema'
 import { asRank, firmDomain, investorWrite, NO_AI_KEY } from '../src/lib/enrich'
@@ -201,7 +201,9 @@ export const keepFact = mutation({
     const { userId } = await requireUser(ctx)
     const f = await ctx.db.get(factId)
     if (!f) throw new ConvexError('That fact is gone. Try Refresh.')
-    return (await keep(ctx, userId, f)) ?? null
+    const clash = await keep(ctx, userId, f)
+    await syncReview(ctx, f.runId)
+    return clash ?? null
   },
 })
 
@@ -211,7 +213,9 @@ export const dismissFact = mutation({
   handler: async (ctx, { factId }) => {
     await requireUser(ctx)
     const f = await ctx.db.get(factId)
-    if (f?.status === 'pending') await ctx.db.patch(factId, { status: 'dismissed' })
+    if (f?.status !== 'pending') return null
+    await ctx.db.patch(factId, { status: 'dismissed' })
+    await syncReview(ctx, f.runId)
     return null
   },
 })
@@ -222,7 +226,9 @@ export const undoDismiss = mutation({
   handler: async (ctx, { factId }) => {
     await requireUser(ctx)
     const f = await ctx.db.get(factId)
-    if (f?.status === 'dismissed') await ctx.db.patch(factId, { status: 'pending' })
+    if (f?.status !== 'dismissed') return null
+    await ctx.db.patch(factId, { status: 'pending' })
+    await syncReview(ctx, f.runId)
     return null
   },
 })
@@ -236,6 +242,7 @@ export const keepAll = mutation({
     const { userId } = await requireUser(ctx)
     const facts = await pendingOf(ctx, runId)
     for (const f of facts) await keep(ctx, userId, (await ctx.db.get(f._id))!)
+    await syncReview(ctx, runId)
     return facts.length
   },
 })
@@ -246,6 +253,7 @@ export const dismissAll = mutation({
     await requireUser(ctx)
     const facts = await pendingOf(ctx, runId)
     for (const f of facts) await ctx.db.patch(f._id, { status: 'dismissed' })
+    await syncReview(ctx, runId)
     return facts.length
   },
 })
@@ -288,6 +296,7 @@ export const addSender = mutation({
         await keep(ctx, userId, (await ctx.db.get(f._id))!)
       } else await ctx.db.patch(f._id, { investorId: id, clash: investorWrite(inv, f).clash })
     }
+    if (run) await syncReview(ctx, run._id)
     return id
   },
 })
@@ -402,6 +411,7 @@ export const finish = internalMutation({
     await ctx.db.patch(run._id, {
       status: 'done', steps: run.steps.map((s) => ({ ...s, state: 'done' as const })), costUsd: a.costUsd, finishedAt: Date.now(), factCount: n, verdict: a.verdict, summary: a.summary,
     })
+    await syncReview(ctx, run._id)
     await pump(ctx)
   },
 })

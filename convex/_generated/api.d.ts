@@ -33,6 +33,7 @@ import type * as prefs from "../prefs.js";
 import type * as prep from "../prep.js";
 import type * as seed from "../seed.js";
 import type * as settings from "../settings.js";
+import type * as suggestions from "../suggestions.js";
 import type * as validators from "../validators.js";
 
 import type {
@@ -67,6 +68,7 @@ declare const fullApi: ApiFromModules<{
   prep: typeof prep;
   seed: typeof seed;
   settings: typeof settings;
+  suggestions: typeof suggestions;
   validators: typeof validators;
 }>;
 

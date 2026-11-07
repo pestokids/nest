@@ -80,6 +80,29 @@ async function cached(ctx: QueryCtx, email?: string, domain?: string): Promise<{
 }
 
 /** A done run for an investor, from a cached one: its facts copied (the fund's only, when matched by domain), as pending. */
+/**
+ * Suggestions › Enrichment (PST-275's queue): one review row per investor run with
+ * facts waiting, removed once they're all kept or dismissed. A row someone
+ * dismissed stays dismissed.
+ */
+export async function syncReview(ctx: MutationCtx, runId: Id<'enrichRuns'>) {
+  const run = await ctx.db.get(runId)
+  if (!run?.investorId) return
+  const left = (await ctx.db.query('facts').withIndex('by_run', (q) => q.eq('runId', runId)).collect()).filter((f) => f.status === 'pending').length
+  const key = 'enrich:' + runId
+  const row = await ctx.db.query('suggestions').withIndex('by_key', (q) => q.eq('key', key)).first()
+  if (!left) {
+    if (row?.status === 'open') await ctx.db.delete(row._id)
+    return
+  }
+  const inv = await ctx.db.get(run.investorId)
+  if (row || !inv) return
+  await ctx.db.insert('suggestions', {
+    kind: 'enrichment', investorId: inv._id, title: 'Nest found ' + left + (left === 1 ? ' thing' : ' things') + ' about ' + inv.name + '.', fix: 'Keep what’s right in the drawer',
+    patch: { op: 'review' }, source: 'enrich', safe: false, status: 'open', key, createdAt: Date.now(),
+  })
+}
+
 async function copyRun(ctx: MutationCtx, src: Doc<'enrichRuns'>, inv: Doc<'investors'>, fundOnly: boolean, t: Target) {
   const now = Date.now()
   const facts = (await ctx.db.query('facts').withIndex('by_run', (q) => q.eq('runId', src._id)).collect()).filter((f) => f.status !== 'dismissed' && (!fundOnly || f.group === 'fund'))
@@ -94,6 +117,7 @@ async function copyRun(ctx: MutationCtx, src: Doc<'enrichRuns'>, inv: Doc<'inves
       ...(t.email ? { email: t.email } : {}), ...(clash ? { clash } : {}), ...(f.amount ? { amount: f.amount } : {}), ...(f.person ? { person: f.person } : {}),
     })
   }
+  await syncReview(ctx, runId)
 }
 
 /** New investors (added or imported): look each up when the toggle is on, from the cache when it can, within the daily cap. */

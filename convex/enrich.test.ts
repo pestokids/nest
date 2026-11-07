@@ -217,6 +217,22 @@ describe('enrich', () => {
     ])
   })
 
+  it('queues one review in Suggestions while facts wait, and takes it away once they are all decided', async () => {
+    const { t, asDev, kite } = await setup()
+    const runId = await asDev.mutation(api.enrich.enrich, { investorId: kite })
+    await drain(t)
+    const reviews = () => t.run((ctx) => ctx.db.query('suggestions').withIndex('by_key', (q) => q.eq('key', 'enrich:' + runId)).collect())
+    expect(await reviews()).toMatchObject([{ kind: 'enrichment', source: 'enrich', investorId: kite, status: 'open', safe: false, patch: { op: 'review' }, title: 'Nest found ' + EXPECTED_FACTS + ' things about Kite Angels.' }])
+    const [first, ...rest] = (await asDev.query(api.enrich.forInvestor, { investorId: kite })).facts
+    await asDev.mutation(api.enrich.dismissFact, { factId: first._id })
+    expect(await reviews()).toHaveLength(1)
+    expect(await asDev.mutation(api.enrich.keepAll, { runId })).toBe(rest.length)
+    expect(await reviews()).toEqual([])
+    // Undo brings a fact back, and the review with it.
+    await asDev.mutation(api.enrich.undoDismiss, { factId: first._id })
+    expect(await reviews()).toHaveLength(1)
+  })
+
   it('keeps everything at once, writing only the empty fields', async () => {
     const { t, asDev, kite } = await setup()
     const runId = await asDev.mutation(api.enrich.enrich, { investorId: kite })

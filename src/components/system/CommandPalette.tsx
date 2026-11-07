@@ -4,7 +4,7 @@ import { onOpenCommandPalette, recentInvestors, rememberInvestor } from '../../l
 import { todayIST } from '../../lib/dates'
 import { addressesOf, gmailSearchLink } from '../../lib/google'
 import { dayLabel, isQuiet } from '../../lib/investorView'
-import { rankInvestors, searchNotes, searchSections, titleCase } from '../../lib/palette'
+import { matchScore, rankInvestors, searchNotes, searchSections, titleCase } from '../../lib/palette'
 import type { Investor } from '../../lib/pipeline'
 import { play } from '../../lib/sound'
 import { IDX, STAGE_TILE, STAGES } from '../../lib/stages'
@@ -104,6 +104,8 @@ function usePaletteActions() {
       },
       addInvestor: (name?: string) => openDrawer(null, name ? { name } : undefined),
       importCsv: () => void navigate({ to: '/raise/investors', search: { import: true } }),
+      // PST-275: the suggestions list lives on Today.
+      reviewSuggestions: () => void navigate({ to: '/raise/today', state: (s) => ({ ...s, suggestions: true }) }),
       advance: (i: Investor) =>
         void save(() => d.advance(i._id), {
           failMessage: `Couldn’t move ${i.name}.`,
@@ -120,7 +122,7 @@ function usePaletteActions() {
 type Actions = ReturnType<typeof usePaletteActions>
 
 function Palette({ initial, onClose, actions, recentsFallback }: { initial: string; onClose: () => void; actions: Actions; recentsFallback: boolean }) {
-  const { investors, round, google } = useRaise()
+  const { investors, round, google, suggestions } = useRaise()
   const [q, setQ] = useState(initial)
   const [active, setActive] = useState(0)
   const list = useRef<HTMLDivElement>(null)
@@ -144,6 +146,8 @@ function Palette({ initial, onClose, actions, recentsFallback }: { initial: stri
       fn()
     }
     const person = (i: Investor, long: boolean): Item => ({ id: 'i-' + i._id, icon: 'user', label: i.name, meta: meta(i, long), run: close(() => actions.openInvestor(i)) })
+    const n = suggestions.length
+    const review: Item = { id: 'a-suggestions', icon: 'spark', label: `Review ${n} suggestion${n === 1 ? '' : 's'}`, meta: 'Suggestions', run: close(actions.reviewSuggestions) }
     if (!query) {
       let recent = recentInvestors()
         .map((id) => investors.find((i) => i._id === id))
@@ -157,7 +161,7 @@ function Palette({ initial, onClose, actions, recentsFallback }: { initial: stri
       ]
       return [
         ...(recent.length ? [{ title: 'Recent', items: recent.map((i) => person(i, false)) }] : []),
-        { title: 'Quick actions', items: quick },
+        { title: 'Quick actions', items: n ? [review, ...quick] : quick },
       ]
     }
     const found = rankInvestors(investors, query, 5)
@@ -181,12 +185,13 @@ function Palette({ initial, onClose, actions, recentsFallback }: { initial: stri
         ],
       })
     }
+    if (n && ['review suggestions', 'suggestions', 'suggested fixes', 'fix the list'].some((t) => matchScore(t, query) > 0)) out.push({ title: 'Suggestions', items: [review] })
     const sections = searchSections(query)
     if (sections.length) out.push({ title: 'Jump to', items: sections.map((s) => ({ id: 's-' + s.to, icon: 'arrow-right', label: `Go to ${s.label}`, keys: s.keys, run: close(() => actions.go(s.to)) })) })
     const notes = searchNotes(investors, query, new Set(found.map((i) => i._id)))
     if (notes.length) out.push({ title: 'In notes', items: notes.map(({ i, quote }) => ({ id: 'n-' + i._id, icon: 'note', label: `${i.name}: “${quote}”`, run: close(() => actions.openInvestor(i)) })) })
     return out
-  }, [query, investors, actions, meta, onClose, recentsFallback, google])
+  }, [query, investors, actions, meta, onClose, recentsFallback, google, suggestions.length])
 
   const none = !!query && !groups.length
   const items: Item[] = none ? [{ id: 'add-new', icon: 'plus', label: `Add “${titleCase(query)}” as an investor`, keys: ['↵'], run: () => (onClose(), actions.addInvestor(titleCase(query))) }] : groups.flatMap((g) => g.items)

@@ -1,5 +1,5 @@
 import { v } from 'convex/values'
-import { ALL, GEOS, METRICS_LIST, PIPELINE_LIST, TIERS, TOUCHES, TYPES, WARMTHS } from './lib/enums'
+import { ALL, GEOS, METRICS_LIST, PIPELINE_LIST, SUGGESTION_KINDS, SUGGESTION_SOURCES, SUGGESTION_STATUSES, TIERS, TOUCHES, TYPES, WARMTHS } from './lib/enums'
 
 // v.union over a list of literals, typed as the union of its members.
 const lit = <T extends string>(xs: readonly T[]) => v.union(...xs.map((x) => v.literal(x)))
@@ -74,3 +74,38 @@ export const roundFields = {
   waves: v.array(v.string()),
 }
 export const vRound = v.object(roundFields)
+
+/* ---------- PST-275: Suggested fixes ---------- */
+
+export const vSuggestionKind = lit(SUGGESTION_KINDS)
+export const vSuggestionSource = lit(SUGGESTION_SOURCES)
+export const vSuggestionStatus = lit(SUGGESTION_STATUSES)
+/** The change a suggestion makes when accepted (src/lib/suggestions.ts SuggestionPatch). */
+export const vSuggestionPatch = v.union(
+  v.object({ op: v.literal('stage'), from: vStage, to: vStage }),
+  v.object({ op: v.literal('next_step'), step: v.string(), date: v.optional(v.string()) }),
+  v.object({ op: v.literal('expected'), amount: v.number() }),
+  v.object({ op: v.literal('domain'), domain: v.string() }),
+  v.object({ op: v.literal('touch'), touch: vTouch, note: v.string(), date: v.optional(v.string()) }),
+  v.object({ op: v.literal('merge') }),
+  v.object({ op: v.literal('review') }),
+)
+const vIdsBefore = <T extends 'meetings' | 'emailTouches'>(table: T) => v.array(v.object({ id: v.id(table), investorIds: v.array(v.id('investors')) }))
+/** What Undo needs after an accept: the values it replaced, the activity it wrote, or the card a merge deleted. */
+export const vSuggestionUndo = v.union(
+  v.object({ op: v.literal('stage'), to: vStage, from: v.object({ stage: vStage, lastTouch: v.optional(v.string()), maxStage: vPipelineStage }), activityId: v.optional(v.id('activities')) }),
+  // @@BT@@before@@BT@@ holds the old value of each key in @@BT@@keys@@BT@@; a key missing from it was empty.
+  v.object({ op: v.literal('fields'), keys: v.array(v.string()), before: v.any() }),
+  v.object({ op: v.literal('touch'), activityId: v.id('activities'), lastTouch: v.optional(v.string()) }),
+  v.object({
+    op: v.literal('merge'),
+    dropId: v.id('investors'),
+    /** The deleted card's fields, to put it back. */
+    dropped: v.any(),
+    activityIds: v.array(v.id('activities')),
+    meetings: vIdsBefore('meetings'),
+    threads: vIdsBefore('emailTouches'),
+    keepKeys: v.array(v.string()),
+    keepBefore: v.any(),
+  }),
+)

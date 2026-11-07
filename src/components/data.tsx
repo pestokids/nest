@@ -5,6 +5,7 @@ import type { GoogleData, MeetingAnswer } from '../lib/google'
 import type { AIData, AISettings, InvestorAI } from '../lib/enrich'
 import type { Round, RoundChange } from '../lib/round'
 import type { Stage } from '../lib/stages'
+import type { Suggestion } from '../lib/suggestions'
 
 export type LogRow = RoundChange & { _id: string; at: number; by: string }
 
@@ -40,11 +41,26 @@ export type RaiseData = {
   /** PST-263: Calendar and Gmail (your connection, the team's meetings and threads). Never holds a token. */
   google: GoogleData
   googleDo: GoogleActions
+  /** PST-275: open suggested fixes, best first, and what you can do with them. */
+  suggestions: Suggestion[]
+  suggest: SuggestionActions
   /** PST-274: enrichment (Claude with web search): spend, toggles, runs, looked-up senders. */
   ai: AIData
   aiDo: AIActions
   /** One investor's latest run, facts and people (the drawer). A hook. */
   useInvestorAI: (investorId: string | null) => InvestorAI | undefined
+}
+
+export type SuggestionActions = {
+  /** Accept (or Merge); `applied: false` when it had stopped fitting, so nothing changed. */
+  accept: (id: string) => Promise<{ applied: boolean }>
+  dismiss: (id: string) => Promise<unknown>
+  /** "Accept N safe ones": the ids it accepted, for Undo. */
+  acceptSafe: () => Promise<{ ids: string[] }>
+  /** Undo accepts or dismissals: they go back to open. */
+  undo: (ids: string[]) => Promise<unknown>
+  /** Run the rule checks now. */
+  check: () => Promise<unknown>
 }
 
 export type AIActions = {

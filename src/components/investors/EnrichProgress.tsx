@@ -57,7 +57,7 @@ export function EnrichProgress({ ids, onClose }: { ids: string[]; onClose: () =>
           <div className="enrich-toast__bar" aria-hidden="true">
             <span style={{ width: Math.max(4, (done / total) * 100) + '%' }} />
           </div>
-          <p className="enrich-toast__note">Results wait in each investor’s drawer to keep.</p>
+          <p className="enrich-toast__note">Results wait in Suggestions to keep.</p>
         </>
       ) : (
         <p className="enrich-toast__note">Open one to keep what’s right.</p>

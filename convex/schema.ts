@@ -3,6 +3,7 @@ import { authTables } from '@convex-dev/auth/server'
 import { v } from 'convex/values'
 import { aiSettingsFields, enrichTables } from './enrichSchema'
 import { roundFields, vGeo, vMeetingAnswer, vPipelineStage, vStage, vSyncSource, vTier, vTouch, vType, vWarmth, vWave } from './validators'
+import { vSuggestionKind, vSuggestionPatch, vSuggestionSource, vSuggestionStatus, vSuggestionUndo } from './validators'
 
 export default defineSchema({
   ...authTables,
@@ -140,6 +141,35 @@ export default defineSchema({
     .index('by_user_thread', ['userId', 'threadId'])
     .index('by_user', ['userId'])
     .index('by_last', ['lastAt']),
+
+  /* ---------- PST-275: Suggested fixes ---------- */
+
+  // A review queue of fixes to the investor list (convex/suggestions.ts). Nothing changes until someone accepts.
+  // Unique by `key` (enforced in code), so a dismissed suggestion never comes back.
+  suggestions: defineTable({
+    kind: vSuggestionKind,
+    investorId: v.optional(v.id('investors')),
+    otherInvestorId: v.optional(v.id('investors')),
+    /** The "why" line. */
+    title: v.string(),
+    /** The "→ change" line. */
+    fix: v.string(),
+    patch: vSuggestionPatch,
+    source: vSuggestionSource,
+    agentName: v.optional(v.string()),
+    safe: v.boolean(),
+    status: vSuggestionStatus,
+    key: v.string(),
+    createdAt: v.number(),
+    decidedAt: v.optional(v.number()),
+    decidedBy: v.optional(v.id('users')),
+    /** Set by an accept, cleared by its Undo. */
+    undo: v.optional(vSuggestionUndo),
+  })
+    .index('by_key', ['key'])
+    .index('by_status', ['status']),
+
+  /* ---------- end PST-275 ---------- */
 
   // ---------- PST-274: investor enrichment (people, enrichRuns, facts) ----------
   ...enrichTables,

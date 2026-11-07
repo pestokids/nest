@@ -18,6 +18,8 @@ export type PreviewState = {
   settings?: string | null
   /** `&system=cmdk|cmdk-empty|cmdk-none|offline|savefailed|loading` */
   system?: string | null
+  /** PST-275 `&suggestions=all|tidy|none|agent` */
+  suggestions?: string | null
 }
 
 export const PreviewStateContext = createContext<PreviewState | null>(null)

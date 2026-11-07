@@ -239,6 +239,17 @@ describe('sync', () => {
     expect((await s.t.run((ctx) => ctx.db.get(s.fern)))!.lastTouch).toBeTruthy()
   })
 
+  it('runs the suggestion checks when a sync finishes (PST-275)', async () => {
+    const s = await setup()
+    const now = Date.now()
+    await s.t.run((ctx) => ctx.db.patch(s.kite, { stage: 'booked', maxStage: 'booked' }))
+    const conn = await s.connect(s.dev, 'founder@pestokids.com')
+    google.events = [event('met', now - D, ['sam@kite.example.com'])]
+    expect(await s.t.action(internal.googleSync.run, { connectionId: conn })).toBe('done')
+    const rows = await s.t.run((ctx) => ctx.db.query('suggestions').collect())
+    expect(rows).toContainEqual(expect.objectContaining({ kind: 'stage', investorId: s.kite, patch: { op: 'stage', from: 'booked', to: 'm1' }, source: 'calendar', status: 'open' }))
+  })
+
   it('re-matches when an investor gains an email', async () => {
     const s = await setup()
     const now = Date.now()
