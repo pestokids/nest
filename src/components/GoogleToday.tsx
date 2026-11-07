@@ -13,6 +13,7 @@ import { play } from '../lib/sound'
 import { IDX, STAGE_TILE, STAGES, type Stage } from '../lib/stages'
 import { dayLabel } from '../lib/investorView'
 import { useRaise } from './data'
+import { WhoLookups } from './enrich/WhoLookups'
 import { openOnKey, useUI } from './raise-ui'
 import { useSaveAction } from './system/useSaveAction'
 import { Badge, Button, Card, Icon } from './ui'
@@ -21,15 +22,15 @@ const first = (name: string) => name.trim().split(/\s+/)[0] || name
 const ANSWER_LABEL: Record<MeetingAnswer, string> = { m1: 'Move to 1st meeting', m2: '2nd meeting', passed: 'Passed' }
 
 export function GoogleToday({ today }: { today: string }) {
-  const { google, investors } = useRaise()
+  const { google, investors, ai } = useRaise()
   const now = Date.now()
   const strangers = useMemo(() => whoIsThis(google.meetings.filter((m) => m.mine), investors, now), [google.meetings, investors, now])
   if (!google.team.length) return null
   return (
-    <div className={`today__google${strangers.length ? '' : ' today__google--two'}`}>
+    <div className={`today__google${strangers.length && !ai.connected ? '' : ' today__google--two'}`}>
       <Meetings today={today} now={now} />
       <Waiting now={now} />
-      {strangers.length ? <WhoIsThis people={strangers} /> : null}
+      {strangers.length ? ai.connected ? <WhoLookups people={strangers} /> : <WhoIsThis people={strangers} /> : null}
     </div>
   )
 }

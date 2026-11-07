@@ -10,6 +10,7 @@ import { applyMove, applyUndo } from '../src/lib/board'
 import { IDX, LABEL } from '../src/lib/stages'
 import { addressesOf, cleanDomains, cleanEmails, normEmail } from '../src/lib/google'
 import { internal } from './_generated/api'
+import { autoEnrich, forgetInvestor } from './lib/enrichQueue'
 
 export const list = query({
   args: {},
@@ -54,29 +55,40 @@ async function logStage(ctx: MutationCtx, investorId: Id<'investors'>, stage: In
   await ctx.db.insert('activities', { investorId, kind: 'stage', stage, date, userId })
 }
 
-/** Create (no id) or update an investor. Stage changes log an activity in the same transaction. */
+/**
+ * The upsert write: clean, require a name, log a stage change in the same
+ * transaction, and match Calendar and Gmail again when addresses change. Also
+ * how enrichment's Keep writes an investor field.
+ */
+export async function saveInvestor(ctx: MutationCtx, userId: Id<'users'>, id: Id<'investors'> | undefined, fields: typeof vFields.type) {
+  const body = clean(fields)
+  if (!body.name) throw new ConvexError('Name is required')
+  const today = todayIST()
+  const prev = id ? await ctx.db.get(id) : null
+  if (id && !prev) throw new ConvexError('That investor was deleted')
+  // Older clients don't send emails/domains: keep what's stored rather than clearing it.
+  if (prev && fields.emails === undefined) body.emails = prev.emails
+  if (prev && fields.domains === undefined) body.domains = prev.domains
+  const { lastTouch, maxStage, logStage: stage } = applySave(prev, body, today)
+  const doc = { ...body, lastTouch, maxStage, updatedAt: Date.now(), updatedBy: userId }
+  let investorId: Id<'investors'>
+  if (prev) {
+    // replace, so cleared optional fields are removed
+    await ctx.db.replace(prev._id, { ...doc, ...(prev.slug ? { slug: prev.slug } : {}) })
+    investorId = prev._id
+  } else investorId = await ctx.db.insert('investors', doc)
+  if (stage) await logStage(ctx, investorId, stage, userId, today)
+  await rematchIfChanged(ctx, addressKey(prev), addressKey(body))
+  return investorId
+}
+
+/** Create (no id) or update an investor. A new one is looked up when "Enrich investors when you add them" is on. */
 export const upsert = mutation({
   args: { id: v.optional(v.id('investors')), fields: vFields },
   handler: async (ctx, { id, fields }) => {
     const { userId } = await requireUser(ctx)
-    const body = clean(fields)
-    if (!body.name) throw new ConvexError('Name is required')
-    const today = todayIST()
-    const prev = id ? await ctx.db.get(id) : null
-    if (id && !prev) throw new ConvexError('That investor was deleted')
-    // Older clients don't send emails/domains: keep what's stored rather than clearing it.
-    if (prev && fields.emails === undefined) body.emails = prev.emails
-    if (prev && fields.domains === undefined) body.domains = prev.domains
-    const { lastTouch, maxStage, logStage: stage } = applySave(prev, body, today)
-    const doc = { ...body, lastTouch, maxStage, updatedAt: Date.now(), updatedBy: userId }
-    let investorId: Id<'investors'>
-    if (prev) {
-      // replace, so cleared optional fields are removed
-      await ctx.db.replace(prev._id, { ...doc, ...(prev.slug ? { slug: prev.slug } : {}) })
-      investorId = prev._id
-    } else investorId = await ctx.db.insert('investors', doc)
-    if (stage) await logStage(ctx, investorId, stage, userId, today)
-    await rematchIfChanged(ctx, addressKey(prev), addressKey(body))
+    const investorId = await saveInvestor(ctx, userId, id, fields)
+    if (!id) await autoEnrich(ctx, [investorId])
     return investorId
   },
 })
@@ -107,6 +119,7 @@ export const importMany = mutation({
       if (addressKey(body)) newAddresses = true
     }
     if (newAddresses) await ctx.scheduler.runAfter(0, internal.google.rematch, { rescan: true })
+    await autoEnrich(ctx, ids)
     if (added) {
       const what = `${added} investor${added === 1 ? '' : 's'}${file ? ` from ${file.trim().slice(0, 120)}` : ''}`
       await ctx.db.insert('settingsLog', { userId, at: Date.now(), field: 'import', from: '', to: what })
@@ -176,6 +189,7 @@ export const remove = mutation({
     for (const a of acts) await ctx.db.delete(a._id)
     const prev = await ctx.db.get(id)
     if (prev) await ctx.db.delete(id)
+    await forgetInvestor(ctx, id)
     // Its meetings and email touches lose the match (threads with nobody else go).
     if (prev && addressKey(prev)) await ctx.scheduler.runAfter(0, internal.google.rematch, { rescan: false })
     return acts.length

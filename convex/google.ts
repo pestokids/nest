@@ -13,6 +13,7 @@ import { applyMove } from '../src/lib/board'
 import { todayIST } from '../src/lib/dates'
 import { DAY_MS, dayOf, makeMatcher, normEmail, syncStageMove, WHO_BACK_DAYS } from '../src/lib/google'
 import { DONE } from '../src/lib/stages'
+import { autoLookup } from './lib/enrichQueue'
 
 /** The next step a synced meeting writes (and may rewrite when it moves). */
 export const MEETING_STEP = 'Meeting: '
@@ -356,6 +357,7 @@ export const upsertMeetings = internalMutation({
         .unique()
       if (row) await ctx.db.delete(row._id)
     }
+    const strangers: string[] = []
     for (const m of items) {
       const ids = match.people(m.people.map((p) => p.email), self).ids as Id<'investors'>[]
       const row = await ctx.db
@@ -369,7 +371,11 @@ export const upsertMeetings = internalMutation({
       if (row) {
         const same = row.title === m.title && row.start === m.start && row.end === m.end && row.link === m.link && JSON.stringify(row.people) === JSON.stringify(m.people) && sameIds(row.investorIds, ids)
         if (!same || (doc.touched && !row.touched)) await ctx.db.patch(row._id, { ...doc, touched: doc.touched || (!moved && row.touched) })
-      } else await ctx.db.insert('meetings', doc)
+      } else {
+        await ctx.db.insert('meetings', doc)
+        // PST-274: a new meeting with people nobody matched puts them in Who's this?, so look them up.
+        if (!ids.length && m.start >= now - WHO_BACK_DAYS * DAY_MS && m.start <= now + 2 * DAY_MS) strangers.push(...m.people.map((p) => p.email))
+      }
       for (const id of ids) {
         const i = await ctx.db.get(id)
         if (!i) continue
@@ -377,6 +383,7 @@ export const upsertMeetings = internalMutation({
         else if (fresh(id)) await meetingAhead(ctx, i, m, userId, today)
       }
     }
+    await autoLookup(ctx, strangers)
   },
 })
 

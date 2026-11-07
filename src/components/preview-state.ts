@@ -10,7 +10,7 @@ export type PreviewState = {
   today: PreviewToday
   drawer?: PreviewDrawer
   sheet: boolean
-  /** `&investors=filtered|empty|bulk|exported|import1|import2|import3` */
+  /** `&investors=filtered|empty|bulk|enrich|exported|import1|import2|import3` */
   investors?: string | null
   /** `&plan=mid` */
   plan?: string | null

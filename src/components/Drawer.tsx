@@ -20,6 +20,7 @@ import {
 } from '../lib/stages'
 import { addDays, celebrates, stageChange } from '../lib/today'
 import { useRaise } from './data'
+import { InvestorEnrich } from './enrich/InvestorEnrich'
 import { Egg, EggCracking, EggHatching } from './illustrations'
 import { useUI } from './raise-ui'
 import { Button, buttonClass, Checkbox, Chip, Icon, Input, Segmented, Select, SubTabButtons, Textarea, Toggle, type ChipTone } from './ui'
@@ -498,9 +499,10 @@ function Details({ inv, log, sheet, onDelete, onEdit }: { inv: Investor; log: Ac
   if (inv.committed) rows.splice(1, 0, ['Committed', money(inv.committed)])
   return (
     <div className="details">
+      <InvestorEnrich inv={inv} sheet={sheet} />
       <dl className="details__rows">
         {rows.map(([k, v]) => (
-          <div className="details__row" key={k}>
+          <div className="details__row" key={k} data-field={k.startsWith('Expected') ? 'expected' : undefined}>
             <dt>{k}</dt>
             <dd>{v}</dd>
           </div>

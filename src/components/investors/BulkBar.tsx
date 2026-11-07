@@ -13,9 +13,10 @@ import { exportInvestors } from './exportCsv'
 const plural = (n: number) => `${n} investor${n === 1 ? '' : 's'}`
 
 /** The dark bar that slides up when rows are picked (raise-investors/bulk-selected.png). */
-export function BulkBar({ ids, onClear }: { ids: Set<string>; onClear: () => void }) {
+export function BulkBar({ ids, onClear, onEnriching }: { ids: Set<string>; onClear: () => void; onEnriching: (ids: string[]) => void }) {
   const d = useRaise()
-  const { toast } = useUI()
+  const { toast, fail } = useUI()
+  const [starting, setStarting] = useState(false)
   const save = useSaveAction()
   const [menu, setMenu] = useState<'stage' | 'wave' | null>(null)
   const [confirm, setConfirm] = useState(false)
@@ -38,10 +39,28 @@ export function BulkBar({ ids, onClear }: { ids: Set<string>; onClear: () => voi
       },
     )
 
+  async function enrich() {
+    setStarting(true)
+    play('pesto-hop', { volume: 0.5 })
+    try {
+      const list = picked.map((i) => i._id)
+      await d.aiDo.enrichMany(list)
+      onEnriching(list)
+    } catch (e) {
+      fail(e)
+    } finally {
+      setStarting(false)
+    }
+  }
+
   return (
     <>
       <div className="inv-bulk" role="toolbar" aria-label={`${n} selected`}>
         <span className="inv-bulk__n">{n} selected</span>
+        <button type="button" className="inv-bulk__btn inv-bulk__btn--enrich" disabled={starting} aria-busy={starting || undefined} onClick={() => void enrich()}>
+          <Icon name="spark" size={16} />
+          Enrich
+        </button>
         <button type="button" ref={stageBtn} className="inv-bulk__btn" aria-haspopup="menu" aria-expanded={menu === 'stage'} onClick={() => setMenu(menu === 'stage' ? null : 'stage')}>
           <span className="only-desk">Move to stage</span>
           <span className="only-phone">Stage</span> <Icon name="chevron-down" size={14} strokeWidth={2.4} />

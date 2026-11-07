@@ -1,6 +1,7 @@
 import { defineSchema, defineTable } from 'convex/server'
 import { authTables } from '@convex-dev/auth/server'
 import { v } from 'convex/values'
+import { aiSettingsFields, enrichTables } from './enrichSchema'
 import { roundFields, vGeo, vMeetingAnswer, vPipelineStage, vStage, vSyncSource, vTier, vTouch, vType, vWarmth, vWave } from './validators'
 
 export default defineSchema({
@@ -54,7 +55,8 @@ export default defineSchema({
     .index('by_investor', ['investorId'])
     .index('by_date', ['date']),
 
-  settings: defineTable({ key: v.literal('round'), ...roundFields }).index('by_key', ['key']),
+  // The round row (key "round"), and PST-274's AI toggles (key "ai").
+  settings: defineTable(v.union(v.object({ key: v.literal('round'), ...roundFields }), v.object(aiSettingsFields))).index('by_key', ['key']),
 
   settingsLog: defineTable({
     userId: v.id('users'),
@@ -138,4 +140,7 @@ export default defineSchema({
     .index('by_user_thread', ['userId', 'threadId'])
     .index('by_user', ['userId'])
     .index('by_last', ['lastAt']),
+
+  // ---------- PST-274: investor enrichment (people, enrichRuns, facts) ----------
+  ...enrichTables,
 })

@@ -6,6 +6,7 @@ import { AmountInput, NumberInput } from '../../../components/settings/inputs'
 import { F, PhaseList } from '../../../components/settings/PhaseList'
 import { ChangeLog, MembersCard } from '../../../components/settings/SideCards'
 import { connectMessage, GoogleCard } from '../../../components/settings/GoogleCard'
+import { AICard, ClaudeSees } from '../../../components/settings/AICard'
 import { usePreviewState } from '../../../components/preview-state'
 import { useSaveAction } from '../../../components/system/useSaveAction'
 import { Button, Icon } from '../../../components/ui'
@@ -226,10 +227,12 @@ function Settings() {
             </Button>
           </div>
         </div>
+        <AICard />
         <ChangeLog rows={log} />
       </div>
       <aside className="set-side">
         <GoogleCard />
+        <ClaudeSees />
         <MembersCard members={members} />
       </aside>
     </section>

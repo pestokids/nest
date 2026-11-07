@@ -2,7 +2,8 @@ import type { QueryCtx } from '../_generated/server'
 import { mergeRound, type Round } from '../../src/lib/round'
 
 export async function getRoundRow(ctx: QueryCtx) {
-  return await ctx.db.query('settings').withIndex('by_key', (q) => q.eq('key', 'round')).unique()
+  const row = await ctx.db.query('settings').withIndex('by_key', (q) => q.eq('key', 'round')).unique()
+  return row?.key === 'round' ? row : null
 }
 
 /** The round row, or DEFAULT_ROUND when it doesn't exist yet. */

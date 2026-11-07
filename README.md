@@ -56,6 +56,7 @@ Screenshots of every preview screen at 1440 × 900, 440 × 956 and 412 × 915: r
 | `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` | Google OAuth client (Internal consent screen, pestokids.com Workspace) |
 | `SITE_URL` | Where sign-in returns to: `http://localhost:3000` (dev), `https://nest.pestokids.com` (prod) |
 | `JWT_PRIVATE_KEY`, `JWKS` | Convex Auth signing keys: `node scripts/generate-auth-keys.mjs --set` (add `--prod` for production) |
+| `ANTHROPIC_API_KEY` | Optional. Turns on investor enrichment and Who's this? lookups (Claude with web search). Without it the app shows "AI isn't set up here" and nothing is sent anywhere. |
 | `GOOGLE_TOKEN_KEY` | Encrypts Google refresh tokens at rest (Calendar and Gmail). 32 random bytes, base64: `openssl rand -base64 32`. Set it straight into Convex; don't keep a copy anywhere else. Changing it means everyone reconnects. |
 
 Google OAuth redirect URIs per deployment: `https://<deployment>.convex.site/api/auth/callback/google` (sign-in) and `https://<deployment>.convex.site/google/callback` (Connect Google). The Google Cloud project needs the Gmail API and the Google Calendar API turned on.
@@ -95,6 +96,16 @@ What Nest stores, per teammate who connects:
 - **Email touches**: only Gmail threads with an investor in them: subject, participants' email addresses, the date and sender of the last message, the message count and the Gmail link. Never bodies, snippets or attachments (the `gmail.metadata` scope can't read them anyway).
 
 Disconnecting (Settings → Disconnect) deletes your connection, your meetings and your email touches, and asks Google to revoke the grant. Stage moves that sync already made stay in each investor's History.
+
+## Enrichment
+
+Claude (`claude-sonnet-5-5`, with the web search and web fetch tools) looks up an investor's person and fund, or an outside person from a recent meeting (Who's this?). Each fact comes back with the page it came from and waits for review in the drawer: Keep or Dismiss per fact, or all at once. Rules live in `src/lib/enrich.ts`; the client is `convex/lib/anthropic.ts`, prompts `convex/lib/research.ts`, the queue `convex/lib/enrichQueue.ts`, and the tables (`people`, `enrichRuns`, `facts`) are in `convex/enrichSchema.ts`.
+
+- Keeping a fact only ever fills an empty field (Type and Geography count as empty at their new-investor defaults; Expected comes from the average check). A value someone typed is never overwritten: the fact is kept with a note saying so. Person facts and the rest of the fund facts live in the drawer's fund card and People.
+- Two runs at a time; the rest queue. A lookup of the same email or firm domain from the last 30 days is reused instead of asking again. Automatic runs (a new or imported investor, a new person from a meeting) stop at 30 a day and can be turned off on Settings; clicking Enrich always runs.
+- Spend is worked out from each run's token and search counts and shown on Settings with the last few runs. Logs carry ids, never names or emails.
+
+What goes to Claude: the investor's name, firm, type, email addresses and domains, your notes and next step for them and the subjects of their matched emails; for Who's this?, the person's email, the name on the invite and the meeting title. Never email bodies (Nest doesn't store them).
 
 ## System states
 
