@@ -4,6 +4,7 @@ import { AppShell } from '../components/AppShell'
 import { AuthGate } from '../components/AuthGate'
 import { ConvexData } from '../components/ConvexData'
 import { ConvexMaterials } from '../components/materials/data'
+import { DraftsProvider } from '../components/drafts/data'
 import { OpenToasts } from '../components/materials/Opens'
 import { ConvexSounds } from '../components/session'
 import { installSound } from '../lib/sound'
@@ -38,9 +39,11 @@ function AppLayout() {
       <ConvexSounds>
         <ConvexData>
           <ConvexMaterials>
-            <AppShell>
-              <OpenToasts />
-            </AppShell>
+            <DraftsProvider>
+              <AppShell>
+                <OpenToasts />
+              </AppShell>
+            </DraftsProvider>
           </ConvexMaterials>
         </ConvexData>
       </ConvexSounds>

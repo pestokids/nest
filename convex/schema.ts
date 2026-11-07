@@ -6,6 +6,7 @@ import { materialsTables } from './materialsSchema'
 import { closeTables, roundCapTableField } from './closeSchema'
 import { agentTables } from './agentsSchema'
 import { notesReadTables, vNoteSource } from './notesSchema'
+import { draftTables } from './draftsSchema'
 import { roundFields, vGeo, vMeetingAnswer, vPipelineStage, vStage, vSyncSource, vTier, vTouch, vType, vWarmth, vWave } from './validators'
 import { vSuggestionKind, vSuggestionPatch, vSuggestionSource, vSuggestionStatus, vSuggestionUndo } from './validators'
 import { vAnswerVersion, vAskSource, vQuestionMerge } from './validators'
@@ -251,4 +252,8 @@ export default defineSchema({
   /* ---------- PST-277: meeting notes become updates (noteReads, unmatchedNotes; see notesSchema.ts) ---------- */
   ...notesReadTables,
   /* ---------- end PST-277 ---------- */
+
+  /* ---------- PST-278: Drafts (drafts; convex/draftsSchema.ts) ---------- */
+  ...draftTables,
+  /* ---------- end PST-278 ---------- */
 })

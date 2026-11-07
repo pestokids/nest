@@ -24,6 +24,8 @@
 //   &close=<state>           Close (PST-283): default, record, status, remind, modeller, captable, nocaptable, closed, empty
 //                            (see preview/closeFixture.ts; the closing investors stay while you move between tabs)
 //   &agents=<state>          Settings › Agents (PST-276): empty, create (new key), created (shown once), activity, revoke
+//   &drafts=<state>          Drafts (PST-278): followup, intro, blurb, nudge, thanks, dataroom, writing, nokey, noemail, copied, failed,
+//                            history (see preview/draftsFixture.ts). Without it, Draft still works with made-up text
 //   &fail                    every write fails (save-failed toast with Retry)
 //   any unknown path         the 404, e.g. /nowhere?preview
 import { useEffect } from 'react'
@@ -39,7 +41,9 @@ import { PREVIEW_SUGGESTIONS, type PreviewSuggestions } from './suggestionsFixtu
 import { PREVIEW_AGENTS, type PreviewAgents } from './agentsFixture'
 import { PREVIEW_MATERIALS, PreviewMaterials, type PreviewMaterials as MaterialsState } from './materialsFixture'
 import { OpenToasts } from '../components/materials/Opens'
+import { DraftsProvider } from '../components/drafts/data'
 import { closePreview, rememberClosePreview } from './closeFixture'
+import { PREVIEW_DRAFTS, type PreviewDrafts } from './draftsFixture'
 
 const session = { me: { firstName: 'Dev', name: 'Dev Preview', email: 'dev@example.com' }, signOut: () => {} }
 
@@ -59,11 +63,12 @@ export function Preview() {
     )
   const home = (q.get('home') ?? 'default') as PreviewHome
   const today = (PREVIEW_TODAY as readonly string[]).includes(q.get('today') ?? '') ? (q.get('today') as PreviewToday) : 'default'
-  const drawer = (PREVIEW_DRAWER as readonly string[]).includes(q.get('drawer') ?? '') ? (q.get('drawer') as PreviewDrawer) : undefined
+  const drafts = (PREVIEW_DRAFTS as readonly string[]).includes(q.get('drafts') ?? '') ? (q.get('drafts') as PreviewDrafts) : null
+  const drawer = (PREVIEW_DRAWER as readonly string[]).includes(q.get('drawer') ?? '') ? (q.get('drawer') as PreviewDrawer) : drafts === 'history' ? 'history' : undefined
   const suggestions = (PREVIEW_SUGGESTIONS as readonly string[]).includes(q.get('suggestions') ?? '') ? (q.get('suggestions') as PreviewSuggestions) : 'default'
   const materials = (PREVIEW_MATERIALS as readonly string[]).includes(q.get('materials') ?? '') ? (q.get('materials') as MaterialsState) : 'default'
   const agents = (PREVIEW_AGENTS as readonly string[]).includes(q.get('agents') ?? '') ? (q.get('agents') as PreviewAgents) : 'default'
-  const state = { today, drawer, sheet: q.has('sheet'), investors: q.get('investors'), plan: q.get('plan'), settings: q.get('settings'), system: q.get('system'), suggestions, qanda: q.get('qanda'), materials, agents, notes: q.get('notes') }
+  const state = { today, drawer, sheet: q.has('sheet'), investors: q.get('investors'), plan: q.get('plan'), settings: q.get('settings'), system: q.get('system'), suggestions, qanda: q.get('qanda'), materials, agents, notes: q.get('notes'), drafts }
   const extra = { loading: state.system === 'loading', mid: state.plan === 'mid', fail: q.has('fail') }
   const google: PreviewGoogle = (PREVIEW_GOOGLE as readonly string[]).includes(q.get('google') ?? '') ? (q.get('google') as PreviewGoogle) : drawer === 'emails' || q.get('qanda') === 'prep' ? 'connected' : 'none'
   const ai: PreviewAI = (PREVIEW_AI as readonly string[]).includes(q.get('ai') ?? '') ? (q.get('ai') as PreviewAI) : 'default'
@@ -84,10 +89,12 @@ export function Preview() {
             agents={agents}
           >
             <PreviewMaterials state={materials}>
-              <AppShell>
-                {state.system === 'savefailed' ? <FailOnce /> : null}
-                <OpenToasts />
-              </AppShell>
+              <DraftsProvider>
+                <AppShell>
+                  {state.system === 'savefailed' ? <FailOnce /> : null}
+                  <OpenToasts />
+                </AppShell>
+              </DraftsProvider>
             </PreviewMaterials>
           </PreviewData>
         </PreviewStateContext.Provider>

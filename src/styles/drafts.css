@@ -1,0 +1,90 @@
+/* PST-278: Drafts (screens/raise-ai/draft-follow-up.png). The Draft dialog, its
+   chips, and the drafts at the top of the drawer's History. */
+
+.sys-modal__panel.draft { width: min(728px, 100%); padding: 36px 32px 28px; }
+.draft__close { position: absolute; top: 26px; right: 24px; border: 0; background: none; }
+.draft__eyebrow { display: flex; align-items: center; gap: 8px; margin: 0; padding-right: 56px; color: var(--brand-leaf); }
+.draft__spark { color: var(--brand-orange); flex: none; }
+.draft__title { margin: 10px 56px 0 0; font: 800 28px/1.15 var(--font-display); letter-spacing: -0.005em; color: var(--text-primary); }
+
+.draft__types, .draft__tweaks { display: flex; flex-wrap: wrap; gap: 8px; }
+.draft__types { margin: 18px 0 22px; }
+.draft-chip { position: relative; height: 32px; padding: 0 12px; border: 1px solid var(--line-default); border-radius: var(--radius-chip); background: var(--surface-white); font: 500 14px/1 var(--font-ui); color: var(--text-primary); cursor: pointer; }
+.draft-chip::after { content: ''; position: absolute; inset: -6px 0; }
+.draft-chip:hover:not(:disabled):not(.is-on) { background: var(--surface-mint); }
+.draft-chip.is-on { border-color: var(--brand-forest); background: var(--brand-forest); color: var(--text-on-dark); font-weight: 600; }
+.draft-chip:disabled { cursor: default; opacity: 0.55; }
+.draft-chip:focus-visible { outline: 3px solid var(--brand-lime); outline-offset: 2px; }
+
+.draft__head { display: grid; grid-template-columns: 78px minmax(0, 1fr); align-items: center; gap: 6px 0; margin: 0 0 18px; }
+.draft__head dt { font-size: 14px; color: var(--text-muted); }
+.draft__head dd { display: flex; align-items: center; gap: 6px; min-width: 0; margin: 0; font: 600 15px/1.3 var(--font-ui); color: var(--text-primary); }
+.draft__name { flex: none; white-space: nowrap; }
+.draft__head input { flex: 1; min-width: 0; height: 34px; padding: 0 6px; margin-left: -6px; border: 0; border-radius: 8px; background: none; font: inherit; color: inherit; }
+.draft__name + input { margin-left: -2px; }
+.draft__head input::placeholder { color: var(--text-faint); font-weight: 400; }
+.draft__head input:hover:not(:disabled) { background: var(--surface-paper); }
+.draft__head input:focus { outline: none; background: var(--surface-paper); box-shadow: inset 0 0 0 2px var(--brand-lime); }
+
+.draft__body { position: relative; border: 1px solid var(--line-default); border-radius: var(--radius-small); background: var(--surface-paper); }
+.draft__body:focus-within { box-shadow: 0 0 0 3px var(--brand-lime); border-color: var(--brand-leaf); }
+.draft__body textarea { display: block; width: 100%; min-height: 360px; padding: 18px 20px; border: 0; border-radius: inherit; background: none; resize: vertical; font: 400 15px/1.5 var(--font-ui); color: var(--text-primary); }
+.draft__body textarea:focus { outline: none; }
+.draft__body.is-writing textarea { color: transparent; }
+.draft__writing { position: absolute; inset: 18px 20px auto; display: flex; flex-direction: column; gap: 14px; pointer-events: none; }
+.draft__writing span { height: 12px; border-radius: 6px; background: linear-gradient(100deg, #e6ebdc 30%, #f4f7ec 50%, #e6ebdc 70%) 0 0 / 220% 100%; animation: draft-shimmer 1.4s linear infinite; }
+.draft__writing span:nth-child(1) { width: 18%; }
+.draft__writing span:nth-child(2) { width: 92%; }
+.draft__writing span:nth-child(3) { width: 78%; }
+.draft__writing span:nth-child(4) { width: 46%; }
+@keyframes draft-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+
+.draft__note { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; padding: 12px 14px; border-radius: 12px; font-size: 14px; line-height: 1.4; color: var(--text-secondary); }
+.draft__note--nokey { background: var(--surface-mint); }
+.draft__note--nokey svg { flex: none; color: var(--brand-leaf); }
+.draft__note--nokey strong { color: var(--text-primary); }
+.draft__note--failed { justify-content: space-between; margin: 14px 0 0; background: var(--surface-peach); border: 1px solid var(--line-peach); color: var(--text-orange-deep); }
+.draft__note--failed .btn { flex: none; }
+.draft__caption { margin: 14px 0 0; font-size: 14px; line-height: 1.4; color: var(--text-orange-deep); }
+.draft__tweaks { margin-top: 18px; }
+
+.draft__foot { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin: 28px -32px 0; padding: 24px 32px 0; border-top: 1px solid var(--line-default); }
+.draft__share { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.draft__sent { margin-left: 4px; font-size: 14px; }
+.draft__send { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+.draft__send p, .draft__send-off { margin: 0; font-size: 14px; line-height: 1.4; color: var(--text-muted); }
+.draft__send-off { max-width: 300px; text-align: right; }
+
+/* Today › Gone quiet and the drawer: the Draft buttons. */
+.quiet-row__draft { flex: none; }
+
+/* The drawer's History: the last few drafts. */
+.draft-hist { margin-bottom: 22px; }
+.draft-hist__h { display: flex; align-items: center; gap: 6px; margin: 0 0 10px; color: var(--brand-leaf); }
+.draft-hist__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.draft-hist__row { display: flex; flex-direction: column; gap: 4px; width: 100%; min-height: 56px; padding: 10px 14px; border: 1px solid var(--line-default); border-radius: 12px; background: var(--surface-paper); text-align: left; cursor: pointer; font: inherit; }
+.draft-hist__row:hover { background: var(--surface-mint); }
+.draft-hist__row:focus-visible { outline: 3px solid var(--brand-lime); outline-offset: 2px; }
+.draft-hist__top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.draft-hist__subject { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 15px/1.3 var(--font-ui); color: var(--text-primary); }
+.draft-hist__meta { font-size: 13px; color: var(--text-muted); }
+
+@media (max-width: 720px) {
+  .sys-modal__panel.draft { padding-top: 28px; }
+  .draft__close { top: 14px; right: 12px; }
+  .draft__title { font-size: 24px; }
+  .draft__types { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-left: calc(-1 * max(20px, env(safe-area-inset-left, 0px))); margin-right: calc(-1 * max(20px, env(safe-area-inset-left, 0px))); padding: 0 max(20px, env(safe-area-inset-left, 0px)); }
+  .draft__types::-webkit-scrollbar { display: none; }
+  .draft-chip { flex: none; height: 40px; padding: 0 14px; }
+  .draft__head input { height: 44px; }
+  .draft__body textarea { min-height: 300px; font-size: 16px; }
+  .draft__foot { flex-direction: column-reverse; align-items: stretch; margin: 22px calc(-1 * max(20px, env(safe-area-inset-left, 0px))) 0; padding: 18px max(20px, env(safe-area-inset-left, 0px)) 0; }
+  .draft__share .btn { flex: 1; }
+  .draft__send { align-items: stretch; }
+  .draft__send p, .draft__send-off { text-align: center; max-width: none; }
+  .quiet-row__draft .btn__label { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .draft__writing span { animation: none; }
+}

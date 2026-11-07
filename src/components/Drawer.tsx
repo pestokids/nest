@@ -22,6 +22,8 @@ import { addDays, celebrates, stageChange } from '../lib/today'
 import { useRaise } from './data'
 import { InvestorEnrich } from './enrich/InvestorEnrich'
 import { DrawerMaterials } from './materials/DrawerMaterials'
+import { openDraft } from './drafts/data'
+import { DraftHistory } from './drafts/DraftHistory'
 import { Egg, EggCracking, EggHatching } from './illustrations'
 import { NotesTab } from './qanda/NotesTab'
 import { useUI } from './raise-ui'
@@ -311,7 +313,10 @@ export function Drawer({ id, start = 'view', forceSheet, onClose }: { id: string
           ) : mode === 'park' ? (
             <ParkPanel inv={inv} onDone={() => setMode('view')} />
           ) : tab === 'history' ? (
-            <History inv={inv} log={log} fresh={fresh} />
+            <>
+              <DraftHistory investorId={inv._id} />
+              <History inv={inv} log={log} fresh={fresh} />
+            </>
           ) : tab === 'emails' ? (
             <Emails inv={inv} onEdit={() => setMode('edit')} />
           ) : tab === 'materials' ? (
@@ -385,6 +390,9 @@ function HeadActions({ inv, sheet, busy, mode, onAdvance, onTouch, onReopen }: {
       ) : null}
       <Button variant="secondary" onClick={onTouch} disabled={busy} aria-pressed={mode === 'touch' || undefined} className="drawer__log">
         {sheet ? 'Log' : 'Log a touch'}
+      </Button>
+      <Button variant="secondary" icon="spark" onClick={() => openDraft({ investorId: inv._id })} disabled={busy} className="drawer__draft">
+        Draft
       </Button>
     </div>
   )

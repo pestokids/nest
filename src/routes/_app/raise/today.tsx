@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useRaise } from '../../../components/data'
+import { openDraft } from '../../../components/drafts/data'
 import { GoogleToday } from '../../../components/GoogleToday'
 import { MaterialOpens } from '../../../components/materials/Opens'
 import { Suggestions } from '../../../components/Suggestions'
@@ -366,7 +367,7 @@ function GoneQuiet({ today }: { today: string }) {
           Gone quiet
         </h2>
         <p className="list-panel__note">
-          No touch in {q}+ days.<span className="only-desk"> Nudge or park.</span>
+          No touch in {q}+ days.<span className="only-desk"> Draft a nudge, nudge or park.</span>
         </p>
       </header>
       {rows.length ? (
@@ -383,6 +384,9 @@ function GoneQuiet({ today }: { today: string }) {
                   </span>
                   <span className="row__sub row__sub--warn only-phone">{quietFor}</span>
                 </div>
+                <Button variant="ghost" className="quiet-row__draft" icon="spark" onClick={() => openDraft({ investorId: i._id, type: 'nudge' })} aria-label={`Draft a nudge to ${i.name}`}>
+                  Draft
+                </Button>
                 {nudged.has(i._id) ? (
                   <Chip tone="live" className="quiet-row__nudged">
                     Nudged

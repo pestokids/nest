@@ -12,6 +12,7 @@ import { addressesOf, cleanDomains, cleanEmails, normEmail } from '../src/lib/go
 import { internal } from './_generated/api'
 import { autoEnrich, forgetInvestor } from './lib/enrichQueue'
 import { forgetClosing } from './closings'
+import { forgetDrafts } from './drafts'
 
 export const list = query({
   args: {},
@@ -192,6 +193,7 @@ export const remove = mutation({
     if (prev) await ctx.db.delete(id)
     await forgetInvestor(ctx, id)
     await forgetClosing(ctx, id)
+    await forgetDrafts(ctx, id)
     // Its meetings and email touches lose the match (threads with nobody else go).
     if (prev && addressKey(prev)) await ctx.scheduler.runAfter(0, internal.google.rematch, { rescan: false })
     return acts.length

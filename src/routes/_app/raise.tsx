@@ -8,6 +8,7 @@ import { usePreviewState } from '../../components/preview-state'
 import { UIContext, useAdvance, useFail, type OpenOptions, type UI } from '../../components/raise-ui'
 import { Button, buttonClass, Icon, SubTabs, useToast, type TabItem } from '../../components/ui'
 import { QandaHost } from '../../components/qanda/QandaHost'
+import { DraftHost } from '../../components/drafts/data'
 import { PendingDeletes } from '../../lib/pendingDelete'
 import type { Investor } from '../../lib/pipeline'
 import { play } from '../../lib/sound'
@@ -171,6 +172,7 @@ function RaiseLayout() {
           <div className="raise-view">{d.loaded ? <Outlet /> : <ViewSkeleton />}</div>
           {d.loaded ? <TargetHitWatcher /> : null}
           {d.loaded ? <QandaHost /> : null}
+          {d.loaded ? <DraftHost /> : null}
         </div>
         {drawer ? null : (
           <button type="button" className="fab" aria-label="Add investor" onClick={() => open(null)}>

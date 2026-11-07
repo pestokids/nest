@@ -28,6 +28,8 @@ export type PreviewState = {
   agents?: string | null
   /** PST-277 `&notes=none|reading|applied|failed|unmatched` */
   notes?: string | null
+  /** PST-278 `&drafts=followup|intro|blurb|nudge|thanks|dataroom|writing|nokey|noemail|copied|failed|history` */
+  drafts?: string | null
 }
 
 export const PreviewStateContext = createContext<PreviewState | null>(null)

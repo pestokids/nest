@@ -11,6 +11,8 @@ import { money } from '../../lib/money'
 import { lastTouches, needsAnswer, prepQuestions, startsIn, whoTheyAre } from '../../lib/qanda'
 import { STAGE_TILE } from '../../lib/stages'
 import { useRaise } from '../data'
+import { openDraft } from '../drafts/data'
+import { Button } from '../ui'
 import { useUI } from '../raise-ui'
 import { useQanda } from './data'
 import { openPanel, playPrepOpen, usePanels } from './panels'
@@ -77,16 +79,21 @@ export function PrepBrief({ meetingId, level, onClose }: { meetingId: string; le
       title={inv.name}
       sub={[STAGE_TILE[inv.stage], joining.length ? `${joining.join(' and ')} ${joining.length === 1 ? 'joins' : 'join'}` : '', where].filter(Boolean).join(' · ')}
       footer={(c) => (
-        <button
-          type="button"
-          className="drawer__textbtn"
-          onClick={() => {
-            c.close()
-            ui.open(inv._id)
-          }}
-        >
-          Open {inv.name}
-        </button>
+        <>
+          <button
+            type="button"
+            className="drawer__textbtn"
+            onClick={() => {
+              c.close()
+              ui.open(inv._id)
+            }}
+          >
+            Open {inv.name}
+          </button>
+          <Button variant="secondary" icon="spark" onClick={() => openDraft({ investorId: inv._id, type: 'followup' })}>
+            Follow up
+          </Button>
+        </>
       )}
     >
       {() => (
