@@ -136,6 +136,39 @@
 .history__sub { font: 400 14px/1.35 var(--font-ui); color: var(--text-secondary); overflow-wrap: anywhere; }
 .history__item--new { animation: history-in 420ms var(--ease-out-back) both; }
 @keyframes history-in { from { opacity: 0; transform: translateY(-14px); } }
+/* Emails tab (screens/drawer/emails.png) and History's "From Calendar" mark (PST-263). */
+.tab-count { margin-left: 8px; font-weight: 600; }
+.subtab--active .tab-count { color: var(--brand-orange); }
+.history__src { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--surface-mint); color: var(--state-success); font: 600 11px/18px var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 2px; }
+.emails { display: flex; flex-direction: column; align-items: flex-start; padding-top: 8px; }
+.emails__eyebrow { margin: 0 0 14px; color: var(--brand-leaf); overflow-wrap: anywhere; }
+.emails__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; align-self: stretch; }
+.email-card {
+  display: grid;
+  gap: 6px;
+  min-height: 92px;
+  padding: 14px 16px 16px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  background: var(--surface-cream);
+  color: var(--text-secondary);
+  text-decoration: none;
+  font: 400 14px/1.35 var(--font-ui);
+  transition: background-color 150ms ease, transform 150ms ease;
+}
+a.email-card:hover { background: #efebdf; }
+a.email-card:focus-visible { outline: 3px solid var(--brand-lime); outline-offset: 2px; }
+.email-card--waiting { background: var(--surface-peach); border-color: var(--line-peach); }
+a.email-card--waiting:hover { background: #ffe8d9; }
+.email-card__top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.email-card__icon { flex: none; color: var(--text-primary); }
+.email-card__subject { flex: 1; min-width: 0; font: 600 15px/1.3 var(--font-ui); color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.email-card__when { flex: none; font-size: 14px; color: var(--text-secondary); }
+.email-card--waiting .email-card__when { color: var(--text-orange-deep); font-weight: 500; }
+.email-card__who, .email-card__flag { padding-left: 26px; }
+.email-card__flag { color: var(--brand-orange); font-weight: 500; }
+.emails__all { margin-top: 20px; }
+
 .drawer-empty { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 40px 0; text-align: center; font: 400 14px/1.4 var(--font-ui); color: var(--text-muted); }
 
 /* Forms */

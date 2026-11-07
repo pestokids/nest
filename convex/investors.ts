@@ -8,6 +8,8 @@ import { todayIST, isISODate } from '../src/lib/dates'
 import { applyAdvance, applySave, touchDay, type InvestorFields } from '../src/lib/pipeline'
 import { applyMove, applyUndo } from '../src/lib/board'
 import { IDX, LABEL } from '../src/lib/stages'
+import { addressesOf, cleanDomains, cleanEmails, normEmail } from '../src/lib/google'
+import { internal } from './_generated/api'
 
 export const list = query({
   args: {},
@@ -25,9 +27,26 @@ export function clean(f: typeof vFields.type): InvestorFields {
     ...f,
     name: f.name.trim(), firm: f.firm.trim(), path: f.path.trim(), nextStep: f.nextStep.trim(), notes: f.notes.trim(), source: f.source.trim(),
     expected: num(f.expected), committed: num(f.committed), nextDate: date(f.nextDate), lastTouch: date(f.lastTouch),
-    email: f.email?.trim() || undefined,
+    email: normEmail(f.email) || f.email?.trim() || undefined,
     parkedUntil: f.stage === 'parked' ? date(f.parkedUntil) : undefined,
+    emails: orNone(cleanEmails(f.emails, f.email ?? undefined)),
+    domains: orNone(cleanDomains(f.domains)),
   }
+}
+const orNone = (xs: string[]) => (xs.length ? xs : undefined)
+
+/** The addresses an investor is matched by, as one comparable string. */
+const addressKey = (i: { email?: string; emails?: string[]; domains?: string[] } | null) => {
+  if (!i) return ''
+  const a = addressesOf(i)
+  return a.emails.length || a.domains.length ? [...a.emails].sort().join(',') + '|' + [...a.domains].sort().join(',') : ''
+}
+
+/** Calendar and Gmail: match again when an investor's addresses change (and read Gmail again for new ones). */
+async function rematchIfChanged(ctx: MutationCtx, before: string, after: string) {
+  if (before === after) return
+  const added = after.split(/[|,]/).some((x) => x && !before.split(/[|,]/).includes(x))
+  await ctx.scheduler.runAfter(0, internal.google.rematch, { rescan: added })
 }
 const vFields = v.object(investorFields)
 
@@ -45,6 +64,9 @@ export const upsert = mutation({
     const today = todayIST()
     const prev = id ? await ctx.db.get(id) : null
     if (id && !prev) throw new ConvexError('That investor was deleted')
+    // Older clients don't send emails/domains: keep what's stored rather than clearing it.
+    if (prev && fields.emails === undefined) body.emails = prev.emails
+    if (prev && fields.domains === undefined) body.domains = prev.domains
     const { lastTouch, maxStage, logStage: stage } = applySave(prev, body, today)
     const doc = { ...body, lastTouch, maxStage, updatedAt: Date.now(), updatedBy: userId }
     let investorId: Id<'investors'>
@@ -54,6 +76,7 @@ export const upsert = mutation({
       investorId = prev._id
     } else investorId = await ctx.db.insert('investors', doc)
     if (stage) await logStage(ctx, investorId, stage, userId, today)
+    await rematchIfChanged(ctx, addressKey(prev), addressKey(body))
     return investorId
   },
 })
@@ -70,6 +93,7 @@ export const importMany = mutation({
     const seen = new Set((await ctx.db.query('investors').collect()).map((i) => key(i.name, i.firm)))
     const today = todayIST()
     let added = 0
+    let newAddresses = false
     const ids: Id<'investors'>[] = []
     for (const r of rows) {
       const body = clean(r)
@@ -80,7 +104,9 @@ export const importMany = mutation({
       if (stage) await logStage(ctx, id, stage, userId, today)
       ids.push(id)
       added++
+      if (addressKey(body)) newAddresses = true
     }
+    if (newAddresses) await ctx.scheduler.runAfter(0, internal.google.rematch, { rescan: true })
     if (added) {
       const what = `${added} investor${added === 1 ? '' : 's'}${file ? ` from ${file.trim().slice(0, 120)}` : ''}`
       await ctx.db.insert('settingsLog', { userId, at: Date.now(), field: 'import', from: '', to: what })
@@ -148,7 +174,10 @@ export const remove = mutation({
     await requireUser(ctx)
     const acts = await ctx.db.query('activities').withIndex('by_investor', (q) => q.eq('investorId', id)).collect()
     for (const a of acts) await ctx.db.delete(a._id)
-    if (await ctx.db.get(id)) await ctx.db.delete(id)
+    const prev = await ctx.db.get(id)
+    if (prev) await ctx.db.delete(id)
+    // Its meetings and email touches lose the match (threads with nobody else go).
+    if (prev && addressKey(prev)) await ctx.scheduler.runAfter(0, internal.google.rematch, { rescan: false })
     return acts.length
   },
 })

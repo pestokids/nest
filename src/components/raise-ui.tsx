@@ -7,8 +7,8 @@ import { errorMessage, useRaise } from './data'
 import { Chip, type ChipTone, type ToastInput } from './ui'
 
 /* ---------- toast + drawer opener ---------- */
-/** Prefill for the drawer's "new" state: the stage of the column whose + was clicked, or the name searched for ("Add “Name”"). */
-export type OpenOptions = { stage?: Stage; name?: string }
+/** Prefill for the drawer's "new" state: the stage of the column whose + was clicked, the name searched for ("Add “Name”"), or a person from Who's this? (name and email). */
+export type OpenOptions = { stage?: Stage; name?: string; email?: string }
 
 /*
  * Opening the drawer from outside the Raise views (the ⌘K palette lives in the

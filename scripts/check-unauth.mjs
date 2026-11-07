@@ -36,6 +36,13 @@ const calls = [
   ['query', 'prefs:get', api.prefs.get, {}],
   ['mutation', 'prefs:setSounds', api.prefs.setSounds, { on: false }],
   ['query', 'access:members', api.access.members, {}],
+  // PST-263: Calendar and Gmail
+  ['query', 'google:data', api.google.data, {}],
+  ['action', 'google:connect', api.google.connect, {}],
+  ['mutation', 'google:syncNow', api.google.syncNow, {}],
+  ['mutation', 'google:disconnect', api.google.disconnect, {}],
+  ['mutation', 'google:answerMeeting', api.google.answerMeeting, { eventId: 'x', answer: 'm1' }],
+  ['mutation', 'google:dismissPerson', api.google.dismissPerson, { email: 'someone@example.com' }],
 ]
 
 let failed = 0
@@ -51,6 +58,14 @@ for (const [kind, name, fn, args] of calls) {
     console.log(`${ok ? 'ok   ' : 'FAIL '} ${name} refused: ${msg.split('\n')[0].slice(0, 80)}`)
   }
 }
+// The Connect Google callback: a forged state is sent back to Settings, and nothing is stored.
+const site = process.env.VITE_CONVEX_SITE_URL ?? url.replace('.convex.cloud', '.convex.site')
+const cb = await fetch(`${site}/google/callback?code=x&state=forged.state`, { redirect: 'manual' })
+const where = cb.headers.get('location') ?? ''
+const cbOk = cb.status === 302 && /\/raise\/settings\?connect=(expired|nokey)$/.test(where)
+if (!cbOk) failed++
+console.log(`${cbOk ? 'ok   ' : 'FAIL '} GET /google/callback (forged state) → ${cb.status} ${where.replace(/^https?:\/\/[^/]+/, '')}`)
+
 const s = await c.query(api.access.status, {})
 console.log(`${s.status === 'signedOut' ? 'ok   ' : 'FAIL '} access:status → ${JSON.stringify(s)} (no tracker data)`)
 if (s.status !== 'signedOut') failed++

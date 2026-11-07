@@ -3,7 +3,7 @@
 import { dayDiff } from './dates'
 import { dayMonth, nextPhase, phaseOn } from './home'
 import { money } from './money'
-import { committedOf, dueList, phaseActual, quietList, totals, type Activity, type Investor } from './pipeline'
+import { committedOf, dueList, lastContact, phaseActual, quietList, totals, type Activity, type Investor } from './pipeline'
 import { isDollarMetric, targetValue, type Metric, type Phase, type Round } from './round'
 import { ACTIVE, COMMIT, IDX, LABEL, STAGE_TILE, type PipelineStage, type Stage, type Wave } from './stages'
 
@@ -307,8 +307,11 @@ const dayMonthShort = (iso: string) => {
 
 /* ---------- Gone quiet ---------- */
 
-/** Whole days since the last touch; null when never touched. */
-export const quietDays = (i: Pick<Investor, 'lastTouch'>, today: string) => (i.lastTouch ? dayDiff(today, i.lastTouch) : null)
+/** Whole days since the last contact (`lastContact`); null when never touched. */
+export const quietDays = (i: Pick<Investor, 'lastTouch' | 'contact'>, today: string) => {
+  const last = lastContact(i)
+  return last ? dayDiff(today, last) : null
+}
 
 /* ---------- Advance stage ---------- */
 

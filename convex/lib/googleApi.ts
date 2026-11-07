@@ -1,0 +1,218 @@
+// PST-263: the few Google endpoints Nest calls, and how their answers become rows.
+// Read-only: Calendar events (calendar.readonly) and Gmail headers (gmail.metadata).
+// Nothing here logs a token, and errors never include one.
+import { CALENDAR_AHEAD_DAYS, CALENDAR_BACK_DAYS, DAY_MS, gmailThreadLink, isOurs, normEmail, parseAddresses } from '../../src/lib/google'
+
+export const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly', 'https://www.googleapis.com/auth/gmail.metadata'] as const
+export const CALLBACK_PATH = '/google/callback'
+
+/** Google no longer accepts the refresh token (revoked, expired, or a scope was taken away): the user has to reconnect. */
+export class Revoked extends Error {
+  constructor(why: string) {
+    super(`Google access revoked: ${why}`)
+  }
+}
+/** Any other failure (rate limit, outage). Retried on the next run. */
+export class GoogleError extends Error {
+  constructor(
+    public status: number,
+    what: string,
+  ) {
+    super(`Google ${what} failed (${status})`)
+  }
+}
+
+export const redirectUri = () => `${process.env.CONVEX_SITE_URL}${CALLBACK_PATH}`
+
+export function oauthClient() {
+  const id = process.env.AUTH_GOOGLE_ID
+  const secret = process.env.AUTH_GOOGLE_SECRET
+  if (!id || !secret) return null
+  return { id, secret }
+}
+
+/** The consent URL: incremental (keeps sign-in's scopes), offline, always asks so Google returns a refresh token. */
+export function consentUrl(clientId: string, state: string, loginHint?: string) {
+  const q = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri(),
+    response_type: 'code',
+    scope: SCOPES.join(' '),
+    access_type: 'offline',
+    prompt: 'consent',
+    include_granted_scopes: 'true',
+    state,
+  })
+  if (loginHint) q.set('login_hint', loginHint)
+  return `https://accounts.google.com/o/oauth2/v2/auth?${q}`
+}
+
+async function tokenCall(body: Record<string, string>, what: string) {
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams(body).toString(),
+  })
+  const j = (await res.json().catch(() => ({}))) as { access_token?: string; refresh_token?: string; scope?: string; error?: string }
+  if (!res.ok) {
+    if (j.error === 'invalid_grant' || j.error === 'unauthorized_client') throw new Revoked(j.error)
+    throw new GoogleError(res.status, what)
+  }
+  return j
+}
+
+/** Exchange the callback's code. */
+export async function exchangeCode(code: string) {
+  const c = oauthClient()
+  if (!c) throw new GoogleError(500, 'setup')
+  const j = await tokenCall({ code, client_id: c.id, client_secret: c.secret, redirect_uri: redirectUri(), grant_type: 'authorization_code' }, 'code exchange')
+  return { accessToken: j.access_token ?? '', refreshToken: j.refresh_token, scopes: (j.scope ?? '').split(/\s+/) }
+}
+
+/** A fresh access token from the stored refresh token. */
+export async function accessToken(refreshToken: string) {
+  const c = oauthClient()
+  if (!c) throw new GoogleError(500, 'setup')
+  const j = await tokenCall({ refresh_token: refreshToken, client_id: c.id, client_secret: c.secret, grant_type: 'refresh_token' }, 'token refresh')
+  if (!j.access_token) throw new GoogleError(500, 'token refresh')
+  return j.access_token
+}
+
+/** Tell Google to forget the grant (Disconnect). Best effort. */
+export async function revoke(token: string) {
+  await fetch('https://oauth2.googleapis.com/revoke', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ token }).toString(),
+  }).catch(() => undefined)
+}
+
+async function get<T>(url: string, token: string, what: string): Promise<T> {
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } })
+  if (res.status === 401) throw new Revoked(`${what} 401`)
+  if (res.status === 403) {
+    const j = (await res.json().catch(() => ({}))) as { error?: { errors?: { reason?: string }[] } }
+    const reason = j.error?.errors?.[0]?.reason ?? ''
+    // A scope was unticked or taken away: only reconnecting fixes that. Rate limits retry next run.
+    if (/insufficientPermissions|ACCESS_TOKEN_SCOPE_INSUFFICIENT/i.test(reason)) throw new Revoked(`${what} ${reason}`)
+    throw new GoogleError(403, reason === 'accessNotConfigured' ? `${what} (the API isn't turned on in Google Cloud)` : what)
+  }
+  if (!res.ok) throw new GoogleError(res.status, what)
+  return (await res.json()) as T
+}
+
+/* ---------- Calendar ---------- */
+
+export type GEvent = {
+  id: string
+  status?: string
+  summary?: string
+  htmlLink?: string
+  start?: { dateTime?: string; date?: string }
+  end?: { dateTime?: string; date?: string }
+  attendees?: { email?: string; displayName?: string; self?: boolean; resource?: boolean; responseStatus?: string }[]
+  organizer?: { email?: string; displayName?: string; self?: boolean }
+}
+type EventsPage = { items?: GEvent[]; nextPageToken?: string; nextSyncToken?: string }
+
+/** One page of the primary calendar: incremental with `syncToken`, else 30 days back and 60 ahead. 410 means the token expired. */
+export function listEvents(token: string, o: { syncToken?: string; pageToken?: string; now: number }) {
+  const q = new URLSearchParams({ singleEvents: 'true', maxResults: '250' })
+  if (o.syncToken) q.set('syncToken', o.syncToken)
+  else {
+    q.set('timeMin', new Date(o.now - CALENDAR_BACK_DAYS * DAY_MS).toISOString())
+    q.set('timeMax', new Date(o.now + CALENDAR_AHEAD_DAYS * DAY_MS).toISOString())
+  }
+  if (o.pageToken) q.set('pageToken', o.pageToken)
+  return get<EventsPage>(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${q}`, token, 'calendar')
+}
+
+export type ParsedMeeting = { eventId: string; title: string; start: number; end: number; link?: string; people: { email: string; name?: string }[] }
+
+/**
+ * An event as a meeting row, or `{ drop }` when it should not be kept: cancelled,
+ * all-day, declined, or nobody from outside. `people` are the outside attendees only.
+ */
+export function parseEvent(e: GEvent, self: string): ParsedMeeting | { drop: string } {
+  if (e.status === 'cancelled') return { drop: e.id }
+  const start = Date.parse(e.start?.dateTime ?? '')
+  const end = Date.parse(e.end?.dateTime ?? e.start?.dateTime ?? '')
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return { drop: e.id } // all-day
+  const me = (e.attendees ?? []).find((a) => a.self)
+  if (me?.responseStatus === 'declined') return { drop: e.id }
+  const people: { email: string; name?: string }[] = []
+  const all = [...(e.attendees ?? []), ...(e.organizer && !e.attendees?.length ? [e.organizer] : [])]
+  for (const a of all) {
+    if ('resource' in a && a.resource) continue
+    const email = normEmail(a.email)
+    if (!email || a.self || isOurs(email, self) || /(^|\.)calendar\.google\.com$|group\.v\.calendar/.test(email.split('@')[1] ?? '')) continue
+    if (people.some((p) => p.email === email)) continue
+    people.push(a.displayName?.trim() ? { email, name: a.displayName.trim().slice(0, 120) } : { email })
+  }
+  if (!people.length) return { drop: e.id }
+  return { eventId: e.id, title: (e.summary ?? '').trim().slice(0, 200) || '(No title)', start, end, ...(e.htmlLink ? { link: e.htmlLink } : {}), people }
+}
+
+/* ---------- Gmail ---------- */
+
+const GMAIL = 'https://gmail.googleapis.com/gmail/v1/users/me'
+
+export const gmailProfile = (token: string) => get<{ emailAddress: string; historyId: string }>(`${GMAIL}/profile`, token, 'gmail profile')
+
+/**
+ * One page of threads, newest first. The gmail.metadata scope can't use `q`
+ * (so no `newer_than:30d`): the caller reads pages until it passes 30 days.
+ */
+export function listThreads(token: string, pageToken?: string) {
+  const q = new URLSearchParams({ maxResults: '100' })
+  if (pageToken) q.set('pageToken', pageToken)
+  return get<{ threads?: { id: string }[]; nextPageToken?: string }>(`${GMAIL}/threads?${q}`, token, 'gmail threads')
+}
+
+export type GMessage = { id: string; threadId: string; internalDate?: string; labelIds?: string[]; payload?: { headers?: { name: string; value: string }[] } }
+export type GThread = { id: string; messages?: GMessage[] }
+
+/** A thread's headers only (From, To, Cc, Subject). Never bodies or snippets. */
+export function getThread(token: string, id: string) {
+  const q = new URLSearchParams({ format: 'metadata' })
+  for (const h of ['From', 'To', 'Cc', 'Subject']) q.append('metadataHeaders', h)
+  return get<GThread>(`${GMAIL}/threads/${encodeURIComponent(id)}?${q}`, token, 'gmail thread')
+}
+
+/** Threads with new messages since `startHistoryId`. A 404 means it's too old: read the last 30 days again. */
+export function listHistory(token: string, startHistoryId: string, pageToken?: string) {
+  const q = new URLSearchParams({ startHistoryId, historyTypes: 'messageAdded', maxResults: '500' })
+  if (pageToken) q.set('pageToken', pageToken)
+  return get<{ history?: { messagesAdded?: { message?: { id: string; threadId: string } }[] }[]; nextPageToken?: string; historyId?: string }>(
+    `${GMAIL}/history?${q}`,
+    token,
+    'gmail history',
+  )
+}
+
+export type ParsedThread = { threadId: string; subject: string; participants: string[]; lastAt: number; lastFrom: 'us' | 'them'; lastFromEmail: string; count: number; link: string }
+
+const SKIP_LABELS = ['DRAFT', 'SPAM', 'TRASH']
+
+/** A thread as an email touch, from headers alone: subject, everyone's address, the last sent message's date and sender. */
+export function parseThread(t: GThread, self: string): ParsedThread | null {
+  const msgs = (t.messages ?? []).filter((m) => !m.labelIds?.some((l) => SKIP_LABELS.includes(l)) && Number(m.internalDate) > 0)
+  if (!msgs.length) return null
+  msgs.sort((a, b) => Number(a.internalDate) - Number(b.internalDate))
+  const header = (m: GMessage, n: string) => m.payload?.headers?.find((h) => h.name.toLowerCase() === n.toLowerCase())?.value ?? ''
+  const participants: string[] = []
+  for (const m of msgs) for (const h of ['From', 'To', 'Cc']) for (const a of parseAddresses(header(m, h))) if (!participants.includes(a)) participants.push(a)
+  const last = msgs[msgs.length - 1]
+  const lastFromEmail = parseAddresses(header(last, 'From'))[0] ?? ''
+  const subject = (header(msgs[0], 'Subject') || header(last, 'Subject')).replace(/\s+/g, ' ').trim().slice(0, 200) || '(No subject)'
+  return {
+    threadId: t.id,
+    subject,
+    participants: participants.slice(0, 50),
+    lastAt: Number(last.internalDate),
+    lastFrom: !lastFromEmail || isOurs(lastFromEmail, self) ? 'us' : 'them',
+    lastFromEmail,
+    count: msgs.length,
+    link: gmailThreadLink(self, t.id),
+  }
+}

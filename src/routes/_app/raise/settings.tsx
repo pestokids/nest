@@ -4,7 +4,8 @@ import { useRaise } from '../../../components/data'
 import { useUI } from '../../../components/raise-ui'
 import { AmountInput, NumberInput } from '../../../components/settings/inputs'
 import { F, PhaseList } from '../../../components/settings/PhaseList'
-import { ChangeLog, GoogleCard, MembersCard } from '../../../components/settings/SideCards'
+import { ChangeLog, MembersCard } from '../../../components/settings/SideCards'
+import { connectMessage, GoogleCard } from '../../../components/settings/GoogleCard'
 import { usePreviewState } from '../../../components/preview-state'
 import { useSaveAction } from '../../../components/system/useSaveAction'
 import { Button, Icon } from '../../../components/ui'
@@ -53,6 +54,17 @@ function Settings() {
   useEffect(() => {
     if (!dirty) setDraft(d.round)
   }, [d.round, dirty])
+
+  // Back from Connect Google (?connect=ok|denied|…): say how it went once, then drop the param.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search)
+    const m = connectMessage(q.get('connect'))
+    if (!m) return
+    if (m.tone === 'error') play('save-failed')
+    toast({ tone: m.tone, ...(m.tone === 'info' ? { icon: 'check' as const } : {}), message: m.message })
+    q.delete('connect')
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${q.size ? `?${q}` : ''}${window.location.hash}`)
+  }, [toast])
 
   // ?preview&settings=errors: room-to under the target and a close date in the past.
   useEffect(() => {

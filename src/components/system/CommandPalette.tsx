@@ -2,6 +2,7 @@ import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { onOpenCommandPalette, recentInvestors, rememberInvestor } from '../../lib/commandPalette'
 import { todayIST } from '../../lib/dates'
+import { addressesOf, gmailSearchLink } from '../../lib/google'
 import { dayLabel, isQuiet } from '../../lib/investorView'
 import { rankInvestors, searchNotes, searchSections, titleCase } from '../../lib/palette'
 import type { Investor } from '../../lib/pipeline'
@@ -119,7 +120,7 @@ function usePaletteActions() {
 type Actions = ReturnType<typeof usePaletteActions>
 
 function Palette({ initial, onClose, actions, recentsFallback }: { initial: string; onClose: () => void; actions: Actions; recentsFallback: boolean }) {
-  const { investors, round } = useRaise()
+  const { investors, round, google } = useRaise()
   const [q, setQ] = useState(initial)
   const [active, setActive] = useState(0)
   const list = useRef<HTMLDivElement>(null)
@@ -170,6 +171,13 @@ function Palette({ initial, onClose, actions, recentsFallback }: { initial: stri
         items: [
           { id: 'x-log', icon: 'note', label: `Log a touch for ${first(top.name)}`, run: close(() => actions.openInvestor(top)) },
           ...(nx ? [{ id: 'x-move', icon: 'arrow-right' as IconName, label: `Move ${first(top.name)} to ${STAGE_TILE[nx.k]}`, run: close(() => actions.advance(top)) }] : []),
+          // PST-263: their threads in your Gmail (a search for their addresses and firm domains).
+          ...(google.me && google.threads.some((t) => t.investorIds.includes(top._id))
+            ? [{
+                id: 'x-mail', icon: 'mail' as IconName, label: `Open ${first(top.name)}’s emails`, meta: 'Gmail',
+                run: close(() => void window.open(gmailSearchLink(google.me!.email, addressesOf(top)), '_blank', 'noopener')),
+              }]
+            : []),
         ],
       })
     }
@@ -178,7 +186,7 @@ function Palette({ initial, onClose, actions, recentsFallback }: { initial: stri
     const notes = searchNotes(investors, query, new Set(found.map((i) => i._id)))
     if (notes.length) out.push({ title: 'In notes', items: notes.map(({ i, quote }) => ({ id: 'n-' + i._id, icon: 'note', label: `${i.name}: “${quote}”`, run: close(() => actions.openInvestor(i)) })) })
     return out
-  }, [query, investors, actions, meta, onClose, recentsFallback])
+  }, [query, investors, actions, meta, onClose, recentsFallback, google])
 
   const none = !!query && !groups.length
   const items: Item[] = none ? [{ id: 'add-new', icon: 'plus', label: `Add “${titleCase(query)}” as an investor`, keys: ['↵'], run: () => (onClose(), actions.addInvestor(titleCase(query))) }] : groups.flatMap((g) => g.items)

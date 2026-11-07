@@ -13,6 +13,8 @@ export const vTier = lit(TIERS)
 export const vWave = v.union(v.literal(1), v.literal(2), v.literal(3))
 export const vMetric = lit(METRICS_LIST)
 export const vTouch = lit(TOUCHES)
+export const vSyncSource = v.union(v.literal('calendar'), v.literal('gmail'))
+export const vMeetingAnswer = v.union(v.literal('m1'), v.literal('m2'), v.literal('passed'))
 
 /** Editable investor fields. Optional numbers/dates accept null (= clear). */
 export const investorFields = {
@@ -37,6 +39,9 @@ export const investorFields = {
   email: v.optional(v.union(v.string(), v.null())),
   /** Only kept while the stage is "parked": the day it comes back to Due today. */
   parkedUntil: v.optional(v.union(v.string(), v.null())),
+  // Added in PST-263. Left out = keep what's stored; null or [] = clear.
+  emails: v.optional(v.union(v.array(v.string()), v.null())),
+  domains: v.optional(v.union(v.array(v.string()), v.null())),
 }
 
 export const vPhase = v.object({

@@ -143,6 +143,36 @@
 .set-google__list li { display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--text-primary); }
 .set-google__btn { height: 48px; gap: 12px; box-shadow: 0 3px 0 var(--brand-forest); }
 .set-google__btn:disabled { opacity: 0.55; box-shadow: none; }
+/* Connected, syncing and needs reconnecting (google-connected.png, google-syncing.png). */
+.set-google .set-card__head { flex-wrap: wrap; row-gap: 8px; }
+.set-google .set-card__head h2 { white-space: nowrap; }
+.set-google__account { display: flex; align-items: center; gap: 14px; margin-top: 16px; padding: 12px 16px; border-radius: 12px; background: var(--surface-cream); }
+.set-google__account > svg { flex: none; }
+.set-google__account--warn { background: var(--surface-peach); border: 1px solid var(--line-peach); }
+.set-google__who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.set-google__who strong { font: 600 15px/1.3 var(--font-ui); color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.set-google__who span { font-size: 14px; line-height: 1.35; color: var(--text-secondary); }
+.set-google__account--warn .set-google__who span { color: var(--text-orange-deep); }
+.set-google__note { margin-top: 16px; font-size: 14px; color: var(--text-secondary); }
+.set-google__error { margin-top: 12px; font-size: 14px; color: var(--state-error); }
+.set-google__actions { display: flex; align-items: center; gap: 12px 28px; flex-wrap: wrap; margin-top: 20px; }
+.set-google__text { min-height: 44px; padding: 0; border: 0; background: none; font: 600 15px/1 var(--font-ui); color: var(--text-primary); cursor: pointer; }
+.set-google__text:hover { text-decoration: underline; text-underline-offset: 3px; }
+.set-google__text:focus-visible { outline: 3px solid var(--brand-lime); outline-offset: 3px; border-radius: 6px; }
+.set-google__confirm { margin-top: 18px; padding: 14px 16px 16px; border-radius: 12px; background: var(--state-error-bg); }
+.set-google__confirm p { font-size: 14px; color: var(--state-error); }
+.set-google__confirm .set-google__actions { margin-top: 12px; }
+.set-google__team { margin-top: 16px; font-size: 13px; color: var(--text-muted); }
+.set-google__reading { display: flex; align-items: flex-start; gap: 12px; margin-top: 22px; }
+.set-google__egg { flex: none; margin-top: -4px; }
+.set-google__strong { font: 600 15px/1.3 var(--font-ui); color: var(--text-primary); }
+.set-google__muted { margin-top: 4px; font-size: 14px; line-height: 1.3; color: var(--text-secondary); }
+.set-google__track { height: 10px; margin-top: 18px; border-radius: 5px; background: var(--line-default); overflow: hidden; }
+.set-google__fill { height: 100%; border-radius: 5px; background: var(--brand-leaf); transition: width 600ms var(--ease-out); }
+.set-google__found { margin-top: 24px; color: var(--text-secondary); }
+.set-google__counts { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.set-google__counts li { display: flex; align-items: baseline; gap: 0; font-size: 15px; color: var(--text-primary); }
+.set-google__counts strong { width: 30px; flex: none; font: 600 15px/1.3 var(--font-ui); }
 
 /* Members */
 .set-members__list { list-style: none; margin: 24px 0 0; padding: 0; display: flex; flex-direction: column; gap: 20px; }

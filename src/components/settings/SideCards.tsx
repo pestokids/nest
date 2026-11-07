@@ -1,32 +1,6 @@
 import { groupLog, logTime, type LogEntry } from '../../lib/changeLog'
 import type { Member } from '../data'
-import { Avatar, Button, Chip, Icon } from '../ui'
-
-/** Calendar and Gmail: not connected yet (PST-263 wires it). The button waits with a "Coming soon" chip. */
-export function GoogleCard() {
-  return (
-    <section className="set-card set-google" aria-labelledby="set-google-title">
-      <div className="set-card__head">
-        <h2 id="set-google-title">Calendar and Gmail</h2>
-        <Chip tone="muted" dot={false}>
-          Coming soon
-        </Chip>
-      </div>
-      <p className="set-card__lede">Connect Google so meetings and investor emails land on Today by themselves. Read-only: Nest never sends mail.</p>
-      <ul className="set-google__list">
-        {['Meetings today, from Calendar', 'Waiting on you, from Gmail', 'Who’s this? for new senders'].map((x) => (
-          <li key={x}>
-            <Icon name="check" size={18} strokeWidth={2.2} />
-            {x}
-          </li>
-        ))}
-      </ul>
-      <Button variant="secondary" block disabled icon="google" className="set-google__btn" aria-describedby="set-google-title">
-        Connect Google
-      </Button>
-    </section>
-  )
-}
+import { Avatar, Chip } from '../ui'
 
 /** Who can get in: the access list (changed in the server settings, not here). */
 export function MembersCard({ members }: { members: Member[] | undefined }) {

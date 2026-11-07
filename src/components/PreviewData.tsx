@@ -9,6 +9,8 @@ import { DEFAULT_ROUND, diffRound, mergeRound, type Round } from '../lib/round'
 import { LABEL } from '../lib/stages'
 import { fixtureActs, fixtureBoardExtras, fixtureInvestors, fixtureMembers, fixtureMid, fixtureRound } from '../preview/fixture'
 import { addDays } from '../lib/today'
+import { cleanDomains, cleanEmails, withContact, type GoogleData } from '../lib/google'
+import { fixtureGoogle, type PreviewGoogle } from '../preview/googleFixture'
 import { ACTIVE } from '../lib/stages'
 import { RaiseContext, type LogRow, type RaiseData } from './data'
 
@@ -19,8 +21,8 @@ export type PreviewExtra = { loading?: boolean; mid?: boolean; fail?: boolean }
 
 /** `board`: add the Pipeline board's extra fake cards (`&pipeline=…`). `today`: the Raise · Today preview state. `extra`: the Investors, Plan and system states. */
 export function PreviewData({
-  source, home = 'default', board = false, today: todayState = 'default', extra = {}, children,
-}: { source: 'fixture' | 'seed'; home?: PreviewHome; board?: boolean; today?: 'default' | 'nothingdue' | 'win'; extra?: PreviewExtra; children: ReactNode }) {
+  source, home = 'default', board = false, today: todayState = 'default', extra = {}, google: googleState = 'none', children,
+}: { source: 'fixture' | 'seed'; home?: PreviewHome; board?: boolean; today?: 'default' | 'nothingdue' | 'win'; extra?: PreviewExtra; google?: PreviewGoogle; children: ReactNode }) {
   const [investors, setInvestors] = useState<Investor[] | null>(null)
   const [acts, setActs] = useState<Activity[]>([])
   const [round, setRound] = useState<Round>(DEFAULT_ROUND)
@@ -35,6 +37,11 @@ export function PreviewData({
     ]
   })
   const [ticks, setTicks] = useState<Record<string, number[]>>({})
+  // `&google=…`: made-up Calendar and Gmail data, built once the investors are in.
+  const [google, setGoogle] = useState<GoogleData | null>(null)
+  useEffect(() => {
+    if (investors && !google) setGoogle(fixtureGoogle(googleState, investors, Date.now()))
+  }, [investors, google, googleState])
 
   useEffect(() => {
     const t = todayIST()
@@ -95,7 +102,8 @@ export function PreviewData({
       setActs((xs) => [{ date: t, ...a, _id, by: 'Dev', _creationTime: Date.now() }, ...xs])
       return _id
     }
-    const list = investors ?? []
+    const g = google ?? fixtureGoogle('none', [], 0)
+    const list = withContact(investors ?? [], g, Date.now())
     // &fail: every write rejects, as if the connection dropped mid-save.
     const w = <A extends unknown[], R>(fn: (...a: A) => Promise<R>) =>
       extra.fail ? async (..._a: A): Promise<R> => { await new Promise((r) => setTimeout(r, 400)); throw new Error('Preview: writes fail (&fail)') } : fn
@@ -112,6 +120,8 @@ export function PreviewData({
         const nid = id ?? 'new' + Date.now()
         const doc: Investor = {
           ...f, _id: nid, lastTouch, maxStage, email: f.email?.trim() || undefined,
+          emails: cleanEmails(f.emails, f.email).length ? cleanEmails(f.emails, f.email) : undefined,
+          domains: cleanDomains(f.domains).length ? cleanDomains(f.domains) : undefined,
           parkedUntil: f.stage === 'parked' ? f.parkedUntil || undefined : undefined, _creationTime: prev?._creationTime ?? Date.now(),
         }
         setInvestors((xs) => (prev ? (xs ?? []).map((i) => (i._id === id ? doc : i)) : [...(xs ?? []), doc]))
@@ -181,8 +191,22 @@ export function PreviewData({
       setPrepTick: async (k, item, done) =>
         setTicks((m) => ({ ...m, [k]: done ? [...new Set([...(m[k] ?? []), item])] : (m[k] ?? []).filter((x) => x !== item) })),
       useMembers: () => fixtureMembers,
+      google: g,
+      googleDo: {
+        connect: w(async () => {
+          setGoogle(fixtureGoogle('syncing', list, Date.now()))
+          return ''
+        }),
+        disconnect: w(async () => setGoogle(fixtureGoogle('none', list, Date.now()))),
+        syncNow: w(async () => {
+          setGoogle((x) => (x?.me ? { ...x, me: { ...x.me, running: true } } : x))
+          setTimeout(() => setGoogle((x) => (x?.me ? { ...x, me: { ...x.me, running: false, lastSyncAt: Date.now() } } : x)), 1500)
+        }),
+        answer: w(async (eventId, answer) => setGoogle((x) => x && { ...x, meetings: x.meetings.map((m) => (m.eventId === eventId ? { ...m, answer } : m)) })),
+        dismiss: w(async (email) => setGoogle((x) => x && { ...x, meetings: x.meetings.map((m) => (m.people.some((p) => p.email === email) ? { ...m, dismissed: [...(m.dismissed ?? []), email] } : m)) })),
+      },
     }
-  }, [investors, acts, round, roundExists, log, ticks, extra.fail, extra.loading])
+  }, [investors, acts, round, roundExists, log, ticks, extra.fail, extra.loading, google])
 
   return <RaiseContext.Provider value={value}>{children}</RaiseContext.Provider>
 }

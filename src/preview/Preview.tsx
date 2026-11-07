@@ -5,7 +5,8 @@
 //   &pipeline=hidden|shown|end  Pipeline board states (adds a few fake cards; see components/pipeline/preview.ts)
 //   &stage=<key>             with &pipeline on a phone: the stage chip that starts selected
 //   &today=nothingdue|win    Raise · Today states
-//   &drawer=<state>          the investor drawer: view, edit, new, advance, touch, history, delete
+//   &drawer=<state>          the investor drawer: view, edit, new, advance, touch, history, emails, delete
+//   &google=<state>          Calendar and Gmail: none (default), connected, syncing, reconnect (&drawer=emails implies connected)
 //   &sheet                   the drawer as the phone bottom sheet at any width
 //   &investors=filtered|empty|bulk|exported|import1|import2|import3
 //   &plan=mid                mid-round: targets hit and missed
@@ -20,6 +21,7 @@ import { PreviewData, type PreviewHome } from '../components/PreviewData'
 import { LocalSounds, SessionContext } from '../components/session'
 import { SignIn, SIGN_IN_STATES, type SignInState } from '../components/SignIn'
 import { PREVIEW_DRAWER, PREVIEW_TODAY, PreviewStateContext, type PreviewDrawer, type PreviewToday } from '../components/preview-state'
+import { PREVIEW_GOOGLE, type PreviewGoogle } from './googleFixture'
 
 const session = { me: { firstName: 'Dev', name: 'Dev Preview', email: 'dev@example.com' }, signOut: () => {} }
 
@@ -41,6 +43,7 @@ export function Preview() {
   const drawer = (PREVIEW_DRAWER as readonly string[]).includes(q.get('drawer') ?? '') ? (q.get('drawer') as PreviewDrawer) : undefined
   const state = { today, drawer, sheet: q.has('sheet'), investors: q.get('investors'), plan: q.get('plan'), settings: q.get('settings'), system: q.get('system') }
   const extra = { loading: state.system === 'loading', mid: state.plan === 'mid', fail: q.has('fail') }
+  const google: PreviewGoogle = (PREVIEW_GOOGLE as readonly string[]).includes(q.get('google') ?? '') ? (q.get('google') as PreviewGoogle) : drawer === 'emails' ? 'connected' : 'none'
   return (
     <LocalSounds>
       <SessionContext.Provider value={session}>
@@ -51,6 +54,7 @@ export function Preview() {
             today={today}
             board={sessionStorage.getItem('nest_preview_board') === '1'}
             extra={extra}
+            google={google}
           >
             <AppShell>{state.system === 'savefailed' ? <FailOnce /> : null}</AppShell>
           </PreviewData>
