@@ -20,6 +20,7 @@
 //   &materials=<state>       Materials (PST-282): empty, versions, views, share, sent, upload, noemail, opened (a first open arrives)
 //   &close=<state>           Close (PST-283): default, record, status, remind, modeller, captable, nocaptable, closed, empty
 //                            (see preview/closeFixture.ts; the closing investors stay while you move between tabs)
+//   &agents=<state>          Settings › Agents (PST-276): empty, create (new key), created (shown once), activity, revoke
 //   &fail                    every write fails (save-failed toast with Retry)
 //   any unknown path         the 404, e.g. /nowhere?preview
 import { useEffect } from 'react'
@@ -32,6 +33,7 @@ import { PREVIEW_DRAWER, PREVIEW_TODAY, PreviewStateContext, type PreviewDrawer,
 import { PREVIEW_AI, type PreviewAI } from './aiFixture'
 import { PREVIEW_GOOGLE, type PreviewGoogle } from './googleFixture'
 import { PREVIEW_SUGGESTIONS, type PreviewSuggestions } from './suggestionsFixture'
+import { PREVIEW_AGENTS, type PreviewAgents } from './agentsFixture'
 import { PREVIEW_MATERIALS, PreviewMaterials, type PreviewMaterials as MaterialsState } from './materialsFixture'
 import { OpenToasts } from '../components/materials/Opens'
 import { closePreview, rememberClosePreview } from './closeFixture'
@@ -57,7 +59,8 @@ export function Preview() {
   const drawer = (PREVIEW_DRAWER as readonly string[]).includes(q.get('drawer') ?? '') ? (q.get('drawer') as PreviewDrawer) : undefined
   const suggestions = (PREVIEW_SUGGESTIONS as readonly string[]).includes(q.get('suggestions') ?? '') ? (q.get('suggestions') as PreviewSuggestions) : 'default'
   const materials = (PREVIEW_MATERIALS as readonly string[]).includes(q.get('materials') ?? '') ? (q.get('materials') as MaterialsState) : 'default'
-  const state = { today, drawer, sheet: q.has('sheet'), investors: q.get('investors'), plan: q.get('plan'), settings: q.get('settings'), system: q.get('system'), suggestions, qanda: q.get('qanda'), materials }
+  const agents = (PREVIEW_AGENTS as readonly string[]).includes(q.get('agents') ?? '') ? (q.get('agents') as PreviewAgents) : 'default'
+  const state = { today, drawer, sheet: q.has('sheet'), investors: q.get('investors'), plan: q.get('plan'), settings: q.get('settings'), system: q.get('system'), suggestions, qanda: q.get('qanda'), materials, agents }
   const extra = { loading: state.system === 'loading', mid: state.plan === 'mid', fail: q.has('fail') }
   const google: PreviewGoogle = (PREVIEW_GOOGLE as readonly string[]).includes(q.get('google') ?? '') ? (q.get('google') as PreviewGoogle) : drawer === 'emails' || q.get('qanda') === 'prep' ? 'connected' : 'none'
   const ai: PreviewAI = (PREVIEW_AI as readonly string[]).includes(q.get('ai') ?? '') ? (q.get('ai') as PreviewAI) : 'default'
@@ -75,6 +78,7 @@ export function Preview() {
             suggestions={suggestions}
             ai={ai}
             close={closePreview()}
+            agents={agents}
           >
             <PreviewMaterials state={materials}>
               <AppShell>

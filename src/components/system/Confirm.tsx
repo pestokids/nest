@@ -3,7 +3,7 @@ import { Button } from '../ui'
 import { Modal, useTitleId } from './Modal'
 
 /** "Delete 2 investors?" with the safe choice focused first. */
-export function Confirm({ title, body, confirm, keep = 'Cancel', onConfirm, onClose }: { title: string; body: ReactNode; confirm: string; keep?: string; onConfirm: () => Promise<unknown> | void; onClose: () => void }) {
+export function Confirm({ title, body, confirm, keep = 'Cancel', busyLabel = 'Deleting…', onConfirm, onClose }: { title: string; body: ReactNode; confirm: string; keep?: string; busyLabel?: string; onConfirm: () => Promise<unknown> | void; onClose: () => void }) {
   const id = useTitleId()
   const [busy, setBusy] = useState(false)
   return (
@@ -19,7 +19,7 @@ export function Confirm({ title, body, confirm, keep = 'Cancel', onConfirm, onCl
         <Button
           variant="orange"
           loading={busy}
-          loadingLabel="Deleting…"
+          loadingLabel={busyLabel}
           onClick={async () => {
             setBusy(true)
             await onConfirm()

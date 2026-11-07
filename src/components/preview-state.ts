@@ -24,6 +24,8 @@ export type PreviewState = {
   qanda?: string | null
   /** PST-282 `&materials=empty|versions|views|share|sent|upload|noemail|opened` */
   materials?: string | null
+  /** PST-276 `&agents=empty|create|created|activity|revoke` */
+  agents?: string | null
 }
 
 export const PreviewStateContext = createContext<PreviewState | null>(null)

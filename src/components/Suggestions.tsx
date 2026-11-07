@@ -107,7 +107,8 @@ export function Suggestions({ today }: { today: string }) {
     if (!r) return void (acted.current = false)
     if (!r.applied) return ui.toast({ tone: 'info', message: 'That had already changed, so there was nothing to do.' })
     const keep = names.get(s.investorId ?? '') ?? 'the card'
-    ui.toast({ message: merge ? `Merged into ${keep}. Both histories kept.` : `${keep}: ${s.fix}.`, action: { label: 'Undo', onClick: () => undo([s._id]) } })
+    const message = merge ? `Merged into ${keep}. Both histories kept.` : s.patch.op === 'new_investor' ? `${s.patch.name} is in the nest.` : `${keep}: ${s.fix}.`
+    ui.toast({ message, action: { label: 'Undo', onClick: () => undo([s._id]) } })
   }
 
   async function dismiss(s: Suggestion) {

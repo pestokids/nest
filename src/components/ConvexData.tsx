@@ -8,6 +8,7 @@ import { NO_GOOGLE, withContact, type GoogleData } from '../lib/google'
 import { DEFAULT_ROUND } from '../lib/round'
 import { NO_AI, type AIData } from '../lib/enrich'
 import type { Suggestion } from '../lib/suggestions'
+import type { AgentScope } from '../lib/agents'
 import { RaiseContext, type RaiseData } from './data'
 import { ConvexQanda } from './qanda/ConvexQanda'
 
@@ -19,6 +20,8 @@ const useLog = (investorId: string | null) =>
 const useSettingsLog = () => useQuery(api.settings.log)
 const useMembers = () => useQuery(api.access.members)
 const useInvestorAI = (investorId: string | null) => useQuery(api.enrich.forInvestor, investorId ? { investorId: investorId as Id<'investors'> } : 'skip')
+const useAgentActivity = (keyId: string | null) => useQuery(api.agents.activity, keyId ? { keyId: keyId as Id<'agentKeys'> } : 'skip')
+const NO_AGENTS = { loaded: false, serverUrl: '', keys: [] }
 const usePrepTicks = (phaseKey: string | null) => {
   const rows = useQuery(api.prep.list, phaseKey ? { phaseKey } : 'skip')
   return useMemo(() => rows?.map((r) => r.item), [rows])
@@ -106,6 +109,17 @@ export function ConvexData({ children }: { children: ReactNode }) {
     }),
     [aiEnrich, aiEnrichMany, aiLookup, aiStop, aiKeep, aiDismiss, aiUndo, aiKeepAll, aiDismissAll, aiSetAuto, aiAddSender, aiAddPerson, aiSetPrimary],
   )
+  const agentRows = useQuery(api.agents.list)
+  const agents = useMemo(() => (agentRows ? { loaded: true, ...agentRows } : NO_AGENTS), [agentRows])
+  const agentCreate = useMutation(api.agents.create)
+  const agentRevoke = useMutation(api.agents.revoke)
+  const agentsDo = useMemo(
+    () => ({
+      create: (name: string, scope: AgentScope) => agentCreate({ name, scope }),
+      revoke: (id: string) => agentRevoke({ id: id as Id<'agentKeys'> }),
+    }),
+    [agentCreate, agentRevoke],
+  )
   // Gone quiet reads email and meeting dates too (`lastContact`): attach them to each investor.
   const withSignals = useMemo(() => withContact(investors ?? [], google, Date.now()), [investors, google])
   const googleDo = useMemo(
@@ -151,8 +165,11 @@ export function ConvexData({ children }: { children: ReactNode }) {
       ai,
       aiDo,
       useInvestorAI,
+      agents,
+      agentsDo,
+      useAgentActivity,
     }),
-    [investors, withSignals, acts, settings, me, upsert, advance, move, undoMove, logNote, remove, importMany, updateRound, setTick, google, googleDo, suggestionRows, suggest, ai, aiDo],
+    [investors, withSignals, acts, settings, me, upsert, advance, move, undoMove, logNote, remove, importMany, updateRound, setTick, google, googleDo, suggestionRows, suggest, ai, aiDo, agents, agentsDo],
   )
   return (
     <RaiseContext.Provider value={value}>

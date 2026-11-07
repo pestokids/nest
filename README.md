@@ -107,7 +107,19 @@ Nest spots mistakes and missing data in the investor list and queues them on Tod
 - **Next step**: a live conversation with none, or one more than 7 days late → a default for its stage, five days out.
 - **Expected**: Verbal or later with no amount → a look in the drawer.
 
-Each suggestion is unique by `key`, so a dismissed one never comes back; an open one whose rule stops firing is withdrawn. Accept applies the change with the investor writes' own rules and keeps what Undo needs on the row (Undo reverts it, merges included). "Accept N safe ones" never includes merges, reviews, enrichment or anything from an agent. Other features add rows with the internal `suggestions:addSuggestion` (enrichment, and later agents through the Nest MCP server, shown as "From <agent>").
+Each suggestion is unique by `key`, so a dismissed one never comes back; an open one whose rule stops firing is withdrawn. Accept applies the change with the investor writes' own rules and keeps what Undo needs on the row (Undo reverts it, merges included). "Accept N safe ones" never includes merges, reviews, enrichment or anything from an agent. Other features add rows with the internal `suggestions:addSuggestion` (enrichment, and agents through the Nest MCP server, shown as "From <agent>").
+
+## Agents and the Nest MCP server
+
+Agents (Grok Bot, Claude, Capy, anything that speaks MCP) can read the raise and suggest changes through the Nest MCP server. Every write an agent makes is a Suggestions row from that agent ("From Grok Bot"), never a direct change, and "Accept N safe ones" never includes them.
+
+- **Server**: `https://nest.pestokids.com/mcp` (rewritten to Convex by `vercel.json`). If the rewrite isn't in place, use the deployment's own URL, `https://grandiose-armadillo-852.convex.site/mcp` for production. Streamable HTTP, one JSON-RPC request per POST answered as `application/json` (no SSE, no sessions). It serves MCP 2026-07-28 statelessly (`server/discover`, `params._meta` version plus matching `MCP-Protocol-Version` / `Mcp-Method` / `Mcp-Name` headers) and the 2025-03-26, 2025-06-18 and 2025-11-25 versions through `initialize`. Code: `convex/mcpHttp.ts` (protocol), `convex/mcp.ts` (tools), tool definitions and the skill in `src/lib/agents.ts`.
+- **Skill**: `GET /mcp/skill` returns the Nest skill as markdown (suggest, never edit; the stage rules; never invent numbers). Settings › Agents copies it too.
+- **Keys**: made on Raise › Settings › Agents and sent as `Authorization: Bearer nest_ak_…`. A key is shown once; Convex keeps only its SHA-256 and the 8 characters after `nest_ak_` (`agentKeys` in `convex/agentsSchema.ts`). Revoke stops it on the next call. Each key gets 60 calls a minute (then 429 with `Retry-After`).
+- **Scopes**: *Read only* keys see `search_investors`, `get_investor`, `todays_moves` and `list_questions`. *Can suggest changes* keys also get `log_touch`, `add_investor` (a "new investor" suggestion; accepting creates the investor, Undo removes it), `suggest_change` (stage, next step or Expected) and `enrich` (starts the existing lookup as an automatic run, within the daily cap).
+- **Activity**: each call is logged in `agentCalls` with the tool, time, outcome and duration, never arguments or results; Settings shows a key's last 50. Email bodies are never stored, so no tool can return one.
+
+Connect an agent: create a key, add the server URL with the key as a Bearer token, then give the agent the Nest skill.
 
 ## Enrichment
 

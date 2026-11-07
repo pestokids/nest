@@ -238,7 +238,7 @@ export const NO_GOOGLE: GoogleData = { loaded: true, me: null, team: [], meeting
 /* ---------- Gone quiet signals ---------- */
 
 /** Per investor: the IST day of the latest email touch and of the latest meeting that has ended. */
-export function contactSignals(g: Pick<GoogleData, 'meetings' | 'threads'>, now: number) {
+export function contactSignals(g: { meetings: readonly Pick<SyncedMeeting, 'start' | 'end' | 'investorIds'>[]; threads: readonly Pick<SyncedThread, 'lastAt' | 'investorIds'>[] }, now: number) {
   const out = new Map<string, { email?: string; meeting?: string }>()
   const bump = (id: string, k: 'email' | 'meeting', day: string) => {
     const o = out.get(id) ?? {}

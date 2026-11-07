@@ -4,6 +4,7 @@ import { v } from 'convex/values'
 import { aiSettingsFields, enrichTables } from './enrichSchema'
 import { materialsTables } from './materialsSchema'
 import { closeTables, roundCapTableField } from './closeSchema'
+import { agentTables } from './agentsSchema'
 import { roundFields, vGeo, vMeetingAnswer, vPipelineStage, vStage, vSyncSource, vTier, vTouch, vType, vWarmth, vWave } from './validators'
 import { vSuggestionKind, vSuggestionPatch, vSuggestionSource, vSuggestionStatus, vSuggestionUndo } from './validators'
 import { vAnswerVersion, vAskSource, vQuestionMerge } from './validators'
@@ -239,4 +240,7 @@ export default defineSchema({
   /* ---------- PST-283: Close (closings) ---------- */
   ...closeTables,
   /* ---------- end PST-283 ---------- */
+  /* ---------- PST-276: Nest MCP server (agentKeys, agentCalls; convex/agentsSchema.ts) ---------- */
+  ...agentTables,
+  /* ---------- end PST-276 ---------- */
 })
