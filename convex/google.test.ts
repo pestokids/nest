@@ -474,6 +474,70 @@ describe('Gmail errors', () => {
     warn.mockRestore()
   })
 
+  it('a project-level 403 (dailyLimitExceeded) on threads.get fails the run with its reason, never skips', async () => {
+    const s = await setup()
+    const now = Date.now()
+    const conn = await s.connect(s.dev, 'founder@pestokids.com')
+    google.threads = [kiteThread('th-ok', now - D), kiteThread('th-daily', now - 2 * D), kiteThread('th-ok2', now - 3 * D)]
+    const attempts = threadFetch((id) => (id === 'th-daily' ? refused('dailyLimitExceeded') : undefined))
+    expect(await s.t.action(internal.googleSync.run, { connectionId: conn })).toBe('error')
+    // Not a rate limit: tried once, not retried.
+    expect(attempts.get('th-daily')).toBe(1)
+    const c = await s.t.run((ctx) => ctx.db.get(conn))
+    expect(c).toMatchObject({ status: 'syncing', lastError: 'Google gmail thread failed (403 dailyLimitExceeded)' })
+    expect(c!.gmailHistoryId).toBeUndefined()
+    expect(c!.lastSyncAt).toBeUndefined()
+  })
+
+  it.each(['quotaExceeded', 'accessNotConfigured', 'domainPolicy'])('a 403 %s on one thread fails the run too', async (reason) => {
+    const s = await setup()
+    const now = Date.now()
+    const conn = await s.connect(s.dev, 'founder@pestokids.com')
+    google.threads = [kiteThread('th-ok', now - D), kiteThread('th-bad', now - 2 * D)]
+    threadFetch((id) => (id === 'th-bad' ? refused(reason) : undefined))
+    expect(await s.t.action(internal.googleSync.run, { connectionId: conn })).toBe('error')
+    expect((await s.t.run((ctx) => ctx.db.get(conn)))!.lastError).toMatch(new RegExp(`\\(403 ${reason}\\)$`))
+  })
+
+  it('a page where every thread is refused fails the run, keeps the scan and its pageToken, and stores nothing', async () => {
+    const s = await setup()
+    const now = Date.now()
+    const conn = await s.connect(s.dev, 'founder@pestokids.com')
+    // Mid-way through the 30-day read: the first 100 were read in an earlier run; the next page is all refused.
+    const scan = { done: 100, pageToken: '100', oldest: now - 5 * D, startedAt: now - 6e4, historyId: '100' }
+    await s.t.run((ctx) => ctx.db.patch(conn, { scan }))
+    google.threads = Array.from({ length: 250 }, (_, k) => kiteThread(`th-${k}`, now - D - k * 6e4))
+    threadFetch((id) => (Number(id.slice(3)) >= 100 && Number(id.slice(3)) < 200 ? refused('forbidden') : undefined))
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    for (let run = 0; run < 2; run++) {
+      expect(await s.t.action(internal.googleSync.run, { connectionId: conn })).toBe('error')
+      const c = await s.t.run((ctx) => ctx.db.get(conn))
+      expect(c).toMatchObject({ status: 'syncing', scan, lastError: 'Google gmail thread failed (403 forbidden)' })
+      expect(c!.gmailHistoryId).toBeUndefined()
+      expect(c!.lastSyncAt).toBeUndefined()
+      expect(c!.lockUntil).toBeUndefined()
+    }
+    expect(await s.t.run((ctx) => ctx.db.query('emailTouches').collect())).toEqual([])
+    const me = (await s.asDev.query(api.google.data, {})).me
+    expect(me).toMatchObject({ status: 'syncing', scan: { done: 100 }, lastError: 'Google gmail thread failed (403 forbidden)' })
+    vi.mocked(console.warn).mockRestore()
+  })
+
+  it('a first read whose first page is all refused never finishes empty', async () => {
+    const s = await setup()
+    const now = Date.now()
+    const conn = await s.connect(s.dev, 'founder@pestokids.com')
+    google.threads = [kiteThread('th-a', now - D), kiteThread('th-b', now - 2 * D)]
+    threadFetch(() => json({ error: { code: 404, errors: [{ reason: 'notFound' }] } }, 404))
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(await s.t.action(internal.googleSync.run, { connectionId: conn })).toBe('error')
+    const c = await s.t.run((ctx) => ctx.db.get(conn))
+    expect(c).toMatchObject({ status: 'syncing', lastError: 'Google gmail thread failed (404 notFound)' })
+    expect(c!.gmailHistoryId).toBeUndefined()
+    expect(c!.lastSyncAt).toBeUndefined()
+    vi.mocked(console.warn).mockRestore()
+  })
+
   it('counts skipped threads across the 30-day read and shows them while syncing', async () => {
     const s = await setup()
     const now = Date.now()

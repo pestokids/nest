@@ -60,29 +60,43 @@ async function syncCalendar(ctx: ActionCtx, c: Conn, token: string, now: number)
   }
 }
 
-/** A thread Google won't give us (403 other than a rate limit, or 404 gone): skip it rather than fail the run. */
-const skippable = (e: unknown): e is GoogleError => e instanceof GoogleError && (e.status === 403 || e.status === 404) && !e.rateLimited
+/**
+ * 403s that are about the project or the account, not this thread: daily quota,
+ * the API turned off, a Workspace policy. Skipping past them would read nothing,
+ * so they fail the run with their reason instead.
+ */
+const ACCOUNT_LEVEL = /^(dailyLimitExceeded|quotaExceeded|accessNotConfigured|SERVICE_DISABLED|domainPolicy)$/
+/** A problem with this one thread (404 gone, or a 403 that isn't a rate limit or account-level): skip it rather than fail the run. */
+const skippable = (e: unknown): e is GoogleError =>
+  e instanceof GoogleError && (e.status === 404 || (e.status === 403 && !e.rateLimited && !ACCOUNT_LEVEL.test(e.reason)))
 
 /**
  * Read threads, keep the ones with an investor, write them. Returns the parsed
- * threads (for progress) and how many were skipped.
+ * threads (for progress) and how many were skipped. When Google refused every
+ * thread on the page, throws the most common reason instead: nothing moves
+ * forward, and the read tries the same page again next run.
  */
 async function readThreads(ctx: ActionCtx, c: Conn, token: string, ids: string[], cutoff: number) {
   const match = makeMatcher(await ctx.runQuery(internal.google.matchData, {}))
-  const why = new Map<string, number>()
+  const why = new Map<string, { status: number; reason: string; n: number }>()
   const read = await mapLimit(ids, PARALLEL, async (id) => {
     try {
       return parseThread(await getThread(token, id), c.googleEmail)
     } catch (e) {
       if (!skippable(e)) throw e
       const k = `${e.status}${e.reason ? ` ${e.reason}` : ''}`
-      why.set(k, (why.get(k) ?? 0) + 1)
+      const w = why.get(k) ?? { status: e.status, reason: e.reason, n: 0 }
+      why.set(k, { ...w, n: w.n + 1 })
       return 'skipped' as const
     }
   })
   const parsed = read.filter((t): t is ParsedThread => !!t && t !== 'skipped')
   const skipped = read.filter((t) => t === 'skipped').length
-  if (skipped) console.warn(`google sync ${c._id}: skipped ${skipped} of ${ids.length} threads (${[...why].map(([k, n]) => `${k} ×${n}`).join(', ')})`)
+  if (skipped) console.warn(`google sync ${c._id}: skipped ${skipped} of ${ids.length} threads (${[...why].map(([k, w]) => `${k} ×${w.n}`).join(', ')})`)
+  if (ids.length && skipped === ids.length) {
+    const top = [...why.values()].sort((a, b) => b.n - a.n)[0]
+    throw new GoogleError(top.status, 'gmail thread', top.reason)
+  }
   // Only threads with an investor ever leave this action.
   const keep = parsed.filter((t) => t.lastAt >= cutoff && match.people(t.participants, c.googleEmail).ids.length > 0)
   for (let k = 0; k < keep.length; k += 100) await ctx.runMutation(internal.google.upsertThreads, { userId: c.userId, self: c.googleEmail, items: keep.slice(k, k + 100) })
