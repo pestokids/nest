@@ -10,3 +10,5 @@ export const WARMTHS = W
 export const TIERS = TI
 export const METRICS_LIST = METRICS
 export const TOUCHES = TO
+// PST-275
+export { SUGGESTION_KINDS, SUGGESTION_SOURCES, SUGGESTION_STATUSES } from '../../src/lib/suggestions'
