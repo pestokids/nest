@@ -211,6 +211,8 @@ export const run = internalAction({
       await ctx.runMutation(internal.google.applyPast, { userId: c.userId })
       await ctx.runMutation(internal.google.finish, { connectionId, more })
       if (more) await ctx.scheduler.runAfter(0, internal.googleSync.run, { connectionId })
+      // PST-275: what the sync learned can make new suggestions (a meeting happened, a domain turned up).
+      else await ctx.runMutation(internal.suggestions.check, {})
       return more ? 'more' : 'done'
     } catch (e) {
       if (e instanceof Revoked) {

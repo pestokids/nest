@@ -12,6 +12,7 @@
 //   &plan=mid                mid-round: targets hit and missed
 //   &settings=errors         validation errors
 //   &system=cmdk|cmdk-empty|cmdk-none|offline|savefailed|loading
+//   &suggestions=all|tidy|none|agent  Suggested fixes: the list open, cleared ("All tidy."), none (no card), an agent's row arriving
 //   &fail                    every write fails (save-failed toast with Retry)
 //   any unknown path         the 404, e.g. /nowhere?preview
 import { useEffect } from 'react'
@@ -22,6 +23,7 @@ import { LocalSounds, SessionContext } from '../components/session'
 import { SignIn, SIGN_IN_STATES, type SignInState } from '../components/SignIn'
 import { PREVIEW_DRAWER, PREVIEW_TODAY, PreviewStateContext, type PreviewDrawer, type PreviewToday } from '../components/preview-state'
 import { PREVIEW_GOOGLE, type PreviewGoogle } from './googleFixture'
+import { PREVIEW_SUGGESTIONS, type PreviewSuggestions } from './suggestionsFixture'
 
 const session = { me: { firstName: 'Dev', name: 'Dev Preview', email: 'dev@example.com' }, signOut: () => {} }
 
@@ -41,7 +43,8 @@ export function Preview() {
   const home = (q.get('home') ?? 'default') as PreviewHome
   const today = (PREVIEW_TODAY as readonly string[]).includes(q.get('today') ?? '') ? (q.get('today') as PreviewToday) : 'default'
   const drawer = (PREVIEW_DRAWER as readonly string[]).includes(q.get('drawer') ?? '') ? (q.get('drawer') as PreviewDrawer) : undefined
-  const state = { today, drawer, sheet: q.has('sheet'), investors: q.get('investors'), plan: q.get('plan'), settings: q.get('settings'), system: q.get('system') }
+  const suggestions = (PREVIEW_SUGGESTIONS as readonly string[]).includes(q.get('suggestions') ?? '') ? (q.get('suggestions') as PreviewSuggestions) : 'default'
+  const state = { today, drawer, sheet: q.has('sheet'), investors: q.get('investors'), plan: q.get('plan'), settings: q.get('settings'), system: q.get('system'), suggestions }
   const extra = { loading: state.system === 'loading', mid: state.plan === 'mid', fail: q.has('fail') }
   const google: PreviewGoogle = (PREVIEW_GOOGLE as readonly string[]).includes(q.get('google') ?? '') ? (q.get('google') as PreviewGoogle) : drawer === 'emails' ? 'connected' : 'none'
   return (
@@ -55,6 +58,7 @@ export function Preview() {
             board={sessionStorage.getItem('nest_preview_board') === '1'}
             extra={extra}
             google={google}
+            suggestions={suggestions}
           >
             <AppShell>{state.system === 'savefailed' ? <FailOnce /> : null}</AppShell>
           </PreviewData>

@@ -1,0 +1,105 @@
+/* Suggested fixes (PST-275): screens/raise-ai/today-suggestions-card.png, suggestions-all.png; motion per interactions-ai.png. */
+
+.sg-eyebrow { display: flex; align-items: center; gap: 8px; margin: 0; font: 600 12px/1.3 var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--brand-leaf); }
+.sg-eyebrow__spark { color: var(--brand-orange); }
+
+/* ---------- Today card ---------- */
+.sg-card.card { padding: 26px 28px 10px; }
+.sg-card__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 18px; }
+.sg-card__lead { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.sg-card__title { margin: 2px 0 0; font: 700 24px/1.2 var(--font-display); color: var(--text-primary); }
+.sg-card__sub { margin: 0; font: 400 14px/1.4 var(--font-ui); color: var(--text-secondary); }
+.sg-card__all { flex: none; margin-top: 18px; }
+.sg-card .sg-tidy { margin-bottom: 16px; }
+
+/* ---------- Rows ---------- */
+.sg-rows { list-style: none; margin: 0; padding: 0; }
+/* Folding: the row's height collapses to nothing (grid 1fr → 0fr) while it fades. */
+.sg-row {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 280ms var(--ease-out), opacity 220ms ease-out;
+}
+.sg-row__in {
+  min-height: 0;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 142px minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 24px;
+  border-top: 1px solid var(--line-default);
+  transition: transform 280ms var(--ease-out);
+}
+.sg-row__in > * { padding: 18px 0; }
+.sg-row__kind { padding-top: 16px !important; }
+.sg-row__text { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.sg-row__title { margin: 0; font: 600 15px/1.35 var(--font-ui); color: var(--text-primary); }
+.sg-row__fix { margin: 0; font: 400 15px/1.35 var(--font-ui); color: var(--text-secondary); }
+.sg-row__src { margin: 4px 0 0; font: 400 13px/1.3 var(--font-ui); color: var(--text-faint); }
+.sg-row__actions { display: flex; align-items: center; gap: 12px; padding-top: 14px !important; }
+.sg-row__go { min-width: 88px; }
+.sg-row__dismiss { color: var(--text-muted); }
+.sg-row--accept, .sg-row--merge, .sg-row--dismiss { grid-template-rows: 0fr; opacity: 0; }
+.sg-row--dismiss .sg-row__in { transform: translateX(36px); }
+/* Merge: the two names slide into one. */
+.sg-row--merge .sg-row__title { animation: sg-merge 280ms var(--ease-out) both; }
+@keyframes sg-merge {
+  to { letter-spacing: -0.06em; transform: translateX(-10px); opacity: 0.4; }
+}
+/* An agent's row: its chip pulses once when it arrives. */
+.sg-chip--agent .chip__dot { position: relative; }
+.sg-chip--agent .chip__dot::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: inherit; opacity: 0; }
+.sg-row--fresh .sg-chip--agent .chip__dot::after { animation: m-pulse 2s ease-out 1; }
+
+/* ---------- All tidy ---------- */
+.sg-tidy { display: flex; align-items: center; gap: 22px; padding: 26px 24px; border-radius: var(--radius-small); background: var(--surface-cream); font: 400 14px/1.4 var(--font-ui); color: var(--text-secondary); }
+.sg-tidy p { margin: 0; }
+.sg-tidy__nest { flex: none; display: grid; place-items: center; }
+.sg-tidy__title { font: 700 22px/1.2 var(--font-display) !important; color: var(--text-primary); margin-bottom: 4px !important; }
+
+/* ---------- The full list ---------- */
+.sys-modal__panel.sg-dialog { width: min(960px, 100%); padding: 0; display: flex; flex-direction: column; overflow: hidden; }
+.sg-dialog__head { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 32px 32px 18px; }
+.sg-dialog__title { margin: 0; font: 700 28px/1.15 var(--font-display); color: var(--text-primary); padding-right: 48px; }
+.sg-dialog__close { position: absolute; top: 24px; right: 24px; display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 12px; background: transparent; color: var(--text-primary); cursor: pointer; }
+.sg-dialog__close:hover { background: var(--surface-mint); }
+.sg-filters { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.sg-filter { position: relative; height: 30px; cursor: pointer; font-weight: 500; }
+/* A 44px tall hit area around the 30px chip. */
+.sg-filter::after { content: ''; position: absolute; inset: -7px 0; }
+.sg-filter .num { font-weight: 600; }
+.sg-dialog__body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 28px 4px; }
+.sg-dialog__body .sg-tidy { margin: 8px 4px 28px; }
+.sg-dialog__foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 32px 22px; border-top: 1px solid var(--line-default); }
+.sg-dialog__note { margin: 0; font: 400 14px/1.4 var(--font-ui); color: var(--text-muted); }
+
+/* ---------- Phones ---------- */
+@media (max-width: 720px) {
+  .sg-card.card { padding: 20px 18px 6px; }
+  .sg-card__head { flex-direction: column; gap: 12px; }
+  .sg-card__title { font-size: 20px; }
+  .sg-card__all { margin-top: 0; }
+  .sg-row__in { grid-template-columns: minmax(0, 1fr); }
+  .sg-row__in > * { padding: 0; }
+  .sg-row__kind { padding-top: 16px !important; }
+  .sg-row__text { padding-top: 10px; }
+  .sg-row__actions { padding: 12px 0 16px !important; }
+  .sg-row__go { min-height: 44px; }
+  .sg-row__dismiss { min-height: 44px; }
+  .sg-dialog__head { padding: 22px 20px 14px; }
+  .sg-dialog__title { font-size: 24px; }
+  .sg-dialog__close { top: 14px; right: 12px; }
+  .sg-filters { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 10px -20px 0; padding: 0 20px; }
+  .sg-filter { flex: none; }
+  .sg-dialog__body { padding: 0 20px 4px; }
+  .sg-dialog__foot { flex-direction: column; align-items: stretch; padding: 14px 20px 20px; }
+  .sg-tidy { flex-direction: column; text-align: center; gap: 12px; }
+}
+
+/* Reduced motion: every change is a 150 ms fade. */
+@media (prefers-reduced-motion: reduce) {
+  .sg-row { transition: opacity 150ms ease-out !important; transition-duration: 150ms !important; }
+  .sg-row--accept, .sg-row--merge, .sg-row--dismiss { grid-template-rows: 1fr; }
+  .sg-row--dismiss .sg-row__in { transform: none; }
+  .sg-row--merge .sg-row__title, .sg-row--fresh .sg-chip--agent .chip__dot::after { animation: none; }
+}

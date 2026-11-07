@@ -59,6 +59,12 @@ const SCREENS = [
   ['google-settings-reconnect', '/raise/settings?preview&google=reconnect'],
   ['google-settings-not-connected', '/raise/settings?preview'],
   ['google-cmdk-gmail', '/raise/today?preview&system=cmdk&google=connected'],
+  // PST-275: Suggested fixes
+  ['suggestions-today', '/raise/today?preview'],
+  ['suggestions-all', '/raise/today?preview&suggestions=all'],
+  ['suggestions-agent', '/raise/today?preview&suggestions=agent'],
+  ['suggestions-tidy', '/raise/today?preview&suggestions=tidy'],
+  ['suggestions-none', '/raise/today?preview&suggestions=none'],
 ]
 
 /** Sideways scroll, and (phones) visible controls smaller than 44 × 44. */
@@ -100,7 +106,7 @@ for (const size of SIZES) {
     await page.waitForTimeout(name.endsWith('-win') ? 1000 : 900)
     // Full-page capture resizes the viewport, which re-snaps the phone moves carousel: keep the win at viewport size there.
     // Overlays (sheets, toasts, the palette, the bulk bar) are fixed to the viewport: shoot the viewport.
-    const full = !/^(sign-in|drawer-|google-drawer-|system-cmdk|google-cmdk|system-save|investors-(import|bulk|exported))/.test(name) && !(size.mobile && name.endsWith('-win'))
+    const full = !/^(sign-in|drawer-|google-drawer-|system-cmdk|google-cmdk|system-save|investors-(import|bulk|exported)|suggestions-(all|agent|tidy))/.test(name) && !(size.mobile && name.endsWith('-win'))
     await page.screenshot({ path: `${out}/${name}--${size.name}.png`, fullPage: full })
     const a = await page.evaluate(audit, size.mobile)
     if (a.sideways || a.small.length) report[`${name}--${size.name}`] = a

@@ -2,6 +2,7 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useRaise } from '../../../components/data'
 import { GoogleToday } from '../../../components/GoogleToday'
+import { Suggestions } from '../../../components/Suggestions'
 import { EggHatching, NestSleeping, NestWithEggs } from '../../../components/illustrations'
 import { PhaseBar } from '../../../components/PhaseBar'
 import { usePreviewState } from '../../../components/preview-state'
@@ -79,6 +80,7 @@ function Today() {
 
   return (
     <section className="today" aria-label="Today">
+      <Suggestions today={today} />
       <Summary won={winning} today={today} />
       <Moves moves={moves} note={movesNote(r, today)} asked={asked} onAsk={logAsk} />
       <Kpis today={today} />
