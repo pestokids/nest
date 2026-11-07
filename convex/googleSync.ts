@@ -73,8 +73,9 @@ const skippable = (e: unknown): e is GoogleError =>
 /**
  * Read threads, keep the ones with an investor, write them. Returns the parsed
  * threads (for progress) and how many were skipped. When Google refused every
- * thread on the page, throws the most common reason instead: nothing moves
- * forward, and the read tries the same page again next run.
+ * thread on the page with a 403, throws the most common reason instead: nothing
+ * moves forward, and the read tries the same page again next run. A 404 (the
+ * thread was deleted) is always a quiet skip and never counts toward that.
  */
 async function readThreads(ctx: ActionCtx, c: Conn, token: string, ids: string[], cutoff: number) {
   const match = makeMatcher(await ctx.runQuery(internal.google.matchData, {}))
@@ -93,8 +94,9 @@ async function readThreads(ctx: ActionCtx, c: Conn, token: string, ids: string[]
   const parsed = read.filter((t): t is ParsedThread => !!t && t !== 'skipped')
   const skipped = read.filter((t) => t === 'skipped').length
   if (skipped) console.warn(`google sync ${c._id}: skipped ${skipped} of ${ids.length} threads (${[...why].map(([k, w]) => `${k} ×${w.n}`).join(', ')})`)
-  if (ids.length && skipped === ids.length) {
-    const top = [...why.values()].sort((a, b) => b.n - a.n)[0]
+  const refused = [...why.values()].filter((w) => w.status === 403)
+  if (ids.length && refused.reduce((n, w) => n + w.n, 0) === ids.length) {
+    const top = refused.sort((a, b) => b.n - a.n)[0]
     throw new GoogleError(top.status, 'gmail thread', top.reason)
   }
   // Only threads with an investor ever leave this action.
@@ -143,7 +145,8 @@ async function syncGmail(ctx: ActionCtx, c: Conn, token: string, now: number): P
     const newest = Math.max(0, ...parsed.map((t) => t.lastAt))
     const oldest = parsed.length ? Math.max(cutoff, Math.min(...parsed.map((t) => t.lastAt))) : scan.oldest
     scan = { ...scan, done: scan.done + ids.length, ...(oldest ? { oldest } : {}), ...(skipped || scan.skipped ? { skipped: (scan.skipped ?? 0) + skipped } : {}), pageToken: res.nextPageToken }
-    if (!res.nextPageToken || !ids.length || newest < cutoff) {
+    // A page with nothing read (all skipped) says nothing about dates: carry on to the next one.
+    if (!res.nextPageToken || !ids.length || (parsed.length > 0 && newest < cutoff)) {
       await ctx.runMutation(internal.google.saveCursors, { connectionId: c._id, gmailHistoryId: scan.historyId, scan: null, rescan: false })
       return false
     }

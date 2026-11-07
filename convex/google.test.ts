@@ -523,18 +523,58 @@ describe('Gmail errors', () => {
     vi.mocked(console.warn).mockRestore()
   })
 
-  it('a first read whose first page is all refused never finishes empty', async () => {
+  it('a page where every thread is gone (404) is skipped quietly, and the read carries on', async () => {
     const s = await setup()
     const now = Date.now()
     const conn = await s.connect(s.dev, 'founder@pestokids.com')
-    google.threads = [kiteThread('th-a', now - D), kiteThread('th-b', now - 2 * D)]
+    // Two pages: the first 100 all deleted, the second has an investor thread.
+    google.threads = Array.from({ length: 150 }, (_, k) => (k === 120 ? kiteThread(`th-${k}`, now - 2 * D) : newsThread(`th-${k}`, now - D - k * 6e4)))
+    threadFetch((id) => (Number(id.slice(3)) < 100 ? json({ error: { code: 404, errors: [{ reason: 'notFound' }] } }, 404) : undefined))
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(await s.t.action(internal.googleSync.run, { connectionId: conn })).toBe('done')
+    const c = await s.t.run((ctx) => ctx.db.get(conn))
+    expect(c).toMatchObject({ status: 'connected', gmailHistoryId: '100' })
+    expect(c!.lastError).toBeUndefined()
+    expect(c!.scan).toBeUndefined()
+    expect((await s.t.run((ctx) => ctx.db.query('emailTouches').collect())).map((t) => t.threadId)).toEqual(['th-120'])
+    vi.mocked(console.warn).mockRestore()
+  })
+
+  it('a page of only 404s and 403 forbidden (none read) is skipped, and the read carries on', async () => {
+    const s = await setup()
+    const now = Date.now()
+    const conn = await s.connect(s.dev, 'founder@pestokids.com')
+    google.threads = Array.from({ length: 150 }, (_, k) => (k === 120 ? kiteThread(`th-${k}`, now - 2 * D) : newsThread(`th-${k}`, now - D - k * 6e4)))
+    threadFetch((id) => {
+      const k = Number(id.slice(3))
+      if (k >= 100) return undefined
+      return k % 2 ? refused('forbidden') : json({ error: { code: 404, errors: [{ reason: 'notFound' }] } }, 404)
+    })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(await s.t.action(internal.googleSync.run, { connectionId: conn })).toBe('done')
+    const c = await s.t.run((ctx) => ctx.db.get(conn))
+    expect(c).toMatchObject({ status: 'connected', gmailHistoryId: '100' })
+    expect(c!.lastError).toBeUndefined()
+    expect((await s.t.run((ctx) => ctx.db.query('emailTouches').collect())).map((t) => t.threadId)).toEqual(['th-120'])
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/skipped 100 of 100 threads \((404 notFound ×50, 403 forbidden ×50|403 forbidden ×50, 404 notFound ×50)\)/))
+    warn.mockRestore()
+  })
+
+  it('an incremental run whose only changed thread was deleted (404) succeeds and moves the history id on', async () => {
+    const s = await setup()
+    const now = Date.now()
+    const conn = await s.connect(s.dev, 'founder@pestokids.com')
+    await s.t.action(internal.googleSync.run, { connectionId: conn })
+    expect(await s.t.run((ctx) => ctx.db.get(conn))).toMatchObject({ gmailHistoryId: '100' })
+    google.threads = [kiteThread('th-gone', now - H)]
+    google.history = ['th-gone']
     threadFetch(() => json({ error: { code: 404, errors: [{ reason: 'notFound' }] } }, 404))
     vi.spyOn(console, 'warn').mockImplementation(() => {})
-    expect(await s.t.action(internal.googleSync.run, { connectionId: conn })).toBe('error')
+    expect(await s.t.action(internal.googleSync.run, { connectionId: conn })).toBe('done')
     const c = await s.t.run((ctx) => ctx.db.get(conn))
-    expect(c).toMatchObject({ status: 'syncing', lastError: 'Google gmail thread failed (404 notFound)' })
-    expect(c!.gmailHistoryId).toBeUndefined()
-    expect(c!.lastSyncAt).toBeUndefined()
+    expect(c).toMatchObject({ status: 'connected', gmailHistoryId: '101' })
+    expect(c!.lastError).toBeUndefined()
+    expect(await s.t.run((ctx) => ctx.db.query('emailTouches').collect())).toEqual([])
     vi.mocked(console.warn).mockRestore()
   })
 
