@@ -1,7 +1,7 @@
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react'
 import { Icon, type IconName } from './Icon'
 
-export type ButtonVariant = 'primary' | 'secondary' | 'dark' | 'orange' | 'ghost'
+export type ButtonVariant = 'primary' | 'secondary' | 'dark' | 'orange' | 'danger' | 'ghost'
 export type ButtonSize = 'sm' | 'md' | 'lg'
 
 /** Class list for a button-looking element (use on links too). */
@@ -19,7 +19,7 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   block?: boolean
 }
 
-/** Primary, secondary, dark, orange and ghost. Filled buttons sit on a 3px edge that presses down 2px. */
+/** Primary, secondary, dark, orange, danger and ghost. Filled buttons sit on a 3px edge that presses down 2px. */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   { variant = 'secondary', size = 'md', loading, loadingLabel = 'Saving…', icon, iconRight, block, className, children, disabled, type = 'button', ...rest },
   ref,

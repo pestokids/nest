@@ -89,9 +89,9 @@ export function previewImport(text: string, existing: Pick<Investor, 'name' | 'f
   return { add, skipped, unknownHeaders }
 }
 
-/** "250000", "250k", "1.5m" → dollars; null when unreadable. */
+/** "250000", "250k", "1.5m", "$25,000" → dollars; null when unreadable. */
 export function parseMoney(s: string): number | null {
-  const m = /^(\d+(?:\.\d+)?)([km]?)$/i.exec(s.trim())
+  const m = /^(\d+(?:\.\d+)?)([km]?)$/i.exec(s.trim().replace(/^\$\s*/, '').replace(/,(?=\d{3}\b)/g, ''))
   if (!m) return null
   const mult = { '': 1, k: 1e3, m: 1e6 }[m[2].toLowerCase() as '' | 'k' | 'm']
   return Math.round(Number(m[1]) * mult)

@@ -140,8 +140,8 @@
   align-items: flex-end;
   justify-content: space-between;
   gap: 24px;
-  padding-top: 34px;
-  padding-bottom: 12px;
+  padding-top: 28px;
+  padding-bottom: 4px;
 }
 .raise-head h1 {
   font: 800 48px/1.05 var(--font-display);
@@ -173,8 +173,10 @@
   box-shadow: 0 4px 0 var(--brand-forest);
   place-items: center;
   z-index: 30;
-  transition: transform 100ms ease, box-shadow 100ms ease;
+  transition: transform 100ms ease, box-shadow 100ms ease, bottom 220ms var(--ease-out-back);
 }
+/* A toast is showing (ToastProvider sets --toast-lift): sit above it, never under it. */
+.fab { bottom: calc(20px + env(safe-area-inset-bottom, 0px) + var(--toast-lift, 0px)); }
 .fab:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--brand-forest); }
 
 @media (max-width: 1100px) {
@@ -191,10 +193,12 @@
   .raise-head { padding-top: 16px; padding-bottom: 4px; }
   .raise-head h1 { font-size: 40px; margin-top: 2px; }
   .raise-head__actions { display: none; }
+  .raise-head__instrument { display: none; }
   .raise .subtabs { margin: 0 calc(-1 * max(var(--gutter), env(safe-area-inset-left, 0px))); padding: 0 max(var(--gutter), env(safe-area-inset-left, 0px)); }
-  .raise .subtabs .subtab { padding: 0 12px; }
+  .raise .subtabs .subtab { padding: 0 10px; font-size: 15px; }
   .raise .subtabs .subtab:first-child { margin-left: -2px; }
   .raise-view { padding-top: 16px; }
   .fab { display: grid; }
-  .app-main { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+  /* Room under the last row for the add button (and for the toast it lifts above). */
+  .app-main { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px) + var(--toast-lift, 0px)); }
 }

@@ -6,7 +6,7 @@ import { exportCsv, IMPORT_HEADERS, previewImport, type ImportPreview } from '..
 import { shortDate, todayIST } from '../../../lib/dates'
 import { money } from '../../../lib/money'
 import { isLate, score, type Investor } from '../../../lib/pipeline'
-import { ACTIVE, ALL, GEOS, IDX, isStage, LABEL, TIERS, TYPES, WARM, WARMTHS, type Stage } from '../../../lib/stages'
+import { ACTIVE, ALL, GEOS, IDX, isStage, LABEL, TIERS, TYPES, WARM, WARMTHS, WAVES, type Stage } from '../../../lib/stages'
 import { Button } from '../../../components/ui'
 
 const COLS = [
@@ -24,6 +24,7 @@ export type InvestorSearch = {
   type?: (typeof TYPES)[number]
   geo?: (typeof GEOS)[number]
   tier?: (typeof TIERS)[number]
+  wave?: (typeof WAVES)[number]
   sort?: SortKey
   dir?: 'asc' | 'desc'
   /** Open the CSV import panel (the Raise header's Import CSV links here). */
@@ -40,6 +41,7 @@ export const Route = createFileRoute('/_app/raise/investors')({
     type: oneOf(TYPES, s.type),
     geo: oneOf(GEOS, s.geo),
     tier: oneOf(TIERS, s.tier),
+    wave: WAVES.find((w) => String(w) === String(s.wave)),
     sort: oneOf(SORT_KEYS, s.sort),
     dir: oneOf(['asc', 'desc'] as const, s.dir),
     import: s.import === true || s.import === '1' || s.import === 'true' ? true : undefined,
@@ -52,7 +54,7 @@ const defaultDir = (k: SortKey) => (k === 'score' || k === 'expected' ? -1 : 1)
 function Investors() {
   const s = Route.useSearch()
   const navigate = useNavigate({ from: Route.fullPath })
-  const { investors: inv } = useRaise()
+  const { investors: inv, round } = useRaise()
   const { open } = useUI()
   const importing = !!s.import
   const setImporting = (v: boolean | ((x: boolean) => boolean)) => setSearch({ import: (typeof v === 'function' ? v(importing) : v) || undefined })
@@ -71,7 +73,8 @@ function Investors() {
       (!s.warmth || i.warmth === s.warmth) &&
       (!s.type || i.type === s.type) &&
       (!s.geo || i.geo === s.geo) &&
-      (!s.tier || i.tier === s.tier),
+      (!s.tier || i.tier === s.tier) &&
+      (!s.wave || i.wave === s.wave),
   )
   const val = (i: Investor): string | number =>
     sortKey === 'score' ? score(i)
@@ -122,6 +125,10 @@ function Investors() {
         <select aria-label="Tier" value={s.tier ?? ''} onChange={(e) => setSearch({ tier: (e.target.value || undefined) as InvestorSearch['tier'] })}>
           <option value="">Any tier</option>
           {TIERS.map((x) => <option key={x}>{x}</option>)}
+        </select>
+        <select aria-label="Wave" value={s.wave ?? ''} onChange={(e) => setSearch({ wave: e.target.value ? (Number(e.target.value) as InvestorSearch['wave']) : undefined })}>
+          <option value="">Any wave</option>
+          {WAVES.map((w, ix) => <option key={w} value={w}>Wave {w}{round.waves[ix] && round.waves[ix] !== `Wave ${w}` ? ` · ${round.waves[ix]}` : ''}</option>)}
         </select>
         <span className="muted num">{rows.length} of {inv.length}</span>
         <span className="tools">

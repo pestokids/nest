@@ -1,4 +1,5 @@
-import { forwardRef, useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react'
+import { forwardRef, useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
+import { dayMonth } from '../../lib/home'
 import { Icon } from './Icon'
 
 type FieldBits = { label?: ReactNode; help?: ReactNode; error?: ReactNode; className?: string }
@@ -33,8 +34,35 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({ l
   const fid = id ?? auto
   return (
     <Field id={fid} label={label} help={help} error={error} className={className}>
-      <span className="input">
-        <input ref={ref} id={fid} aria-invalid={error ? true : undefined} aria-describedby={error || help ? `${fid}-msg` : undefined} {...rest} />
+      <span className={rest.type === 'date' ? 'input input--date' : 'input'}>
+        <input
+          ref={ref}
+          id={fid}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error || help ? `${fid}-msg` : undefined}
+          {...rest}
+          onClick={
+            rest.type === 'date'
+              ? (e) => {
+                  rest.onClick?.(e)
+                  try {
+                    e.currentTarget.showPicker?.()
+                  } catch {
+                    /* not allowed here; the native control still opens */
+                  }
+                }
+              : rest.onClick
+          }
+        />
+        {rest.type === 'date' ? (
+          <>
+            {/* Dates read like the design ("Thu 12 Nov"); the native picker sits underneath. */}
+            <span className={`input__date${rest.value ? '' : ' input__date--empty'}`} aria-hidden="true">
+              {typeof rest.value === 'string' && rest.value ? dayMonth(rest.value) : 'Pick a date'}
+            </span>
+            {error ? null : <Icon name="chevron-down" size={18} className="select__chevron" />}
+          </>
+        ) : null}
         {error ? <Icon name="alert" size={18} className="input__alert" /> : null}
       </span>
     </Field>
@@ -55,6 +83,19 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
         </select>
         <Icon name="chevron-down" size={18} className="select__chevron" />
       </span>
+    </Field>
+  )
+})
+
+type TextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & FieldBits
+
+/** Multi-line text with the same label, help and error as Input. */
+export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function Textarea({ label, help, error, className, id, ...rest }, ref) {
+  const auto = useId()
+  const fid = id ?? auto
+  return (
+    <Field id={fid} label={label} help={help} error={error} className={className}>
+      <textarea ref={ref} id={fid} className="textarea" aria-invalid={error ? true : undefined} aria-describedby={error || help ? `${fid}-msg` : undefined} {...rest} />
     </Field>
   )
 })

@@ -1,8 +1,9 @@
 // DEV ONLY: a small made-up round for ?preview and screenshots. No real
 // investors, amounts or dates: names are invented and dates follow today.
 import { dayDiff } from '../lib/dates'
-import type { Investor } from '../lib/pipeline'
+import type { Activity, Investor } from '../lib/pipeline'
 import { DEFAULT_ODDS, type Round } from '../lib/round'
+import { STAGES } from '../lib/stages'
 
 const add = (iso: string, days: number) => new Date(Date.parse(iso + 'T00:00:00Z') + days * 864e5).toISOString().slice(0, 10)
 
@@ -38,8 +39,15 @@ export function fixtureInvestors(today: string): Investor[] {
   const rows: Row[] = [
     { name: 'Orchard Capital', firm: 'Orchard Capital', type: 'Pre-seed fund', warmth: 'warm', path: 'Ria', stage: 'm1', expected: 100000, nextStep: 'Share the data room', nextDate: d(5), lastTouch: d(-2), wave: 1 },
     { name: 'Lantern Ventures', firm: 'Lantern Ventures', type: 'Micro-VC', warmth: 'intro', path: 'Ankur', stage: 'intro', expected: 75000, nextStep: 'Book a first call', nextDate: d(12), lastTouch: d(-1), wave: 1 },
-    { name: 'Fernhill Fund', firm: 'Fernhill', type: 'Seed fund', warmth: 'intro', path: 'Mira', stage: 'ask', expected: 150000, nextStep: 'Partner call', nextDate: d(19), lastTouch: d(-6), wave: 1 },
-    { name: 'Kite Angels', firm: 'Kite Angels', type: 'Angel', warmth: 'warm', path: 'Direct', stage: 'booked', expected: 25000, nextStep: 'Send the deck', nextDate: d(0), lastTouch: d(-3), wave: 1 },
+    { name: 'Fernhill Fund', firm: 'Fernhill', type: 'Seed fund', warmth: 'intro', path: 'Mira', stage: 'ask', expected: 150000, nextStep: 'Awaiting a partner intro', lastTouch: d(-6), wave: 1 },
+    {
+      name: 'Kite Angels', firm: 'Kite Angels', email: 'hello@kite.example', type: 'Angel', warmth: 'warm', path: 'Ankur (ex-colleague)', stage: 'booked', expected: 25000,
+      nextStep: 'Send the deck and the 60-second clip', nextDate: d(0), lastTouch: d(-2), wave: 1,
+      notes: 'Likes consumer and kids. Asked about week-4 retention and whether parents pay. Send the beta numbers with the deck.',
+    },
+    { name: 'Juniper Seed', firm: 'Juniper', type: 'Seed fund', warmth: 'intro', path: 'Mira', stage: 'ask', expected: 50000, nextStep: 'Intro to a partner at Juniper', nextDate: d(0), lastTouch: d(-1), wave: 1 },
+    { name: 'Saltmarsh Angels', firm: 'Saltmarsh', type: 'Angel', warmth: 'intro', path: 'Ria', stage: 'ask', expected: 30000, nextStep: 'Awaiting decision', lastTouch: d(-5), wave: 1 },
+    { name: 'Northwind Accelerator', firm: 'Northwind', type: 'Accelerator', warmth: 'cold', path: 'Applied', stage: 'ask', expected: 125000, nextStep: 'A yes goes to the whole pipeline', lastTouch: d(-7), wave: 1 },
     { name: 'Pebble Partners', firm: 'Pebble', type: 'Micro-VC', warmth: 'cold', path: 'cold', stage: 'passed', expected: 50000, nextStep: '', lastTouch: d(-8), wave: 2 },
     { name: 'Morrow Ventures', firm: 'Morrow', type: 'Seed fund', warmth: 'intro', path: 'Ria', stage: 'todo', expected: 200000, nextStep: '', wave: 1 },
     { name: 'Bluebird Seed', firm: 'Bluebird', type: 'Pre-seed fund', warmth: 'intro', path: 'Ankur', stage: 'todo', expected: 100000, nextStep: '', wave: 1 },
@@ -53,6 +61,7 @@ export function fixtureInvestors(today: string): Investor[] {
     _id: `fx${i}`,
     firm: '', type: 'Angel', geo: 'India', warmth: 'intro', path: '', tier: 'B', wave: 2, lead: false, notes: '', source: 'Preview fixture',
     maxStage: r.stage === 'passed' || r.stage === 'parked' ? 'ask' : (r.stage as Investor['maxStage']),
+    _creationTime: Date.parse(d(-9) + 'T06:00:00Z'),
     ...r,
   })) as Investor[]
 }
@@ -78,6 +87,25 @@ export function fixtureBoardExtras(today: string): Investor[] {
     maxStage: r.stage as Investor['maxStage'],
     ...r,
   })) as Investor[]
+}
+
+/** A short made-up history: each live investor's stage moves, and a few touches. */
+export function fixtureActs(inv: Investor[], today: string): Activity[] {
+  const d = (n: number) => add(today, n)
+  const out: Activity[] = []
+  let k = 0
+  const push = (a: Omit<Activity, '_id' | 'by'>) => out.push({ ...a, _id: `fa${k++}`, by: 'Dev' })
+  for (const i of inv) {
+    if (i.stage === 'todo') continue
+    const ix = STAGES.findIndex((s) => s.k === (i.stage === 'passed' || i.stage === 'parked' ? i.maxStage : i.stage))
+    // Walk up to the current stage, a day or two apart, ending at the last touch.
+    const end = i.lastTouch ?? today
+    for (let s = 1; s <= ix; s++) push({ investorId: i._id, kind: 'stage', stage: STAGES[s].k, date: add(end, (s - ix) * 2) })
+    if (i.stage === 'passed' || i.stage === 'parked') push({ investorId: i._id, kind: 'stage', stage: i.stage, date: end })
+  }
+  const kite = inv.find((i) => i.name === 'Kite Angels')
+  if (kite) push({ investorId: kite._id, kind: 'note', touch: 'call', note: '20 min. Liked the parent angle. Wants the beta numbers.', date: d(-2) })
+  return out.sort((a, b) => b.date.localeCompare(a.date))
 }
 
 /** How far into the round the fixture is (for sanity checks). */

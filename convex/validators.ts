@@ -1,5 +1,5 @@
 import { v } from 'convex/values'
-import { ALL, GEOS, METRICS_LIST, PIPELINE_LIST, TIERS, TYPES, WARMTHS } from './lib/enums'
+import { ALL, GEOS, METRICS_LIST, PIPELINE_LIST, TIERS, TOUCHES, TYPES, WARMTHS } from './lib/enums'
 
 // v.union over a list of literals, typed as the union of its members.
 const lit = <T extends string>(xs: readonly T[]) => v.union(...xs.map((x) => v.literal(x)))
@@ -12,6 +12,7 @@ export const vWarmth = lit(WARMTHS)
 export const vTier = lit(TIERS)
 export const vWave = v.union(v.literal(1), v.literal(2), v.literal(3))
 export const vMetric = lit(METRICS_LIST)
+export const vTouch = lit(TOUCHES)
 
 /** Editable investor fields. Optional numbers/dates accept null (= clear). */
 export const investorFields = {
@@ -32,6 +33,10 @@ export const investorFields = {
   lastTouch: v.optional(v.union(v.string(), v.null())),
   notes: v.string(),
   source: v.string(),
+  // Added in PST-266. Optional, so older clients and rows keep working.
+  email: v.optional(v.union(v.string(), v.null())),
+  /** Only kept while the stage is "parked": the day it comes back to Due today. */
+  parkedUntil: v.optional(v.union(v.string(), v.null())),
 }
 
 export const vPhase = v.object({

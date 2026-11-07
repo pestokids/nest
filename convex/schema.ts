@@ -1,7 +1,7 @@
 import { defineSchema, defineTable } from 'convex/server'
 import { authTables } from '@convex-dev/auth/server'
 import { v } from 'convex/values'
-import { roundFields, vGeo, vPipelineStage, vStage, vTier, vType, vWarmth, vWave } from './validators'
+import { roundFields, vGeo, vPipelineStage, vStage, vTier, vTouch, vType, vWarmth, vWave } from './validators'
 
 export default defineSchema({
   ...authTables,
@@ -26,6 +26,9 @@ export default defineSchema({
     notes: v.string(),
     source: v.string(),
     slug: v.optional(v.string()),
+    // PST-266 (optional, additive): contact email, and the date a parked investor comes back.
+    email: v.optional(v.string()),
+    parkedUntil: v.optional(v.string()),
     updatedAt: v.number(),
     // Absent on rows imported by the seed until someone edits them.
     updatedBy: v.optional(v.id('users')),
@@ -38,6 +41,8 @@ export default defineSchema({
     kind: v.union(v.literal('stage'), v.literal('note')),
     stage: v.optional(vStage),
     note: v.optional(v.string()),
+    // PST-266 (optional, additive): what kind of touch a note was (call, email, meeting, ask…).
+    touch: v.optional(vTouch),
     date: v.string(),
     userId: v.id('users'),
   })

@@ -52,14 +52,14 @@ export function ConvexData({ children }: { children: ReactNode }) {
       roundExists: settings?.exists ?? false,
       me,
       save: (id, fields) => upsert({ id: (id ?? undefined) as Id<'investors'> | undefined, fields }),
-      advance: (id) => advance({ id: id as Id<'investors'> }),
+      advance: (id, next) => advance({ id: id as Id<'investors'>, next }),
       move: async (id, stage) => {
         const r = await move({ id: id as Id<'investors'>, stage })
         return { id, to: stage, from: r.from, activityId: r.activityId }
       },
       undoMove: (rec) =>
         undoMove({ id: rec.id as Id<'investors'>, to: rec.to, from: rec.from, activityId: (rec.activityId ?? null) as Id<'activities'> | null }),
-      logNote: (id, note) => logNote({ id: id as Id<'investors'>, note }),
+      logNote: (id, note, o) => logNote({ id: id as Id<'investors'>, note, touch: o?.touch, date: o?.date, next: o?.next }),
       remove: (id) => remove({ id: id as Id<'investors'> }),
       importMany: (rows) => importMany({ rows }),
       updateRound: (round) => updateRound({ round }),

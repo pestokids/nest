@@ -46,3 +46,50 @@ export const WAVES = [1, 2, 3] as const
 export type Wave = (typeof WAVES)[number]
 
 export const isStage = (s: unknown): s is Stage => typeof s === 'string' && (STAGE_KEYS as string[]).includes(s)
+
+/** Short labels for the drawer's stage progress bar (every pipeline stage after "Not contacted"). */
+export const STAGE_SHORT: Partial<Record<PipelineStage, string>> = {
+  ask: 'Asked', intro: 'Intro', booked: 'Booked', m1: '1st', m2: '2nd', dd: 'DD', verbal: 'Verbal', signed: 'Signed', wired: 'Money',
+}
+/** Tile labels for "How a conversation moves" and the stage chips. */
+export const STAGE_TILE: Record<Stage, string> = {
+  todo: 'Not contacted', ask: 'Asked', intro: 'Intro', booked: 'Booked', m1: '1st meeting', m2: '2nd meeting', dd: 'Diligence',
+  verbal: 'Verbal', signed: 'Signed', wired: 'Money in', passed: 'Passed', parked: 'Parked',
+}
+/** The rule for moving a card into each stage ("Move a card only when the rule is true"). */
+export const STAGE_RULE: Partial<Record<PipelineStage, string>> = {
+  ask: 'You asked someone for an intro, or applied.',
+  intro: 'The intro email went out.',
+  booked: 'A meeting is on the calendar.',
+  m1: 'First call done. Set the next step.',
+  m2: 'Partner call or a deeper follow-up.',
+  dd: 'They opened the data room.',
+  verbal: 'They said a number. Confirm it in writing.',
+  signed: 'The SAFE is signed.',
+  wired: 'The wire landed. Celebrate.',
+}
+/** The tick-box line when advancing into `stage` (drawer): what has to be true. */
+export function advanceConfirm(stage: PipelineStage, name: string): string {
+  const who = name.trim().split(/\s+/)[0] || 'them'
+  switch (stage) {
+    case 'ask': return `You asked for an intro to ${who}, or applied`
+    case 'intro': return `The intro to ${who} went out`
+    case 'booked': return `A meeting with ${who} is on the calendar`
+    case 'm1': return `The first call with ${who} happened`
+    case 'm2': return `The follow-up with ${who} happened`
+    case 'dd': return `${who} opened the data room`
+    case 'verbal': return `${who} said a number`
+    case 'signed': return `${who} signed the SAFE`
+    case 'wired': return `${who}’s money landed`
+    default: return `${who} is ready for the next stage`
+  }
+}
+
+/** Kinds of logged touch (activities.touch). `ask`, `nudge` and `done` come from Today's buttons. */
+export const TOUCHES = ['call', 'email', 'meeting', 'note', 'ask', 'nudge', 'done'] as const
+export type TouchKind = (typeof TOUCHES)[number]
+/** The four a person picks from in "Log a touch". */
+export const TOUCH_PICK = ['call', 'email', 'meeting', 'note'] as const satisfies readonly TouchKind[]
+export const TOUCH_LABEL: Record<TouchKind, string> = {
+  call: 'Call', email: 'Email', meeting: 'Meeting', note: 'Note', ask: 'Asked for a number', nudge: 'Nudged', done: 'Next step done',
+}
