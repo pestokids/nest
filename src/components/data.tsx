@@ -24,7 +24,8 @@ export type RaiseData = {
   /** Log a touch; returns the day it was logged on. */
   logNote: (id: string, note: string, opts?: TouchOptions) => Promise<string>
   remove: (id: string) => Promise<unknown>
-  importMany: (rows: InvestorFields[]) => Promise<{ added: number; skipped: number }>
+  /** `file` names the CSV in the change log; `ids` are the new rows (Undo, "See the new names"). */
+  importMany: (rows: InvestorFields[], file?: string) => Promise<{ added: number; skipped: number; ids?: string[] }>
   updateRound: (round: Round) => Promise<number>
   /** Hooks (stable per provider). */
   useLog: (investorId: string | null) => Activity[] | undefined
@@ -32,7 +33,11 @@ export type RaiseData = {
   /** Ticked to-do indexes of a phase's prep checklist (Home). */
   usePrepTicks: (phaseKey: string | null) => number[] | undefined
   setPrepTick: (phaseKey: string, item: number, done: boolean) => Promise<unknown>
+  /** Who can get in (the access list), you first. */
+  useMembers: () => Member[] | undefined
 }
+
+export type Member = { email: string; name: string; me: boolean }
 
 export const RaiseContext = createContext<RaiseData | null>(null)
 

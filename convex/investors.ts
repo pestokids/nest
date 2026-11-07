@@ -58,15 +58,19 @@ export const upsert = mutation({
   },
 })
 
-/** Import rows from the CSV preview, skipping name + firm duplicates again server-side. */
+/**
+ * Import rows from the CSV preview, skipping name + firm duplicates again server-side.
+ * Returns the new ids (for "See the new names" and Undo) and notes the import in the change log.
+ */
 export const importMany = mutation({
-  args: { rows: v.array(vFields) },
-  handler: async (ctx, { rows }) => {
+  args: { rows: v.array(vFields), file: v.optional(v.string()) },
+  handler: async (ctx, { rows, file }) => {
     const { userId } = await requireUser(ctx)
     const key = (n: string, f: string) => `${n.trim().toLowerCase()}\u0000${f.trim().toLowerCase()}`
     const seen = new Set((await ctx.db.query('investors').collect()).map((i) => key(i.name, i.firm)))
     const today = todayIST()
     let added = 0
+    const ids: Id<'investors'>[] = []
     for (const r of rows) {
       const body = clean(r)
       if (!body.name || seen.has(key(body.name, body.firm))) continue
@@ -74,9 +78,14 @@ export const importMany = mutation({
       const { lastTouch, maxStage, logStage: stage } = applySave(null, body, today)
       const id = await ctx.db.insert('investors', { ...body, lastTouch, maxStage, updatedAt: Date.now(), updatedBy: userId })
       if (stage) await logStage(ctx, id, stage, userId, today)
+      ids.push(id)
       added++
     }
-    return { added, skipped: rows.length - added }
+    if (added) {
+      const what = `${added} investor${added === 1 ? '' : 's'}${file ? ` from ${file.trim().slice(0, 120)}` : ''}`
+      await ctx.db.insert('settingsLog', { userId, at: Date.now(), field: 'import', from: '', to: what })
+    }
+    return { added, skipped: rows.length - added, ids }
   },
 })
 

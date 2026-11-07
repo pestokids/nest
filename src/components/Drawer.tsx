@@ -547,7 +547,7 @@ function EditForm({ inv, onDone, onCelebrate }: { inv: Investor | null; onDone: 
   const d = useRaise()
   const ui = useUI()
   // "New" from a Pipeline column's + starts in that column's stage.
-  const [form, setForm] = useState<Form>(() => toForm(inv ? fieldsOf(inv) : { ...NEW_INVESTOR, stage: ui.opening.stage ?? NEW_INVESTOR.stage }))
+  const [form, setForm] = useState<Form>(() => toForm(inv ? fieldsOf(inv) : { ...NEW_INVESTOR, stage: ui.opening.stage ?? NEW_INVESTOR.stage, name: ui.opening.name?.trim() ?? NEW_INVESTOR.name }))
   const [errors, setErrors] = useState<FormErrors>({})
   const [busy, setBusy] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)

@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppSplatRouteImport } from './routes/_app/$'
 import { Route as AppRaiseRouteImport } from './routes/_app/raise'
 import { Route as AppRaiseIndexRouteImport } from './routes/_app/raise/index'
 import { Route as AppRaiseInvestorsRouteImport } from './routes/_app/raise/investors'
@@ -26,6 +27,11 @@ const AppRoute = AppRouteImport.update({
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSplatRoute = AppSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
   getParentRoute: () => AppRoute,
 } as any)
 const AppRaiseRoute = AppRaiseRouteImport.update({
@@ -66,6 +72,7 @@ const AppRaiseTodayRoute = AppRaiseTodayRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
+  '/$': typeof AppSplatRoute
   '/raise': typeof AppRaiseRouteWithChildren
   '/raise/investors': typeof AppRaiseInvestorsRoute
   '/raise/pipeline': typeof AppRaisePipelineRoute
@@ -75,6 +82,7 @@ export interface FileRoutesByFullPath {
   '/raise/': typeof AppRaiseIndexRoute
 }
 export interface FileRoutesByTo {
+  '/$': typeof AppSplatRoute
   '/': typeof AppIndexRoute
   '/raise/investors': typeof AppRaiseInvestorsRoute
   '/raise/pipeline': typeof AppRaisePipelineRoute
@@ -86,6 +94,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
+  '/_app/$': typeof AppSplatRoute
   '/_app/raise': typeof AppRaiseRouteWithChildren
   '/_app/': typeof AppIndexRoute
   '/_app/raise/investors': typeof AppRaiseInvestorsRoute
@@ -99,6 +108,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/$'
     | '/raise'
     | '/raise/investors'
     | '/raise/pipeline'
@@ -108,6 +118,7 @@ export interface FileRouteTypes {
     | '/raise/'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/$'
     | '/'
     | '/raise/investors'
     | '/raise/pipeline'
@@ -118,6 +129,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/_app'
+    | '/_app/$'
     | '/_app/raise'
     | '/_app/'
     | '/_app/raise/investors'
@@ -146,6 +158,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/$': {
+      id: '/_app/$'
+      path: '/$'
+      fullPath: '/$'
+      preLoaderRoute: typeof AppSplatRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/raise': {
@@ -223,11 +242,13 @@ const AppRaiseRouteWithChildren = AppRaiseRoute._addFileChildren(
 )
 
 interface AppRouteChildren {
+  AppSplatRoute: typeof AppSplatRoute
   AppRaiseRoute: typeof AppRaiseRouteWithChildren
   AppIndexRoute: typeof AppIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppSplatRoute: AppSplatRoute,
   AppRaiseRoute: AppRaiseRouteWithChildren,
   AppIndexRoute: AppIndexRoute,
 }

@@ -7,7 +7,15 @@
 //   &today=nothingdue|win    Raise · Today states
 //   &drawer=<state>          the investor drawer: view, edit, new, advance, touch, history, delete
 //   &sheet                   the drawer as the phone bottom sheet at any width
+//   &investors=filtered|empty|bulk|exported|import1|import2|import3
+//   &plan=mid                mid-round: targets hit and missed
+//   &settings=errors         validation errors
+//   &system=cmdk|cmdk-empty|cmdk-none|offline|savefailed|loading
+//   &fail                    every write fails (save-failed toast with Retry)
+//   any unknown path         the 404, e.g. /nowhere?preview
+import { useEffect } from 'react'
 import { AppShell } from '../components/AppShell'
+import { useSaveAction } from '../components/system/useSaveAction'
 import { PreviewData, type PreviewHome } from '../components/PreviewData'
 import { LocalSounds, SessionContext } from '../components/session'
 import { SignIn, SIGN_IN_STATES, type SignInState } from '../components/SignIn'
@@ -31,7 +39,8 @@ export function Preview() {
   const home = (q.get('home') ?? 'default') as PreviewHome
   const today = (PREVIEW_TODAY as readonly string[]).includes(q.get('today') ?? '') ? (q.get('today') as PreviewToday) : 'default'
   const drawer = (PREVIEW_DRAWER as readonly string[]).includes(q.get('drawer') ?? '') ? (q.get('drawer') as PreviewDrawer) : undefined
-  const state = { today, drawer, sheet: q.has('sheet') }
+  const state = { today, drawer, sheet: q.has('sheet'), investors: q.get('investors'), plan: q.get('plan'), settings: q.get('settings'), system: q.get('system') }
+  const extra = { loading: state.system === 'loading', mid: state.plan === 'mid', fail: q.has('fail') }
   return (
     <LocalSounds>
       <SessionContext.Provider value={session}>
@@ -41,11 +50,21 @@ export function Preview() {
             home={home}
             today={today}
             board={sessionStorage.getItem('nest_preview_board') === '1'}
+            extra={extra}
           >
-            <AppShell />
+            <AppShell>{state.system === 'savefailed' ? <FailOnce /> : null}</AppShell>
           </PreviewData>
         </PreviewStateContext.Provider>
       </SessionContext.Provider>
     </LocalSounds>
   )
+}
+
+/** &system=savefailed: one write that fails, so the toast with Retry shows. */
+function FailOnce() {
+  const save = useSaveAction()
+  useEffect(() => {
+    void save(() => Promise.reject(new Error('preview')), { failMessage: 'Couldn’t move Lantern Ventures. It’s back in Intro.' })
+  }, [save])
+  return null
 }

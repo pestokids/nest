@@ -27,7 +27,16 @@ export const METRIC_LABEL: Record<Metric, string> = Object.fromEntries(
 ) as Record<Metric, string>
 
 export type PhaseTarget = { l: string; m: Metric; t: number }
-export type Phase = { k: string; name: string; from: string; to: string; targets: PhaseTarget[]; todo: string[] }
+export type Phase = {
+  k: string
+  name: string
+  from: string
+  to: string
+  targets: PhaseTarget[]
+  todo: string[]
+  /** One line on the Plan card, e.g. "List of 150, warm paths for 100." Optional; older rows don't have it. */
+  goal?: string
+}
 
 export type Round = {
   target: number
@@ -190,6 +199,7 @@ export function fieldLabel(path: string): string {
     if (rest[0] === 'name') return `${ph} name`
     if (rest[0] === 'from') return `${ph} start`
     if (rest[0] === 'to') return `${ph} end`
+    if (rest[0] === 'goal') return `${ph} goal`
     if (rest[0] === 'todo') return `${ph} · to-do ${Number(rest[1]) + 1}`
     if (rest[0] === 'targets') {
       const what = { l: 'label', m: 'measure', t: 'target' }[rest[2] ?? ''] ?? ''

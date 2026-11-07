@@ -12,6 +12,10 @@ import raise from '../styles/raise.css?url'
 import pipeline from '../styles/pipeline.css?url'
 import today from '../styles/today.css?url'
 import drawer from '../styles/drawer.css?url'
+import system from '../styles/system.css?url'
+import investors from '../styles/investors.css?url'
+import plan from '../styles/plan.css?url'
+import settings from '../styles/settings.css?url'
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
@@ -30,7 +34,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: 'stylesheet',
         href: 'https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap',
       },
-      ...[tokens, base, motion, ui, shell, signin, home, raise, pipeline, today, drawer].map((href) => ({ rel: 'stylesheet', href })),
+      ...[tokens, base, motion, ui, shell, signin, home, raise, pipeline, today, drawer, system, investors, plan, settings].map((href) => ({ rel: 'stylesheet', href })),
     ],
   }),
   component: () => (

@@ -46,6 +46,7 @@ export const vPhase = v.object({
   to: v.string(),
   targets: v.array(v.object({ l: v.string(), m: vMetric, t: v.number() })),
   todo: v.array(v.string()),
+  goal: v.optional(v.string()),
 })
 
 export const vOdds = v.object({

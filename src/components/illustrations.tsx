@@ -104,7 +104,7 @@ export const Mug = (p: IlloProps) => (
 export const NestEmpty = (p: IlloProps) => (
   <svg {...svg(96, 84, p)}>
     <ellipse cx="48" cy="56" rx="42" ry="11" fill="#7A4A22"/>
-    <g transform="rotate(-28 50 46)"><path d="M50 30 C58 36 60 48 52 60 C44 50 43 38 50 30 Z" fill="#A9EC19"/><path d="M50 30 C58 36 60 48 52 60 C55 48 54 38 50 30 Z" fill="#86C20F"/><path d="M50.5 34 L52 64" stroke="#0A5540" strokeWidth="1.6" strokeLinecap="round"/></g>
+    <g className="illo-leaf"><g transform="rotate(-28 50 46)"><path d="M50 30 C58 36 60 48 52 60 C44 50 43 38 50 30 Z" fill="#A9EC19"/><path d="M50 30 C58 36 60 48 52 60 C55 48 54 38 50 30 Z" fill="#86C20F"/><path d="M50.5 34 L52 64" stroke="#0A5540" strokeWidth="1.6" strokeLinecap="round"/></g></g>
     <path d="M6 56 C8 72 29.099 80 48 80 C66.9 80 88 72 90 56 C80 64 64.8 66 48 66 C31.2 66 16 64 6 56 Z" fill="#C58B4A"/>
     <path d="M12.703 68.32 C30.351 74.32 65.648 74.32 83.296 68.32 C65.648 77.32 30.351 77.32 12.703 68.32 Z" fill="#9E6630"/>
     <path d="M17.642 72.24 C32.821 78.24 63.178 78.24 78.357 72.24 C63.178 81.24 32.821 81.24 17.642 72.24 Z" fill="#9E6630"/>

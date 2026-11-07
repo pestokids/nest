@@ -1,7 +1,9 @@
 // Screenshots of every screen in the dev-only ?preview mode (fake fixture data).
 // Usage: pnpm dev:web, then  node scripts/screenshots.mjs [baseUrl] [outDir] [filter]
 // Defaults: http://localhost:3000 and .context/screens (gitignored).
-import { mkdirSync } from 'node:fs'
+// Also checks every screen for sideways scroll and, on phones, tap targets under 44px;
+// findings go to <outDir>/checks.json and a summary is printed.
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { chromium } from 'playwright'
 
 const base = process.argv[2] ?? 'http://localhost:3000'
@@ -27,7 +29,49 @@ const SCREENS = [
   ['raise-investors', '/raise/investors?preview'],
   ['raise-plan', '/raise/plan?preview'],
   ['raise-settings', '/raise/settings?preview'],
+  // PST-268: Investors, Plan, Settings and the system states
+  ['investors-default', '/raise/investors?preview'],
+  ['investors-filtered', '/raise/investors?preview&investors=filtered'],
+  ['investors-no-results', '/raise/investors?preview&investors=empty'],
+  ['investors-bulk', '/raise/investors?preview&investors=bulk'],
+  ['investors-exported', '/raise/investors?preview&investors=exported'],
+  ['investors-import-1', '/raise/investors?preview&investors=import1'],
+  ['investors-import-2', '/raise/investors?preview&investors=import2'],
+  ['investors-import-3', '/raise/investors?preview&investors=import3'],
+  ['plan-default', '/raise/plan?preview'],
+  ['plan-mid', '/raise/plan?preview&plan=mid'],
+  ['settings-default', '/raise/settings?preview'],
+  ['settings-errors', '/raise/settings?preview&settings=errors'],
+  ['system-cmdk-empty', '/raise/today?preview&system=cmdk-empty'],
+  ['system-cmdk-results', '/raise/today?preview&system=cmdk'],
+  ['system-cmdk-none', '/raise/today?preview&system=cmdk-none'],
+  ['system-offline', '/raise/today?preview&system=offline'],
+  ['system-save-failed', '/raise/pipeline?preview&system=savefailed'],
+  ['system-loading', '/raise/today?preview&system=loading'],
+  ['system-loading-investors', '/raise/investors?preview&system=loading'],
+  ['system-404', '/nowhere?preview'],
 ]
+
+/** Sideways scroll, and (phones) visible controls smaller than 44 × 44. */
+const audit = (mobile) => {
+  const out = { sideways: document.documentElement.scrollWidth > innerWidth + 1 ? document.documentElement.scrollWidth - innerWidth : 0, small: [] }
+  if (!mobile) return out
+  const els = document.querySelectorAll('a[href], button, input:not([type=hidden]), select, textarea, [role=button], [role=option], summary')
+  for (const el of els) {
+    const r = el.getBoundingClientRect()
+    if (!r.width || !r.height || getComputedStyle(el).visibility === 'hidden') continue
+    // A visually small control can still have a 44px hit area from a parent label or a ::after.
+    const hit = el.closest('label') ?? el
+    const hr = hit.getBoundingClientRect()
+    const after = getComputedStyle(el, '::after')
+    const extra = after.content !== 'none' && after.position === 'absolute' ? Math.max(0, -parseFloat(after.top) || 0, -parseFloat(after.left) || 0) * 2 : 0
+    const w = Math.max(r.width, hr.width) + extra
+    const h = Math.max(r.height, hr.height) + extra
+    if (w < 44 || h < 44) out.small.push(`${el.tagName.toLowerCase()}${el.className && typeof el.className === 'string' ? '.' + el.className.split(' ')[0] : ''} "${(el.getAttribute('aria-label') || el.textContent || '').trim().slice(0, 30)}" ${Math.round(w)}×${Math.round(h)}`)
+  }
+  return out
+}
+const report = {}
 
 const browser = await chromium.launch()
 for (const size of SIZES) {
@@ -46,11 +90,18 @@ for (const size of SIZES) {
     // The win plays 700ms after load; catch it mid-confetti with the toast up.
     await page.waitForTimeout(name.endsWith('-win') ? 1000 : 900)
     // Full-page capture resizes the viewport, which re-snaps the phone moves carousel: keep the win at viewport size there.
-    const full = !name.startsWith('sign-in') && !name.startsWith('drawer-') && !(size.mobile && name.endsWith('-win'))
+    // Overlays (sheets, toasts, the palette, the bulk bar) are fixed to the viewport: shoot the viewport.
+    const full = !/^(sign-in|drawer-|system-cmdk|system-save|investors-(import|bulk|exported))/.test(name) && !(size.mobile && name.endsWith('-win'))
     await page.screenshot({ path: `${out}/${name}--${size.name}.png`, fullPage: full })
+    const a = await page.evaluate(audit, size.mobile)
+    if (a.sideways || a.small.length) report[`${name}--${size.name}`] = a
     process.stdout.write('.')
   }
   await ctx.close()
 }
 await browser.close()
+writeFileSync(`${out}/checks.json`, JSON.stringify(report, null, 2))
+const bad = Object.entries(report)
 console.log(`\nSaved to ${out}`)
+console.log(bad.length ? `Checks: ${bad.length} screen(s) with findings, see ${out}/checks.json` : 'Checks: no sideways scroll, no small tap targets')
+for (const [k, v] of bad) console.log(`  ${k}: ${v.sideways ? `scrolls sideways by ${v.sideways}px; ` : ''}${v.small.length ? `${v.small.length} small: ${v.small.slice(0, 4).join(', ')}` : ''}`)
