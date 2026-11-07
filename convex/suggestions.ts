@@ -4,19 +4,23 @@
 // logNote's touch, the drawer's domains) and keeps what Undo needs on the row.
 // The checks run every morning at 09:00 IST (crons.ts), after each Google sync
 // (googleSync.ts) and on demand (`run`). Other features add rows through
-// `addSuggestion`: enrichment, and later agents through the Nest MCP server.
-import { ConvexError, v, type Infer } from 'convex/values'
+// `addSuggestion` / `insertSuggestion`: enrichment, and agents through the Nest
+// MCP server (PST-276, convex/mcp.ts).
+import { ConvexError, v, type Infer, type ObjectType } from 'convex/values'
 import { internalMutation, mutation, query, type MutationCtx } from './_generated/server'
 import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
 import { requireUser } from './lib/access'
+import { autoEnrich, forgetInvestor } from './lib/enrichQueue'
+import { saveInvestor } from './investors'
 import { vSuggestionKind, vSuggestionPatch, vSuggestionSource, type vSuggestionUndo } from './validators'
 import { applyMove, applyUndo } from '../src/lib/board'
+import { dupKey } from '../src/lib/csv'
 import { isISODate, todayIST } from '../src/lib/dates'
 import { cleanDomains, cleanEmails, DAY_MS } from '../src/lib/google'
-import { touchDay } from '../src/lib/pipeline'
+import { NEW_INVESTOR, touchDay } from '../src/lib/pipeline'
 import { IDX } from '../src/lib/stages'
-import { acceptsTogether, CHECK_PREFIX, reconcile, ruleSuggestions, sortSuggestions, type SuggestionDraft } from '../src/lib/suggestions'
+import { acceptsTogether, CHECK_PREFIX, reconcile, ruleSuggestions, sortSuggestions, sourceLabel, type SuggestionDraft } from '../src/lib/suggestions'
 
 type Row = Doc<'suggestions'>
 type Inv = Doc<'investors'>
@@ -163,10 +167,25 @@ async function merge(ctx: MutationCtx, keep: Inv, drop: Inv, stamp: Stamp): Prom
   return { op: 'merge', dropId: _id, dropped, activityIds: acts.map((a) => a._id), meetings, threads, keepKeys, keepBefore }
 }
 
+/**
+ * PST-276: an agent's add_investor. Creates the investor with the usual write
+ * (and looks them up like any new one), unless someone with that name and firm
+ * is on the list by now. The row then points at the new investor, for Undo.
+ */
+async function addInvestor(ctx: MutationCtx, s: Row, p: Extract<Row['patch'], { op: 'new_investor' }>, userId: Id<'users'>): Promise<Undo | null> {
+  const key = dupKey(p.name, p.firm)
+  if ((await ctx.db.query('investors').collect()).some((i) => dupKey(i.name, i.firm) === key)) return null
+  const investorId = await saveInvestor(ctx, userId, undefined, { ...NEW_INVESTOR, name: p.name, firm: p.firm, email: p.email, notes: p.note ?? '', source: `Suggested by ${sourceLabel(s)}` })
+  await autoEnrich(ctx, [investorId])
+  await ctx.db.patch(s._id, { investorId })
+  return { op: 'new_investor', investorId }
+}
+
 /** Apply one suggestion's patch. Null when it no longer fits (the investor is gone, or the stage moved since). */
 async function apply(ctx: MutationCtx, s: Row, userId: Id<'users'>): Promise<Undo | null> {
   const p = s.patch
   if (p.op === 'review') throw new ConvexError('This one needs a look in the drawer.')
+  if (p.op === 'new_investor') return await addInvestor(ctx, s, p, userId)
   const i = s.investorId ? await ctx.db.get(s.investorId) : null
   if (!i) return null
   const today = todayIST()
@@ -277,6 +296,13 @@ async function revert(ctx: MutationCtx, s: Row, u: Undo, userId: Id<'users'>): P
       await ctx.db.patch(i._id, { lastTouch: u.lastTouch, ...stamp })
       return
     }
+    case 'new_investor': {
+      for (const a of await ctx.db.query('activities').withIndex('by_investor', (q) => q.eq('investorId', i._id)).collect()) await ctx.db.delete(a._id)
+      await ctx.db.delete(i._id)
+      await forgetInvestor(ctx, i._id)
+      if (i.email) await ctx.scheduler.runAfter(0, internal.google.rematch, { rescan: false })
+      return
+    }
     case 'merge': {
       const back = await ctx.db.insert('investors', u.dropped)
       for (const a of u.activityIds) if (await ctx.db.get(a)) await ctx.db.patch(a, { investorId: back })
@@ -303,7 +329,8 @@ export const undo = mutation({
         if (!s.undo) throw new ConvexError('That one can’t be undone.')
         otherInvestorId = (await revert(ctx, s, s.undo, userId)) ?? otherInvestorId
       }
-      await ctx.db.patch(id, { status: 'open', decidedAt: undefined, decidedBy: undefined, undo: undefined, otherInvestorId })
+      const created = s.undo?.op === 'new_investor' ? { investorId: undefined } : {}
+      await ctx.db.patch(id, { status: 'open', decidedAt: undefined, decidedBy: undefined, undo: undefined, otherInvestorId, ...created })
       n++
     }
     return n
@@ -312,34 +339,35 @@ export const undo = mutation({
 
 /* ---------- for other features ---------- */
 
+const suggestionArgs = {
+  kind: vSuggestionKind,
+  investorId: v.optional(v.id('investors')),
+  otherInvestorId: v.optional(v.id('investors')),
+  title: v.string(),
+  fix: v.string(),
+  patch: vSuggestionPatch,
+  source: vSuggestionSource,
+  agentName: v.optional(v.string()),
+  safe: v.optional(v.boolean()),
+  key: v.string(),
+}
+
 /**
- * Add one suggestion from another feature: enrichment (PST-274), and later
- * agents through the Nest MCP server (source "agent" with `agentName`, shown
+ * Add one suggestion from another feature: enrichment (PST-274), and agents
+ * through the Nest MCP server (PST-276: source "agent" with `agentName`, shown
  * as "From Grok Bot"). Returns null when the key exists in any status, so
  * a dismissed suggestion never comes back. Merges, reviews, enrichment and
  * anything from an agent are never safe to accept in bulk.
  */
-export const addSuggestion = internalMutation({
-  args: {
-    kind: vSuggestionKind,
-    investorId: v.optional(v.id('investors')),
-    otherInvestorId: v.optional(v.id('investors')),
-    title: v.string(),
-    fix: v.string(),
-    patch: vSuggestionPatch,
-    source: vSuggestionSource,
-    agentName: v.optional(v.string()),
-    safe: v.optional(v.boolean()),
-    key: v.string(),
-  },
-  handler: async (ctx, a) => {
-    if (a.key.startsWith(CHECK_PREFIX)) throw new ConvexError(`Keys starting with “${CHECK_PREFIX}” belong to the rule checks.`)
-    const taken = await ctx.db
-      .query('suggestions')
-      .withIndex('by_key', (q) => q.eq('key', a.key))
-      .first()
-    if (taken) return null
-    const row = { ...a, title: a.title.trim().slice(0, 300), fix: a.fix.trim().slice(0, 200), agentName: a.agentName?.trim().slice(0, 60) || undefined }
-    return await ctx.db.insert('suggestions', { ...row, safe: !!a.safe && acceptsTogether({ ...row, safe: true }), status: 'open', createdAt: Date.now() })
-  },
-})
+export async function insertSuggestion(ctx: MutationCtx, a: ObjectType<typeof suggestionArgs>) {
+  if (a.key.startsWith(CHECK_PREFIX)) throw new ConvexError(`Keys starting with “${CHECK_PREFIX}” belong to the rule checks.`)
+  const taken = await ctx.db
+    .query('suggestions')
+    .withIndex('by_key', (q) => q.eq('key', a.key))
+    .first()
+  if (taken) return null
+  const row = { ...a, title: a.title.trim().slice(0, 300), fix: a.fix.trim().slice(0, 200), agentName: a.agentName?.trim().slice(0, 60) || undefined }
+  return await ctx.db.insert('suggestions', { ...row, safe: !!a.safe && acceptsTogether({ ...row, safe: true }), status: 'open', createdAt: Date.now() })
+}
+
+export const addSuggestion = internalMutation({ args: suggestionArgs, handler: insertSuggestion })

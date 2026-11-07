@@ -8,6 +8,7 @@ import { ChangeLog, MembersCard } from '../../../components/settings/SideCards'
 import { connectMessage, GoogleCard } from '../../../components/settings/GoogleCard'
 import { AICard, ClaudeSees } from '../../../components/settings/AICard'
 import { CapTableCard } from '../../../components/settings/CapTableCard'
+import { AgentsCard, ConnectAgentCard } from '../../../components/settings/AgentsCard'
 import { usePreviewState } from '../../../components/preview-state'
 import { useSaveAction } from '../../../components/system/useSaveAction'
 import { Button, Icon } from '../../../components/ui'
@@ -230,11 +231,13 @@ function Settings() {
         </div>
         <CapTableCard />
         <AICard />
+        <AgentsCard />
         <ChangeLog rows={log} />
       </div>
       <aside className="set-side">
         <GoogleCard />
         <ClaudeSees />
+        <ConnectAgentCard />
         <MembersCard members={members} />
       </aside>
     </section>

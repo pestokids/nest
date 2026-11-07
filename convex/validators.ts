@@ -87,6 +87,8 @@ export const vSuggestionPatch = v.union(
   v.object({ op: v.literal('expected'), amount: v.number() }),
   v.object({ op: v.literal('domain'), domain: v.string() }),
   v.object({ op: v.literal('touch'), touch: vTouch, note: v.string(), date: v.optional(v.string()) }),
+  // PST-276: an agent's add_investor.
+  v.object({ op: v.literal('new_investor'), name: v.string(), firm: v.string(), email: v.optional(v.string()), note: v.optional(v.string()) }),
   v.object({ op: v.literal('merge') }),
   v.object({ op: v.literal('review') }),
 )
@@ -94,9 +96,11 @@ const vIdsBefore = <T extends 'meetings' | 'emailTouches'>(table: T) => v.array(
 /** What Undo needs after an accept: the values it replaced, the activity it wrote, or the card a merge deleted. */
 export const vSuggestionUndo = v.union(
   v.object({ op: v.literal('stage'), to: vStage, from: v.object({ stage: vStage, lastTouch: v.optional(v.string()), maxStage: vPipelineStage }), activityId: v.optional(v.id('activities')) }),
-  // @@BT@@before@@BT@@ holds the old value of each key in @@BT@@keys@@BT@@; a key missing from it was empty.
+  // `before` holds the old value of each key in `keys`; a key missing from it was empty.
   v.object({ op: v.literal('fields'), keys: v.array(v.string()), before: v.any() }),
   v.object({ op: v.literal('touch'), activityId: v.id('activities'), lastTouch: v.optional(v.string()) }),
+  // PST-276: the investor an accepted new_investor created (Undo deletes it).
+  v.object({ op: v.literal('new_investor'), investorId: v.id('investors') }),
   v.object({
     op: v.literal('merge'),
     dropId: v.id('investors'),

@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { applyMove, applyUndo } from '../lib/board'
 import { todayIST } from '../lib/dates'
-import { applyAdvance, applySave, touchDay, type Activity, type Investor } from '../lib/pipeline'
+import { applyAdvance, applySave, NEW_INVESTOR, touchDay, type Activity, type Investor } from '../lib/pipeline'
 import { DEFAULT_ROUND, diffRound, mergeRound, type Round } from '../lib/round'
 import { LABEL } from '../lib/stages'
 import { fixtureActs, fixtureBoardExtras, fixtureInvestors, fixtureMembers, fixtureMid, fixtureRound } from '../preview/fixture'
@@ -20,6 +20,7 @@ import {
 import { fixtureCloseInvestors, type PreviewClose } from '../preview/closeFixture'
 import { RaiseContext, type LogRow, type RaiseData } from './data'
 import { PreviewQanda } from '../preview/PreviewQanda'
+import { useAgentsPreview, type PreviewAgents } from '../preview/agentsFixture'
 
 type Seed = { round?: Partial<Round>; investors: (Omit<Investor, '_id'> & { slug: string })[] }
 export type PreviewHome = 'default' | 'firstrun' | 'prepdone'
@@ -34,7 +35,7 @@ const stamp = (now: number) => (d: SuggestionDraft, k: number): Suggestion => ({
 
 /** `board`: add the Pipeline board's extra fake cards (`&pipeline=…`). `today`: the Raise · Today preview state. `extra`: the Investors, Plan and system states. */
 export function PreviewData({
-  source, home = 'default', board = false, today: todayState = 'default', extra = {}, google: googleState = 'none', suggestions: suggestionsState = 'default', ai: aiState = 'default', close = null, children,
+  source, home = 'default', board = false, today: todayState = 'default', extra = {}, google: googleState = 'none', suggestions: suggestionsState = 'default', ai: aiState = 'default', close = null, agents: agentsState = 'default', children,
 }: {
   source: 'fixture' | 'seed'
   home?: PreviewHome
@@ -48,6 +49,8 @@ export function PreviewData({
   ai?: PreviewAI
   /** PST-283 `&close=…`: adds the closing investors. */
   close?: PreviewClose | null
+  /** PST-276 `&agents=…` */
+  agents?: PreviewAgents
   children: ReactNode
 }) {
   const [investors, setInvestors] = useState<Investor[] | null>(null)
@@ -147,7 +150,7 @@ export function PreviewData({
     latestActs.current = acts
   }, [investors, acts])
 
-  const value = useMemo<Omit<RaiseData, 'ai' | 'aiDo' | 'useInvestorAI'>>(() => {
+  const value = useMemo<Omit<RaiseData, 'ai' | 'aiDo' | 'useInvestorAI' | 'agents' | 'agentsDo' | 'useAgentActivity'>>(() => {
     const t = todayIST()
     let n = 0
     const act = (a: Omit<Activity, '_id' | 'date' | 'by'> & { date?: string }) => {
@@ -171,6 +174,13 @@ export function PreviewData({
       const all = latest.current ?? []
       const i = all.find((x) => x._id === s.investorId)
       const p = s.patch
+      if (p.op === 'new_investor') {
+        const key = (n: string, f: string) => `${n.trim().toLowerCase()}|${f.trim().toLowerCase()}`
+        if (all.some((x) => key(x.name, x.firm) === key(p.name, p.firm))) return null
+        const id = `pn${Date.now()}`
+        setInvestors((xs) => [...(xs ?? []), { ...NEW_INVESTOR, _id: id, maxStage: 'todo', name: p.name, firm: p.firm, email: p.email, notes: p.note ?? '', source: `Suggested by ${s.agentName ?? 'an agent'}`, _creationTime: Date.now() }])
+        return () => setInvestors((xs) => (xs ?? []).filter((x) => x._id !== id))
+      }
       if (!i || p.op === 'review') return null
       if (p.op === 'stage') {
         if (i.stage !== p.from) return null
@@ -364,8 +374,10 @@ export function PreviewData({
 
   // `&ai=…`: made-up enrichment; Keep writes through the preview's own save.
   const enrich = useAIPreview(aiState, investors, value.save, !!extra.fail)
+  // `&agents=…`: made-up agent keys and calls (Settings › Agents).
+  const agents = useAgentsPreview(agentsState, !!extra.fail)
   return (
-    <RaiseContext.Provider value={{ ...value, ...enrich }}>
+    <RaiseContext.Provider value={{ ...value, ...enrich, ...agents }}>
       <PreviewQanda fail={!!extra.fail}>{children}</PreviewQanda>
     </RaiseContext.Provider>
   )

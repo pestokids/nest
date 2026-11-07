@@ -6,6 +6,7 @@ import type { AIData, AISettings, InvestorAI } from '../lib/enrich'
 import type { Round, RoundChange } from '../lib/round'
 import type { Stage } from '../lib/stages'
 import type { Suggestion } from '../lib/suggestions'
+import type { AgentCall, AgentKeyRow, AgentScope, CreatedKey } from '../lib/agents'
 
 export type LogRow = RoundChange & { _id: string; at: number; by: string }
 
@@ -49,6 +50,18 @@ export type RaiseData = {
   aiDo: AIActions
   /** One investor's latest run, facts and people (the drawer). A hook. */
   useInvestorAI: (investorId: string | null) => InvestorAI | undefined
+  /** PST-276: agents' keys (never the keys themselves) and the server URL they connect to. */
+  agents: AgentsData
+  agentsDo: AgentActions
+  /** A key's last 50 calls, newest first. A hook. */
+  useAgentActivity: (keyId: string | null) => AgentCall[] | undefined
+}
+
+export type AgentsData = { loaded: boolean; serverUrl: string; keys: AgentKeyRow[] }
+export type AgentActions = {
+  /** Resolves with the key, the only time it's ever available. */
+  create: (name: string, scope: AgentScope) => Promise<CreatedKey>
+  revoke: (id: string) => Promise<unknown>
 }
 
 export type SuggestionActions = {

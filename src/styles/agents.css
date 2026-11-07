@@ -1,0 +1,70 @@
+/* Settings › Agents (PST-276): screens/raise-ai/settings-agents.png, settings-agent-key-created.png. */
+.set-agents__title { margin-top: 6px; }
+.set-agents__list { list-style: none; margin: 22px 0 0; padding: 0; }
+.set-agents__row { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 18px 0; border-top: 1px solid var(--line-default); }
+.set-agents__row:last-child { border-bottom: 1px solid var(--line-default); }
+.set-agents__avatar { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--surface-mint); font: 600 13px/1 var(--font-ui); color: var(--text-primary); }
+.set-agents__avatar.is-suggest { background: var(--brand-lime); }
+.set-agents__who { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.set-agents__head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.set-agents__name { font: 600 15px/1.3 var(--font-ui); color: var(--text-primary); overflow-wrap: anywhere; }
+.set-agents .chip--success { background: var(--brand-lime); color: var(--brand-forest); }
+.set-agents .chip--success .chip__dot { background: var(--brand-forest); }
+.set-agents__meta { font-size: 14px; line-height: 1.35; color: var(--text-secondary); }
+.set-agents__actions { display: flex; align-items: center; gap: 8px 48px; }
+.set-agents__link {
+  min-height: 44px; padding: 0; border: 0; background: none; cursor: pointer;
+  font: 600 15px/1 var(--font-ui); color: var(--brand-leaf);
+}
+.set-agents__link:hover:not(:disabled) { text-decoration: underline; text-underline-offset: 3px; }
+.set-agents__link:focus-visible { outline: 3px solid var(--brand-lime); outline-offset: 3px; border-radius: 6px; }
+.set-agents__link:disabled { opacity: 0.5; cursor: default; }
+.set-agents__link--danger { color: var(--state-error); }
+.set-agents__empty { margin-top: 20px; padding: 18px 20px; border-radius: var(--radius-small); background: var(--surface-cream); font-size: 14px; color: var(--text-secondary); }
+.set-agents__add { margin-top: 24px; }
+
+/* Dialogs: a new key, the key once, Activity. */
+.set-agents-dialog { width: min(640px, 100%); }
+.set-agents-dialog__title { margin-top: 8px; font: 800 28px/1.15 var(--font-display); color: var(--text-primary); }
+.set-agents-dialog__lede { margin: 10px 0 20px; font-size: 15px; color: var(--text-secondary); }
+.set-agents-dialog__label { margin: 18px 0 8px; }
+.set-agents-dialog__help { display: block; margin-top: 8px; }
+.set-agents-dialog__foot { display: flex; justify-content: flex-end; align-items: center; gap: 12px; flex-wrap: wrap; margin: 28px -32px -8px; padding: 20px 32px 0; border-top: 1px solid var(--line-default); }
+.set-agents-dialog__foot--split { justify-content: space-between; }
+.set-agents-key { display: flex; align-items: center; gap: 16px; min-height: 48px; padding: 4px 16px; border: 1px solid var(--line-default); border-radius: 12px; background: var(--surface-paper); }
+.set-agents-key__value { flex: 1; min-width: 0; font: 600 13px/1.4 var(--font-mono); letter-spacing: 0.02em; color: var(--text-primary); overflow-wrap: anywhere; user-select: all; }
+.set-agents-facts { display: grid; grid-template-columns: 118px minmax(0, 1fr); gap: 16px 0; margin: 24px 0 0; }
+.set-agents-facts dt { font-size: 14px; color: var(--text-secondary); }
+.set-agents-facts dd { margin: 0; font: 600 15px/1.3 var(--font-ui); color: var(--text-primary); overflow-wrap: anywhere; }
+.set-agents-calls { list-style: none; margin: 0; padding: 0; max-height: min(420px, 55vh); overflow-y: auto; }
+.set-agents-calls li { display: grid; grid-template-columns: 132px minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 44px; border-top: 1px solid var(--line-default); }
+.set-agents-calls__when { font: 600 12px/1 var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
+.set-agents-calls__what { font-size: 14px; color: var(--text-primary); }
+.set-agents-calls__ms { font-size: 13px; color: var(--text-muted); }
+
+/* Side card: Connect Grok Bot. */
+.set-connect { background: var(--surface-mint); border-color: var(--surface-mint); }
+.set-connect h2 { font: 700 20px/1.2 var(--font-display); }
+.set-connect__steps { list-style: none; margin: 22px 0 0; padding: 0; display: grid; gap: 22px; }
+.set-connect__steps > li { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 12px; }
+.set-connect__steps strong { display: block; font: 600 15px/1.3 var(--font-ui); color: var(--text-primary); }
+.set-connect__steps span:not(.set-connect__n) { display: block; margin-top: 4px; font-size: 14px; line-height: 1.35; color: var(--text-secondary); }
+.set-connect__n { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--brand-forest); font: 600 14px/1 var(--font-ui); color: var(--text-on-dark); }
+.set-connect__copy { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 2px 4px 2px 14px; border: 1px solid var(--line-default); border-radius: 10px; background: var(--surface-paper); }
+.set-connect__copy code { flex: 1; min-width: 0; font: 600 12px/1.3 var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-primary); overflow-wrap: anywhere; }
+.set-connect__copy .set-agents__link { padding: 0 10px; }
+.set-connect__sub { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--line-default); }
+.set-connect__can { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.set-connect__can li { display: flex; align-items: flex-start; gap: 10px; font-size: 15px; line-height: 1.35; color: var(--text-primary); }
+.set-connect__can li.is-never { color: var(--state-error); }
+.set-connect__box { flex: none; width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--line-default); background: var(--surface-white); }
+.set-connect__can .set-ai-sees__tick { border-radius: 6px; }
+
+@media (max-width: 720px) {
+  .set-agents__row { grid-template-columns: 40px minmax(0, 1fr); row-gap: 4px; }
+  .set-agents__actions { grid-column: 2; gap: 24px; }
+  .set-agents-dialog__foot { margin: 24px -20px 0; padding: 16px 20px 0; }
+  .set-agents-facts { grid-template-columns: 90px minmax(0, 1fr); }
+  .set-agents-calls li { grid-template-columns: minmax(0, 1fr) auto; row-gap: 2px; padding: 8px 0; }
+  .set-agents-calls__when { grid-column: 1 / -1; }
+}
