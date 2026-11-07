@@ -6,7 +6,7 @@ import { applyMove, applyUndo } from '../lib/board'
 import { todayIST } from '../lib/dates'
 import { NO_GOOGLE, withContact, type GoogleData } from '../lib/google'
 import { DEFAULT_ROUND } from '../lib/round'
-import { NO_AI, type AIData } from '../lib/enrich'
+import { NO_AI, type AIData, type Fit } from '../lib/enrich'
 import type { Suggestion } from '../lib/suggestions'
 import type { AgentScope } from '../lib/agents'
 import { RaiseContext, type RaiseData } from './data'
@@ -20,6 +20,8 @@ const useLog = (investorId: string | null) =>
 const useSettingsLog = () => useQuery(api.settings.log)
 const useMembers = () => useQuery(api.access.members)
 const useInvestorAI = (investorId: string | null) => useQuery(api.enrich.forInvestor, investorId ? { investorId: investorId as Id<'investors'> } : 'skip')
+const NO_FITS: Record<string, Fit> = {}
+const useFits = () => useQuery(api.priority.fits) ?? NO_FITS
 const useAgentActivity = (keyId: string | null) => useQuery(api.agents.activity, keyId ? { keyId: keyId as Id<'agentKeys'> } : 'skip')
 const NO_AGENTS = { loaded: false, serverUrl: '', keys: [] }
 const useAskRun = (runId: string | null) => useQuery(api.ask.get, runId ? { id: runId as Id<'askRuns'> } : 'skip')
@@ -169,6 +171,7 @@ export function ConvexData({ children }: { children: ReactNode }) {
       ai,
       aiDo,
       useInvestorAI,
+      useFits,
       agents,
       agentsDo,
       useAgentActivity,

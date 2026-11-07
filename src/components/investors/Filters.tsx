@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { openCommandPalette } from '../../lib/commandPalette'
 import { ALL, GEOS, STAGE_TILE, TIERS, TYPES, WARM, type Geo, type InvestorType, type Stage, type Tier, type Warmth } from '../../lib/stages'
+import { PRIORITY_FORMULA } from '../../lib/priority'
 import { Button, Icon, Kbd } from '../ui'
+import type { SortKey } from './InvestorList'
 import { Modal, useTitleId } from '../system/Modal'
 
 export type InvestorFilters = {
@@ -17,32 +19,54 @@ type Set = (patch: Partial<InvestorFilters>) => void
 
 const stageText = (v: InvestorFilters['stage']) => (v === 'live' ? 'Live' : v ? STAGE_TILE[v] : 'All')
 
-function Selects({ s, set }: { s: InvestorFilters; set: Set }) {
+/** The Sort menu (the column headers sort too). */
+const SORT_LABEL: Record<SortKey, string> = {
+  lastTouch: 'Last touch', priority: 'Priority', name: 'Name', type: 'Type', stage: 'Stage', wave: 'Wave', path: 'Warm path', nextStep: 'Next step', expected: 'Amount',
+}
+
+type SortProps = { sort: SortKey; onSort: (k: SortKey) => void }
+
+/** `priority`: the desktop bar shows Sort and Wave only, as in by-priority.png (the phone sheet keeps every filter). */
+function Selects({ s, set, sort, onSort, priority }: { s: InvestorFilters; set: Set; priority?: boolean } & SortProps) {
   return (
     <>
-      <span className={`select inv-select${s.stage ? ' is-on' : ''}`}>
-        <select aria-label="Stage" value={s.stage ?? ''} onChange={(e) => set({ stage: (e.target.value || undefined) as InvestorFilters['stage'] })}>
-          <option value="">Stage: All</option>
-          <option value="live">Stage: Live conversations</option>
-          {ALL.map((x) => (
-            <option key={x.k} value={x.k}>
-              Stage: {STAGE_TILE[x.k]}
+      <span className={`select inv-select inv-select--sort${sort === 'priority' ? ' is-on' : ''}`}>
+        <select aria-label="Sort" value={sort} onChange={(e) => onSort(e.target.value as SortKey)}>
+          {(Object.keys(SORT_LABEL) as SortKey[]).map((k) => (
+            <option key={k} value={k}>
+              Sort: {SORT_LABEL[k]}
             </option>
           ))}
         </select>
         <Icon name="chevron-down" size={16} className="select__chevron" />
       </span>
-      <span className={`select inv-select${s.type ? ' is-on' : ''}`}>
-        <select aria-label="Type" value={s.type ?? ''} onChange={(e) => set({ type: (e.target.value || undefined) as InvestorType })}>
-          <option value="">Type: All</option>
-          {TYPES.map((x) => (
-            <option key={x} value={x}>
-              Type: {x}
-            </option>
-          ))}
-        </select>
-        <Icon name="chevron-down" size={16} className="select__chevron" />
-      </span>
+      {priority ? null : (
+        <>
+          <span className={`select inv-select${s.stage ? ' is-on' : ''}`}>
+            <select aria-label="Stage" value={s.stage ?? ''} onChange={(e) => set({ stage: (e.target.value || undefined) as InvestorFilters['stage'] })}>
+              <option value="">Stage: All</option>
+              <option value="live">Stage: Live conversations</option>
+              {ALL.map((x) => (
+                <option key={x.k} value={x.k}>
+                  Stage: {STAGE_TILE[x.k]}
+                </option>
+              ))}
+            </select>
+            <Icon name="chevron-down" size={16} className="select__chevron" />
+          </span>
+          <span className={`select inv-select${s.type ? ' is-on' : ''}`}>
+            <select aria-label="Type" value={s.type ?? ''} onChange={(e) => set({ type: (e.target.value || undefined) as InvestorType })}>
+              <option value="">Type: All</option>
+              {TYPES.map((x) => (
+                <option key={x} value={x}>
+                  Type: {x}
+                </option>
+              ))}
+            </select>
+            <Icon name="chevron-down" size={16} className="select__chevron" />
+          </span>
+        </>
+      )}
       <span className={`select inv-select${s.wave ? ' is-on' : ''}`}>
         <select aria-label="Wave" value={s.wave ?? ''} onChange={(e) => set({ wave: e.target.value ? (Number(e.target.value) as 1 | 2 | 3) : undefined })}>
           <option value="">Wave: All</option>
@@ -59,7 +83,7 @@ function Selects({ s, set }: { s: InvestorFilters; set: Set }) {
 }
 
 /** Search, Stage/Type/Wave, the count and Export (raise-investors/*.png). Phones: search + a Filters sheet. */
-export function FilterBar({ s, set, count, onExport, exportLabel, active, onClear, resultCount }: {
+export function FilterBar({ s, set, sort, onSort, count, onExport, exportLabel, active, onClear, resultCount }: SortProps & {
   s: InvestorFilters
   set: Set
   count: string
@@ -82,8 +106,9 @@ export function FilterBar({ s, set, count, onExport, exportLabel, active, onClea
         </button>
       </label>
       <div className="inv-bar__selects">
-        <Selects s={s} set={set} />
+        <Selects s={s} set={set} sort={sort} onSort={onSort} priority={sort === 'priority'} />
       </div>
+      {sort === 'priority' ? <span className="inv-bar__hint">{PRIORITY_FORMULA}</span> : null}
       <button type="button" className={`inv-filters-btn${n ? ' is-on' : ''}`} onClick={() => setSheet(true)} aria-haspopup="dialog">
         <Icon name="filter" size={18} />
         Filters{n ? <span className="inv-filters-btn__n">{n}</span> : null}
@@ -101,7 +126,7 @@ export function FilterBar({ s, set, count, onExport, exportLabel, active, onClea
             Filters
           </h2>
           <div className="inv-sheet__selects">
-            <Selects s={s} set={set} />
+            <Selects s={s} set={set} sort={sort} onSort={onSort} />
           </div>
           <div className="inv-sheet__actions">
             {active ? (

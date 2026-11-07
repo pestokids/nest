@@ -55,6 +55,7 @@ import type * as noteReads from "../noteReads.js";
 import type * as notesSchema from "../notesSchema.js";
 import type * as prefs from "../prefs.js";
 import type * as prep from "../prep.js";
+import type * as priority from "../priority.js";
 import type * as qanda from "../qanda.js";
 import type * as seed from "../seed.js";
 import type * as settings from "../settings.js";
@@ -117,6 +118,7 @@ declare const fullApi: ApiFromModules<{
   notesSchema: typeof notesSchema;
   prefs: typeof prefs;
   prep: typeof prep;
+  priority: typeof priority;
   qanda: typeof qanda;
   seed: typeof seed;
   settings: typeof settings;

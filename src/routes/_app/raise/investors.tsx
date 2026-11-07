@@ -14,9 +14,12 @@ import { todayIST } from '../../../lib/dates'
 import { titleCase } from '../../../lib/palette'
 import { isQuiet } from '../../../lib/investorView'
 import type { Investor } from '../../../lib/pipeline'
+import { priorities, PRIORITY_FORMULA } from '../../../lib/priority'
 import { ACTIVE, GEOS, IDX, isStage, STAGE_TILE, TIERS, TYPES, WARMTHS, type Stage } from '../../../lib/stages'
 
-const SORT_KEYS: SortKey[] = ['name', 'type', 'stage', 'wave', 'path', 'lastTouch', 'nextStep', 'expected']
+const SORT_KEYS: SortKey[] = ['name', 'type', 'stage', 'wave', 'path', 'lastTouch', 'nextStep', 'expected', 'priority']
+/** Sorts that put the biggest first unless you flip them. */
+const DESC_FIRST = new Set<SortKey>(['lastTouch', 'expected', 'priority'])
 
 /** Filters and sort live in the URL, so a filtered view is a link. */
 export type InvestorSearch = InvestorFilters & {
@@ -54,6 +57,10 @@ function Investors() {
   const flags = usePreviewState()
   const today = todayIST()
   const inv = d.investors
+  const fits = d.useFits()
+  const byPriority = s.sort === 'priority'
+  // PST-284: scored against the whole list (the round's average check), whatever the filters show.
+  const prio = useMemo(() => (byPriority ? priorities(inv, fits, today) : undefined), [byPriority, inv, fits, today])
 
   const setSearch = useCallback((patch: Partial<InvestorSearch>) => navigate({ search: (prev) => ({ ...prev, ...patch }), replace: true }), [navigate])
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -107,17 +114,19 @@ function Investors() {
         (!s.wave || i.wave === s.wave),
     )
     const key = s.sort ?? 'lastTouch'
-    const dir = s.dir === 'asc' ? 1 : s.dir === 'desc' ? -1 : key === 'lastTouch' || key === 'expected' ? -1 : 1
+    const dir = s.dir === 'asc' ? 1 : s.dir === 'desc' ? -1 : DESC_FIRST.has(key) ? -1 : 1
     const closed = (i: Investor) => (i.stage === 'passed' || i.stage === 'parked' ? 1 : 0)
     const val = (i: Investor): string | number =>
-      key === 'stage' ? IDX[i.stage] ?? -1 : key === 'expected' ? +(i.expected || 0) : key === 'wave' ? i.wave : key === 'lastTouch' ? i.lastTouch || '' : String(i[key] ?? '').toLowerCase()
+      key === 'priority'
+        ? prio?.get(i._id)?.score ?? 0
+        : key === 'stage' ? IDX[i.stage] ?? -1 : key === 'expected' ? +(i.expected || 0) : key === 'wave' ? i.wave : key === 'lastTouch' ? i.lastTouch || '' : String(i[key] ?? '').toLowerCase()
     return out.sort((a, b) => {
       if (key === 'lastTouch' && closed(a) !== closed(b)) return closed(a) - closed(b)
       const x = val(a)
       const y = val(b)
       return (x > y ? 1 : x < y ? -1 : 0) * dir || a.name.localeCompare(b.name)
     })
-  }, [inv, only, q, s.stage, s.warmth, s.type, s.geo, s.tier, s.wave, s.sort, s.dir])
+  }, [inv, only, q, s.stage, s.warmth, s.type, s.geo, s.tier, s.wave, s.sort, s.dir, prio])
 
   useEffect(() => setLimit(PAGE), [q, s.stage, s.type, s.wave, s.warmth, s.geo, s.tier])
   // Drop selections that no longer exist (deleted elsewhere).
@@ -152,15 +161,19 @@ function Investors() {
 
   const sortBy = (k: SortKey) => {
     const cur = s.sort ?? 'lastTouch'
-    const curDir = s.dir ?? (cur === 'lastTouch' || cur === 'expected' ? 'desc' : 'asc')
-    setSearch({ sort: k, dir: cur === k ? (curDir === 'asc' ? 'desc' : 'asc') : k === 'lastTouch' || k === 'expected' ? 'desc' : 'asc' })
+    const curDir = s.dir ?? (DESC_FIRST.has(cur) ? 'desc' : 'asc')
+    setSearch({ sort: k, dir: cur === k ? (curDir === 'asc' ? 'desc' : 'asc') : DESC_FIRST.has(k) ? 'desc' : 'asc' })
   }
+  /** The Sort menu: each key in its own default direction. */
+  const pickSort = (k: SortKey) => setSearch({ sort: k === 'lastTouch' ? undefined : k, dir: undefined })
 
   return (
     <section className="inv">
       <FilterBar
         s={s}
         set={setSearch}
+        sort={s.sort ?? 'lastTouch'}
+        onSort={pickSort}
         count={countText}
         onExport={() => exportInvestors(selected.size ? inv.filter((i) => selected.has(i._id)) : rows.length && filtered ? rows : inv, toast)}
         exportLabel={selected.size ? 'Export selected' : filtered ? 'Export these' : 'Export CSV'}
@@ -169,6 +182,7 @@ function Investors() {
         resultCount={rows.length}
       />
       <FilterChips s={s} set={setSearch} onClear={clearAll} only={only ? only.size : 0} clearOnly={() => setOnly(null)} />
+      {byPriority ? <p className="inv-hint">{PRIORITY_FORMULA}</p> : null}
       <div className={`inv-card${rows.length ? '' : ' is-empty'}`}>
         <InvestorList
           rows={shown}
@@ -178,10 +192,11 @@ function Investors() {
           setSelected={setSelected}
           allIds={rows.map((i) => i._id)}
           sort={s.sort ?? 'lastTouch'}
-          dir={s.dir ?? ((s.sort ?? 'lastTouch') === 'lastTouch' || s.sort === 'expected' ? 'desc' : 'asc')}
+          dir={s.dir ?? (DESC_FIRST.has(s.sort ?? 'lastTouch') ? 'desc' : 'asc')}
           onSort={sortBy}
           onOpen={open}
           onMore={shown.length < rows.length ? () => setLimit((n) => n + PAGE) : undefined}
+          priority={prio}
         />
         {rows.length ? (
           <p className="inv-foot">{footer}</p>

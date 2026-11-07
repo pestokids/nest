@@ -17,6 +17,7 @@ import { sha256Hex } from './lib/agentKey'
 import { hasAIKey } from './lib/anthropic'
 import { CACHE_DAYS, capLeft, queue } from './lib/enrichQueue'
 import { loadRound } from './lib/round'
+import { keptFits } from './priority'
 import { parseAmount } from '../src/lib/agents'
 import { dupKey } from '../src/lib/csv'
 import { ladder, RUNG_LABEL, RUNGS } from '../src/lib/close'
@@ -27,6 +28,7 @@ import { dayLabel } from '../src/lib/investorView'
 import { KIND_LABEL, linkState } from '../src/lib/materials'
 import { money } from '../src/lib/money'
 import { dueDate, dueList, lastContact, quietFor, quietList } from '../src/lib/pipeline'
+import { priorities } from '../src/lib/priority'
 import { ACTIVE, LABEL, STAGE_KEYS, STAGE_TILE, TOUCH_LABEL, WARM, type TouchKind } from '../src/lib/stages'
 import type { SuggestionKind, SuggestionPatch } from '../src/lib/suggestions'
 import { nextMoves } from '../src/lib/today'
@@ -89,7 +91,11 @@ const brief = (i: Inv) => ({
 
 async function searchInvestors(ctx: QueryCtx, a: Args): Promise<Out> {
   const words = String(a.query ?? '').toLowerCase().split(/\s+/).filter(Boolean)
-  const found = (await investorsWithContact(ctx, Date.now()))
+  const now = Date.now()
+  const all = await investorsWithContact(ctx, now)
+  // PST-284: priority is scored against everyone (the round's average check), not just the matches.
+  const priority = priorities(all, await keptFits(ctx), todayIST(now))
+  const found = all
     .filter((i) => (!a.stage || i.stage === a.stage) && (!a.wave || i.wave === a.wave))
     .filter((i) => {
       const text = [i.name, i.firm, i.email ?? '', ...(i.emails ?? [])].join(' ').toLowerCase()
@@ -99,7 +105,7 @@ async function searchInvestors(ctx: QueryCtx, a: Args): Promise<Out> {
   return done(
     {
       count: found.length,
-      investors: found.slice(0, 50).map(brief),
+      investors: found.slice(0, 50).map((i) => ({ ...brief(i), priority: priority.get(i._id)!.score })),
       ...(found.length > 50 ? { note: `Showing 50 of ${found.length}. Narrow it down with query, stage or wave.` } : {}),
     },
     { investors: found.slice(0, 50).map((i) => i._id) },

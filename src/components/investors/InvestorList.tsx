@@ -3,6 +3,7 @@ import { enrichedCell, type InvestorRun } from '../../lib/enrich'
 import { agoLabel, isQuiet, nextLabel, subLine } from '../../lib/investorView'
 import { money } from '../../lib/money'
 import type { Investor } from '../../lib/pipeline'
+import { scoreBand, type Priority } from '../../lib/priority'
 import { play } from '../../lib/sound'
 import { ACTIVE, IDX, STAGE_TILE, STAGES } from '../../lib/stages'
 import { useRaise } from '../data'
@@ -11,9 +12,10 @@ import { Menu, type MenuItem } from '../system/Menu'
 import { useSaveAction } from '../system/useSaveAction'
 import { Chip, Icon, type ChipTone } from '../ui'
 
-export type SortKey = 'name' | 'type' | 'stage' | 'wave' | 'path' | 'lastTouch' | 'nextStep' | 'expected'
+export type SortKey = 'name' | 'type' | 'stage' | 'wave' | 'path' | 'lastTouch' | 'nextStep' | 'expected' | 'priority'
 
-const COLS: { k: SortKey | 'enriched'; label: string; className?: string }[] = [
+type Col = { k: SortKey | 'enriched' | 'why'; label: string; className?: string }
+const COLS: Col[] = [
   { k: 'name', label: 'Investor', className: 'c-name' },
   { k: 'type', label: 'Type', className: 'c-type' },
   { k: 'stage', label: 'Stage', className: 'c-stage' },
@@ -23,6 +25,16 @@ const COLS: { k: SortKey | 'enriched'; label: string; className?: string }[] = [
   { k: 'enriched', label: 'Enriched', className: 'c-enriched' },
   { k: 'nextStep', label: 'Next step', className: 'c-next' },
   { k: 'expected', label: 'Amount', className: 'c-amt' },
+]
+/** PST-284: Sort: Priority (raise-investors/by-priority.png). */
+const PRIORITY_COLS: Col[] = [
+  { k: 'name', label: 'Investor', className: 'c-name' },
+  { k: 'priority', label: 'Priority', className: 'c-prio' },
+  { k: 'why', label: 'Why', className: 'c-why' },
+  { k: 'stage', label: 'Stage', className: 'c-stage' },
+  { k: 'wave', label: 'Wave', className: 'c-wave' },
+  { k: 'expected', label: 'Check', className: 'c-amt' },
+  { k: 'nextStep', label: 'Next step', className: 'c-next' },
 ]
 
 function stageChip(i: Investor, quiet: boolean): { tone: ChipTone; dot: boolean } {
@@ -45,10 +57,12 @@ type Props = {
   onSort: (k: SortKey) => void
   onOpen: (id: string) => void
   onMore?: () => void
+  /** Sort: Priority: each row's score and why (the priority columns and the phone cards' score row). */
+  priority?: Map<string, Priority>
 }
 
 /** The investor table on desktop; a list of cards on phones. Rows open the drawer. */
-export function InvestorList({ rows, today, quietDays, selected, setSelected, allIds, sort, dir, onSort, onOpen, onMore }: Props) {
+export function InvestorList({ rows, today, quietDays, selected, setSelected, allIds, sort, dir, onSort, onOpen, onMore, priority }: Props) {
   const toggle = (id: string) =>
     setSelected((s) => {
       const n = new Set(s)
@@ -77,7 +91,7 @@ export function InvestorList({ rows, today, quietDays, selected, setSelected, al
 
   return (
     <>
-      <div className="inv-table" role="table" aria-label="Investors" aria-rowcount={allIds.length + 1}>
+      <div className={`inv-table${priority ? ' inv-table--prio' : ''}`} role="table" aria-label="Investors" aria-rowcount={allIds.length + 1}>
         <div className="inv-row inv-row--head" role="row">
           <span className="c-check" role="columnheader">
             <Box
@@ -87,8 +101,8 @@ export function InvestorList({ rows, today, quietDays, selected, setSelected, al
               onChange={() => setSelected(all ? new Set() : new Set(allIds))}
             />
           </span>
-          {COLS.map(({ k, label, className }) =>
-            k === 'enriched' ? (
+          {(priority ? PRIORITY_COLS : COLS).map(({ k, label, className }) =>
+            k === 'enriched' || k === 'why' ? (
               <span key={k} className={className + ' inv-head-label'} role="columnheader">
                 {label}
               </span>
@@ -106,12 +120,12 @@ export function InvestorList({ rows, today, quietDays, selected, setSelected, al
           </span>
         </div>
         {rows.map((i) => (
-          <Row key={i._id} i={i} run={runs.get(i._id)} today={today} quiet={isQuiet(i, today, quietDays)} checked={selected.has(i._id)} onCheck={() => toggle(i._id)} onOpen={() => onOpen(i._id)} />
+          <Row key={i._id} i={i} run={runs.get(i._id)} prio={priority?.get(i._id)} today={today} quiet={isQuiet(i, today, quietDays)} checked={selected.has(i._id)} onCheck={() => toggle(i._id)} onOpen={() => onOpen(i._id)} />
         ))}
       </div>
       <ul className="inv-cards" aria-label="Investors">
         {rows.map((i) => (
-          <CardRow key={i._id} i={i} today={today} quiet={isQuiet(i, today, quietDays)} checked={selected.has(i._id)} onCheck={() => toggle(i._id)} onOpen={() => onOpen(i._id)} />
+          <CardRow key={i._id} i={i} prio={priority?.get(i._id)} today={today} quiet={isQuiet(i, today, quietDays)} checked={selected.has(i._id)} onCheck={() => toggle(i._id)} onOpen={() => onOpen(i._id)} />
         ))}
       </ul>
       {onMore ? <div ref={more} className="inv-more" aria-hidden="true" /> : null}
@@ -119,14 +133,49 @@ export function InvestorList({ rows, today, quietDays, selected, setSelected, al
   )
 }
 
-type RowProps = { i: Investor; today: string; quiet: boolean; checked: boolean; onCheck: () => void; onOpen: () => void }
+type RowProps = { i: Investor; prio?: Priority; today: string; quiet: boolean; checked: boolean; onCheck: () => void; onOpen: () => void }
 
 const rowClass = (base: string, i: Investor, quiet: boolean, checked: boolean) =>
   [base, quiet && 'is-quiet', (i.stage === 'passed' || i.stage === 'parked') && 'is-closed', checked && 'is-selected'].filter(Boolean).join(' ')
 
-function Row({ i, run, today, quiet, checked, onCheck, onOpen }: RowProps & { run?: InvestorRun }) {
+function Row({ i, run, prio, today, quiet, checked, onCheck, onOpen }: RowProps & { run?: InvestorRun }) {
   const chip = stageChip(i, quiet)
   const enriched = enrichedCell(run)
+  if (prio)
+    return (
+      <div className={rowClass('inv-row', i, quiet, checked)} role="row" tabIndex={0} onClick={onOpen} onKeyDown={openOnKey(onOpen)} aria-label={`${i.name}, priority ${prio.score}, ${STAGE_TILE[i.stage]}`}>
+        <span className="c-check" role="cell" onClick={(e) => e.stopPropagation()}>
+          <Box checked={checked} onChange={onCheck} label={`Select ${i.name}`} />
+        </span>
+        <span className="c-name" role="cell">
+          <strong>{i.name}</strong>
+          <small>{subLine(i)}</small>
+        </span>
+        <span className="c-prio" role="cell">
+          <Score p={prio} />
+        </span>
+        <span className="c-why" role="cell">
+          <Why p={prio} />
+        </span>
+        <span className="c-stage" role="cell">
+          <Chip tone={chip.tone} dot={chip.dot} className="inv-stage">
+            {STAGE_TILE[i.stage]}
+          </Chip>
+        </span>
+        <span className="c-wave" role="cell">
+          W{i.wave}
+        </span>
+        <span className="c-amt" role="cell">
+          {i.expected ? money(i.expected) : '–'}
+        </span>
+        <span className="c-next" role="cell">
+          {nextLabel(i, today)}
+        </span>
+        <span className="c-more" role="cell" onClick={(e) => e.stopPropagation()}>
+          <RowMenu i={i} />
+        </span>
+      </div>
+    )
   return (
     <div className={rowClass('inv-row', i, quiet, checked)} role="row" tabIndex={0} onClick={onOpen} onKeyDown={openOnKey(onOpen)} aria-label={`${i.name}, ${STAGE_TILE[i.stage]}`}>
       <span className="c-check" role="cell" onClick={(e) => e.stopPropagation()}>
@@ -171,7 +220,31 @@ function Row({ i, run, today, quiet, checked, onCheck, onOpen }: RowProps & { ru
   )
 }
 
-function CardRow({ i, today, quiet, checked, onCheck, onOpen }: RowProps) {
+/** The score pill and its bar: dark from 80, green from 55, grey below. */
+function Score({ p }: { p: Priority }) {
+  return (
+    <span className={`prio prio--${scoreBand(p.score)}`} title="Priority out of 100">
+      <span className="prio__n">{p.score}</span>
+      <span className="prio__bar" aria-hidden="true">
+        <span style={{ width: `${p.score}%` }} />
+      </span>
+    </span>
+  )
+}
+
+function Why({ p }: { p: Priority }) {
+  return (
+    <span className="prio-why">
+      {p.chips.map((c) => (
+        <span key={c.label} className={`prio-chip prio-chip--${c.tone}`}>
+          {c.label}
+        </span>
+      ))}
+    </span>
+  )
+}
+
+function CardRow({ i, prio, today, quiet, checked, onCheck, onOpen }: RowProps) {
   const chip = stageChip(i, quiet)
   return (
     <li className={rowClass('inv-c', i, quiet, checked)}>
@@ -184,6 +257,12 @@ function CardRow({ i, today, quiet, checked, onCheck, onOpen }: RowProps) {
           <span className="inv-c__amt">{i.expected ? money(i.expected) : '–'}</span>
         </div>
         <small className="inv-c__sub">{subLine(i)}</small>
+        {prio ? (
+          <div className="inv-c__prio">
+            <Score p={prio} />
+            <Why p={prio} />
+          </div>
+        ) : null}
         <div className="inv-c__chips">
           <Chip tone={chip.tone} dot={chip.dot} className="inv-stage">
             {STAGE_TILE[i.stage]}

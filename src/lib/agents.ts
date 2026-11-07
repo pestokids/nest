@@ -53,7 +53,7 @@ export const AGENT_TOOLS: readonly AgentTool[] = [
     title: 'Search investors',
     scope: 'read',
     description:
-      'Find investors in the raise. Returns each one’s id, name, firm, stage, wave, next step (with its date) and last touch (the latest of a logged touch, an email and a past meeting). Leave the filters out to list everyone. At most 50 come back.',
+      'Find investors in the raise. Returns each one’s id, name, firm, stage, wave, next step (with its date), last touch (the latest of a logged touch, an email and a past meeting) and priority (0–100, the Investors list’s Sort: Priority: fit × warmth × check size × recent activity). Leave the filters out to list everyone. At most 50 come back.',
     inputSchema: {
       type: 'object',
       properties: {
