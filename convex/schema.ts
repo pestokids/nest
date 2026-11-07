@@ -4,6 +4,7 @@ import { v } from 'convex/values'
 import { aiSettingsFields, enrichTables } from './enrichSchema'
 import { roundFields, vGeo, vMeetingAnswer, vPipelineStage, vStage, vSyncSource, vTier, vTouch, vType, vWarmth, vWave } from './validators'
 import { vSuggestionKind, vSuggestionPatch, vSuggestionSource, vSuggestionStatus, vSuggestionUndo } from './validators'
+import { vAnswerVersion, vAskSource, vQuestionMerge } from './validators'
 
 export default defineSchema({
   ...authTables,
@@ -173,4 +174,59 @@ export default defineSchema({
 
   // ---------- PST-274: investor enrichment (people, enrichRuns, facts) ----------
   ...enrichTables,
+
+  /* ---------- PST-281: Q&A bank, meeting notes and prep brief ---------- */
+
+  // The questions investors ask and the best answer to each (convex/qanda.ts).
+  // Removed and merged-away rows stay (removedAt, mergedInto) so Undo can put them back; lists leave them out.
+  questions: defineTable({
+    text: v.string(),
+    /** One of THEMES in src/lib/qanda.ts, or a custom one. */
+    theme: v.string(),
+    /** Empty until answered ("Need an answer"). */
+    bestAnswer: v.string(),
+    /** Every answer saved, oldest first, the current one included. */
+    answerVersions: v.array(vAnswerVersion),
+    /** e.g. "p8 · Pricing". */
+    slideRef: v.optional(v.string()),
+    onDeck: v.boolean(),
+    /** How many asks (questionAsks rows) it has. */
+    askedCount: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    /** On the deck-gaps list ("Add to deck vN"). */
+    deckGap: v.optional(v.object({ deck: v.number(), at: v.number() })),
+    removedAt: v.optional(v.number()),
+    /** Merged into another question ("same question"); `merge` holds what Undo needs. */
+    mergedInto: v.optional(v.id('questions')),
+    merge: v.optional(vQuestionMerge),
+  }),
+
+  // Each time an investor asked a question: from meeting notes, by hand, or a meeting.
+  questionAsks: defineTable({
+    questionId: v.id('questions'),
+    investorId: v.id('investors'),
+    date: v.string(),
+    source: vAskSource,
+    noteId: v.optional(v.id('notes')),
+    /** The line of the note it was picked from. */
+    noteLine: v.optional(v.number()),
+  })
+    .index('by_question', ['questionId'])
+    .index('by_investor', ['investorId'])
+    .index('by_note', ['noteId']),
+
+  // Meeting notes per investor (pasted for now; Wispr Flow import is PST-277).
+  notes: defineTable({
+    investorId: v.id('investors'),
+    meetingId: v.optional(v.id('meetings')),
+    date: v.string(),
+    text: v.string(),
+    /** Which meeting, e.g. "1st meeting". */
+    title: v.optional(v.string()),
+    createdBy: v.id('users'),
+    removedAt: v.optional(v.number()),
+  }).index('by_investor', ['investorId']),
+
+  /* ---------- end PST-281 ---------- */
 })

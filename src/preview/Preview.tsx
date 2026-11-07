@@ -5,7 +5,7 @@
 //   &pipeline=hidden|shown|end  Pipeline board states (adds a few fake cards; see components/pipeline/preview.ts)
 //   &stage=<key>             with &pipeline on a phone: the stage chip that starts selected
 //   &today=nothingdue|win    Raise · Today states
-//   &drawer=<state>          the investor drawer: view, edit, new, advance, touch, history, emails, delete
+//   &drawer=<state>          the investor drawer: view, edit, new, advance, touch, history, emails, notes, delete
 //   &google=<state>          Calendar and Gmail: none (default), connected, syncing, reconnect (&drawer=emails implies connected)
 //   &sheet                   the drawer as the phone bottom sheet at any width
 //   &investors=filtered|empty|bulk|enrich|exported|import1|import2|import3  (enrich: pair with &ai=bulk)
@@ -15,6 +15,8 @@
 //   &suggestions=all|tidy|none|agent  Suggested fixes: the list open, cleared ("All tidy."), none (no card), an agent's row arriving
 //   &ai=enriching|review|nokey|bulk  investor enrichment: a run in progress, facts to review, AI not set up, four enriching
 //                            (default: Kite Angels enriched; with &google=connected Today shows Who's this? lookups)
+//   &qanda=empty|answer|edit|new|same|prep  Q&A: an empty bank, the Answer panel (new question, edit with earlier answers, add),
+//                            Same as another, Today's prep brief (implies &google=connected). &drawer=notes for the Notes tab
 //   &fail                    every write fails (save-failed toast with Retry)
 //   any unknown path         the 404, e.g. /nowhere?preview
 import { useEffect } from 'react'
@@ -47,9 +49,9 @@ export function Preview() {
   const today = (PREVIEW_TODAY as readonly string[]).includes(q.get('today') ?? '') ? (q.get('today') as PreviewToday) : 'default'
   const drawer = (PREVIEW_DRAWER as readonly string[]).includes(q.get('drawer') ?? '') ? (q.get('drawer') as PreviewDrawer) : undefined
   const suggestions = (PREVIEW_SUGGESTIONS as readonly string[]).includes(q.get('suggestions') ?? '') ? (q.get('suggestions') as PreviewSuggestions) : 'default'
-  const state = { today, drawer, sheet: q.has('sheet'), investors: q.get('investors'), plan: q.get('plan'), settings: q.get('settings'), system: q.get('system'), suggestions }
+  const state = { today, drawer, sheet: q.has('sheet'), investors: q.get('investors'), plan: q.get('plan'), settings: q.get('settings'), system: q.get('system'), suggestions, qanda: q.get('qanda') }
   const extra = { loading: state.system === 'loading', mid: state.plan === 'mid', fail: q.has('fail') }
-  const google: PreviewGoogle = (PREVIEW_GOOGLE as readonly string[]).includes(q.get('google') ?? '') ? (q.get('google') as PreviewGoogle) : drawer === 'emails' ? 'connected' : 'none'
+  const google: PreviewGoogle = (PREVIEW_GOOGLE as readonly string[]).includes(q.get('google') ?? '') ? (q.get('google') as PreviewGoogle) : drawer === 'emails' || q.get('qanda') === 'prep' ? 'connected' : 'none'
   const ai: PreviewAI = (PREVIEW_AI as readonly string[]).includes(q.get('ai') ?? '') ? (q.get('ai') as PreviewAI) : 'default'
   return (
     <LocalSounds>

@@ -14,6 +14,7 @@ import { IDX, STAGE_TILE, STAGES, type Stage } from '../lib/stages'
 import { dayLabel } from '../lib/investorView'
 import { useRaise } from './data'
 import { WhoLookups } from './enrich/WhoLookups'
+import { PrepButton } from './qanda/PrepBrief'
 import { openOnKey, useUI } from './raise-ui'
 import { useSaveAction } from './system/useSaveAction'
 import { Badge, Button, Card, Icon } from './ui'
@@ -87,6 +88,7 @@ function Meetings({ today, now }: { today: string; now: number }) {
             <span className="gmeet__name">{invs.map((x) => x.name).join(' · ')}</span>
             <span className="gmeet__sub">{sub}</span>
           </div>
+          <PrepButton meeting={m} now={now} />
         </li>
       )
     }

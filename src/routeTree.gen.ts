@@ -17,6 +17,7 @@ import { Route as AppRaiseIndexRouteImport } from './routes/_app/raise/index'
 import { Route as AppRaiseInvestorsRouteImport } from './routes/_app/raise/investors'
 import { Route as AppRaisePipelineRouteImport } from './routes/_app/raise/pipeline'
 import { Route as AppRaisePlanRouteImport } from './routes/_app/raise/plan'
+import { Route as AppRaiseQandaRouteImport } from './routes/_app/raise/qanda'
 import { Route as AppRaiseSettingsRouteImport } from './routes/_app/raise/settings'
 import { Route as AppRaiseTodayRouteImport } from './routes/_app/raise/today'
 
@@ -59,6 +60,11 @@ const AppRaisePlanRoute = AppRaisePlanRouteImport.update({
   path: '/plan',
   getParentRoute: () => AppRaiseRoute,
 } as any)
+const AppRaiseQandaRoute = AppRaiseQandaRouteImport.update({
+  id: '/qanda',
+  path: '/qanda',
+  getParentRoute: () => AppRaiseRoute,
+} as any)
 const AppRaiseSettingsRoute = AppRaiseSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -77,6 +83,7 @@ export interface FileRoutesByFullPath {
   '/raise/investors': typeof AppRaiseInvestorsRoute
   '/raise/pipeline': typeof AppRaisePipelineRoute
   '/raise/plan': typeof AppRaisePlanRoute
+  '/raise/qanda': typeof AppRaiseQandaRoute
   '/raise/settings': typeof AppRaiseSettingsRoute
   '/raise/today': typeof AppRaiseTodayRoute
   '/raise/': typeof AppRaiseIndexRoute
@@ -87,6 +94,7 @@ export interface FileRoutesByTo {
   '/raise/investors': typeof AppRaiseInvestorsRoute
   '/raise/pipeline': typeof AppRaisePipelineRoute
   '/raise/plan': typeof AppRaisePlanRoute
+  '/raise/qanda': typeof AppRaiseQandaRoute
   '/raise/settings': typeof AppRaiseSettingsRoute
   '/raise/today': typeof AppRaiseTodayRoute
   '/raise': typeof AppRaiseIndexRoute
@@ -100,6 +108,7 @@ export interface FileRoutesById {
   '/_app/raise/investors': typeof AppRaiseInvestorsRoute
   '/_app/raise/pipeline': typeof AppRaisePipelineRoute
   '/_app/raise/plan': typeof AppRaisePlanRoute
+  '/_app/raise/qanda': typeof AppRaiseQandaRoute
   '/_app/raise/settings': typeof AppRaiseSettingsRoute
   '/_app/raise/today': typeof AppRaiseTodayRoute
   '/_app/raise/': typeof AppRaiseIndexRoute
@@ -113,6 +122,7 @@ export interface FileRouteTypes {
     | '/raise/investors'
     | '/raise/pipeline'
     | '/raise/plan'
+    | '/raise/qanda'
     | '/raise/settings'
     | '/raise/today'
     | '/raise/'
@@ -123,6 +133,7 @@ export interface FileRouteTypes {
     | '/raise/investors'
     | '/raise/pipeline'
     | '/raise/plan'
+    | '/raise/qanda'
     | '/raise/settings'
     | '/raise/today'
     | '/raise'
@@ -135,6 +146,7 @@ export interface FileRouteTypes {
     | '/_app/raise/investors'
     | '/_app/raise/pipeline'
     | '/_app/raise/plan'
+    | '/_app/raise/qanda'
     | '/_app/raise/settings'
     | '/_app/raise/today'
     | '/_app/raise/'
@@ -202,6 +214,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRaisePlanRouteImport
       parentRoute: typeof AppRaiseRoute
     }
+    '/_app/raise/qanda': {
+      id: '/_app/raise/qanda'
+      path: '/qanda'
+      fullPath: '/raise/qanda'
+      preLoaderRoute: typeof AppRaiseQandaRouteImport
+      parentRoute: typeof AppRaiseRoute
+    }
     '/_app/raise/settings': {
       id: '/_app/raise/settings'
       path: '/settings'
@@ -223,6 +242,7 @@ interface AppRaiseRouteChildren {
   AppRaiseInvestorsRoute: typeof AppRaiseInvestorsRoute
   AppRaisePipelineRoute: typeof AppRaisePipelineRoute
   AppRaisePlanRoute: typeof AppRaisePlanRoute
+  AppRaiseQandaRoute: typeof AppRaiseQandaRoute
   AppRaiseSettingsRoute: typeof AppRaiseSettingsRoute
   AppRaiseTodayRoute: typeof AppRaiseTodayRoute
   AppRaiseIndexRoute: typeof AppRaiseIndexRoute
@@ -232,6 +252,7 @@ const AppRaiseRouteChildren: AppRaiseRouteChildren = {
   AppRaiseInvestorsRoute: AppRaiseInvestorsRoute,
   AppRaisePipelineRoute: AppRaisePipelineRoute,
   AppRaisePlanRoute: AppRaisePlanRoute,
+  AppRaiseQandaRoute: AppRaiseQandaRoute,
   AppRaiseSettingsRoute: AppRaiseSettingsRoute,
   AppRaiseTodayRoute: AppRaiseTodayRoute,
   AppRaiseIndexRoute: AppRaiseIndexRoute,

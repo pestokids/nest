@@ -5,11 +5,13 @@ import { todayIST } from '../../lib/dates'
 import { addressesOf, gmailSearchLink } from '../../lib/google'
 import { dayLabel, isQuiet } from '../../lib/investorView'
 import { matchScore, rankInvestors, searchNotes, searchSections, titleCase } from '../../lib/palette'
+import { searchQuestions } from '../../lib/qanda'
 import type { Investor } from '../../lib/pipeline'
 import { play } from '../../lib/sound'
 import { IDX, STAGE_TILE, STAGES } from '../../lib/stages'
 import { useRaise } from '../data'
 import { NestEmpty } from '../illustrations'
+import { useQanda } from '../qanda/data'
 import type { OpenOptions } from '../raise-ui'
 import { Icon, Kbd, useToast, type IconName } from '../ui'
 import { Modal } from './Modal'
@@ -60,7 +62,7 @@ export function CommandPalette() {
       const k = e.key.toLowerCase()
       if (Date.now() - g < 1200) {
         g = 0
-        const to = { h: '/', t: '/raise/today', p: '/raise/pipeline', i: '/raise/investors', l: '/raise/plan', s: '/raise/settings' }[k]
+        const to = { h: '/', t: '/raise/today', p: '/raise/pipeline', i: '/raise/investors', q: '/raise/qanda', l: '/raise/plan', s: '/raise/settings' }[k]
         if (to) {
           e.preventDefault()
           actions.go(to)
@@ -106,6 +108,8 @@ function usePaletteActions() {
       importCsv: () => void navigate({ to: '/raise/investors', search: { import: true } }),
       // PST-275: the suggestions list lives on Today.
       reviewSuggestions: () => void navigate({ to: '/raise/today', state: (s) => ({ ...s, suggestions: true }) }),
+      // PST-281: a question from the bank opens its Answer panel on Q&A.
+      openQuestion: (id: string) => void navigate({ to: '/raise/qanda', state: (s) => ({ ...s, question: id }) }),
       advance: (i: Investor) =>
         void save(() => d.advance(i._id), {
           failMessage: `Couldn’t move ${i.name}.`,
@@ -123,6 +127,7 @@ type Actions = ReturnType<typeof usePaletteActions>
 
 function Palette({ initial, onClose, actions, recentsFallback }: { initial: string; onClose: () => void; actions: Actions; recentsFallback: boolean }) {
   const { investors, round, google, suggestions } = useRaise()
+  const { questions } = useQanda()
   const [q, setQ] = useState(initial)
   const [active, setActive] = useState(0)
   const list = useRef<HTMLDivElement>(null)
@@ -190,8 +195,10 @@ function Palette({ initial, onClose, actions, recentsFallback }: { initial: stri
     if (sections.length) out.push({ title: 'Jump to', items: sections.map((s) => ({ id: 's-' + s.to, icon: 'arrow-right', label: `Go to ${s.label}`, keys: s.keys, run: close(() => actions.go(s.to)) })) })
     const notes = searchNotes(investors, query, new Set(found.map((i) => i._id)))
     if (notes.length) out.push({ title: 'In notes', items: notes.map(({ i, quote }) => ({ id: 'n-' + i._id, icon: 'note', label: `${i.name}: “${quote}”`, run: close(() => actions.openInvestor(i)) })) })
+    const asked = searchQuestions(questions, query, 3)
+    if (asked.length) out.push({ title: 'Questions', items: asked.map(({ q, quote }) => ({ id: 'q-' + q._id, icon: 'spark', label: q.text, meta: quote ?? (q.bestAnswer.trim() ? q.theme : 'Needs an answer'), run: close(() => actions.openQuestion(q._id)) })) })
     return out
-  }, [query, investors, actions, meta, onClose, recentsFallback, google, suggestions.length])
+  }, [query, investors, actions, meta, onClose, recentsFallback, google, suggestions.length, questions])
 
   const none = !!query && !groups.length
   const items: Item[] = none ? [{ id: 'add-new', icon: 'plus', label: `Add “${titleCase(query)}” as an investor`, keys: ['↵'], run: () => (onClose(), actions.addInvestor(titleCase(query))) }] : groups.flatMap((g) => g.items)
