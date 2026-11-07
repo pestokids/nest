@@ -1,0 +1,6 @@
+/* PST-285: Settings › Wispr Flow. The card shares Calendar and Gmail's look (set-google__*); these are its own bits. */
+.set-wispr__form { display: flex; flex-direction: column; gap: 16px; margin-top: 22px; }
+.set-wispr__form .field__help { font-size: 13px; }
+.set-wispr .set-google__account > svg { color: var(--text-secondary); }
+.set-wispr .set-google__account--warn > svg { color: var(--text-orange-deep); }
+.set-wispr .set-google__who strong { font-weight: 600; }

@@ -41,6 +41,7 @@ import type * as lib_enums from "../lib/enums.js";
 import type * as lib_googleApi from "../lib/googleApi.js";
 import type * as lib_jsonSchema from "../lib/jsonSchema.js";
 import type * as lib_mapLimit from "../lib/mapLimit.js";
+import type * as lib_mcpClient from "../lib/mcpClient.js";
 import type * as lib_noteRead from "../lib/noteRead.js";
 import type * as lib_notesPrompt from "../lib/notesPrompt.js";
 import type * as lib_pace from "../lib/pace.js";
@@ -63,6 +64,9 @@ import type * as suggestions from "../suggestions.js";
 import type * as validators from "../validators.js";
 import type * as viewer from "../viewer.js";
 import type * as viewerHttp from "../viewerHttp.js";
+import type * as wispr from "../wispr.js";
+import type * as wisprOAuth from "../wisprOAuth.js";
+import type * as wisprSchema from "../wisprSchema.js";
 
 import type {
   ApiFromModules,
@@ -104,6 +108,7 @@ declare const fullApi: ApiFromModules<{
   "lib/googleApi": typeof lib_googleApi;
   "lib/jsonSchema": typeof lib_jsonSchema;
   "lib/mapLimit": typeof lib_mapLimit;
+  "lib/mcpClient": typeof lib_mcpClient;
   "lib/noteRead": typeof lib_noteRead;
   "lib/notesPrompt": typeof lib_notesPrompt;
   "lib/pace": typeof lib_pace;
@@ -126,6 +131,9 @@ declare const fullApi: ApiFromModules<{
   validators: typeof validators;
   viewer: typeof viewer;
   viewerHttp: typeof viewerHttp;
+  wispr: typeof wispr;
+  wisprOAuth: typeof wisprOAuth;
+  wisprSchema: typeof wisprSchema;
 }>;
 
 /**

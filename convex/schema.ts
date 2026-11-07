@@ -8,6 +8,7 @@ import { agentTables } from './agentsSchema'
 import { notesReadTables, vNoteSource } from './notesSchema'
 import { draftTables } from './draftsSchema'
 import { askSettingsFields, askTables } from './askSchema'
+import { wisprTables } from './wisprSchema'
 import { roundFields, vGeo, vMeetingAnswer, vPipelineStage, vStage, vSyncSource, vTier, vTouch, vType, vWarmth, vWave } from './validators'
 import { vSuggestionKind, vSuggestionPatch, vSuggestionSource, vSuggestionStatus, vSuggestionUndo } from './validators'
 import { vAnswerVersion, vAskSource, vQuestionMerge } from './validators'
@@ -261,4 +262,8 @@ export default defineSchema({
   /* ---------- PST-279: Ask Nest and the morning brief (askRuns, briefs; see askSchema.ts) ---------- */
   ...askTables,
   /* ---------- end PST-279 ---------- */
+
+  /* ---------- PST-285: Wispr Flow notes (wisprConnections, wisprFetches; see wisprSchema.ts) ---------- */
+  ...wisprTables,
+  /* ---------- end PST-285 ---------- */
 })

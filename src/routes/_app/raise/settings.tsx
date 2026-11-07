@@ -9,6 +9,7 @@ import { connectMessage, GoogleCard } from '../../../components/settings/GoogleC
 import { AICard, ClaudeSees } from '../../../components/settings/AICard'
 import { CapTableCard } from '../../../components/settings/CapTableCard'
 import { AgentsCard, ConnectAgentCard } from '../../../components/settings/AgentsCard'
+import { WisprCard } from '../../../components/settings/WisprCard'
 import { usePreviewState } from '../../../components/preview-state'
 import { useSaveAction } from '../../../components/system/useSaveAction'
 import { Button, Icon } from '../../../components/ui'
@@ -236,6 +237,7 @@ function Settings() {
       </div>
       <aside className="set-side">
         <GoogleCard />
+        <WisprCard />
         <ClaudeSees />
         <ConnectAgentCard />
         <MembersCard members={members} />

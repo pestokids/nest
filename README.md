@@ -57,7 +57,7 @@ Screenshots of every preview screen at 1440 × 900, 440 × 956 and 412 × 915: r
 | `SITE_URL` | Where sign-in returns to: `http://localhost:3000` (dev), `https://nest.pestokids.com` (prod) |
 | `JWT_PRIVATE_KEY`, `JWKS` | Convex Auth signing keys: `node scripts/generate-auth-keys.mjs --set` (add `--prod` for production) |
 | `ANTHROPIC_API_KEY` | Optional. Turns on investor enrichment and Who's this? lookups (Claude with web search). Without it the app shows "AI isn't set up here" and nothing is sent anywhere. |
-| `GOOGLE_TOKEN_KEY` | Encrypts Google refresh tokens at rest (Calendar and Gmail). 32 random bytes, base64: `openssl rand -base64 32`. Set it straight into Convex; don't keep a copy anywhere else. Changing it means everyone reconnects. |
+| `GOOGLE_TOKEN_KEY` | Encrypts Google refresh tokens (Calendar and Gmail) and Wispr Flow's tokens at rest. 32 random bytes, base64: `openssl rand -base64 32`. Set it straight into Convex; don't keep a copy anywhere else. Changing it means everyone reconnects. |
 
 Google OAuth redirect URIs per deployment: `https://<deployment>.convex.site/api/auth/callback/google` (sign-in) and `https://<deployment>.convex.site/google/callback` (Connect Google). The Google Cloud project needs the Gmail API and the Google Calendar API turned on.
 
@@ -96,6 +96,30 @@ What Nest stores, per teammate who connects:
 - **Email touches**: only Gmail threads with an investor in them: subject, participants' email addresses, the date and sender of the last message, the message count and the Gmail link. Never bodies, snippets or attachments (the `gmail.metadata` scope can't read them anyway).
 
 Disconnecting (Settings → Disconnect) deletes your connection, your meetings and your email touches, and asks Google to revoke the grant. Stage moves that sync already made stay in each investor's History.
+
+## Wispr Flow notes
+
+Wispr Flow's Notetaker writes notes for your meetings. Nest fetches the note after each investor meeting and saves it on the investor, so nobody has to paste it. Nest's read then runs as it does for a pasted note (when "Read meeting notes" is on in Settings › AI), and everything it proposes waits in Suggestions. Wispr Flow has no API or webhooks, only a read-only remote MCP server with browser sign-in, so Nest connects to it as an MCP client, the same way Claude or ChatGPT do.
+
+**Connect it** (each teammate connects their own account):
+
+1. In Wispr Flow, open Settings › MCP and copy the server URL.
+2. In Nest, open Raise › Settings, paste it into the Wispr Flow card and click Connect.
+3. Sign in to Wispr Flow in the browser and approve Nest. You land back on Settings with "Wispr Flow connected"; Nest fetches the last 7 days straight away.
+
+"Fetch past 30 days" does the same for meetings that ended in the last 30 days. Disconnect forgets the connection and its tokens; notes already fetched stay on each investor. If Wispr Flow stops accepting Nest's sign-in, the card says "Needs reconnecting" and the fetch pauses until you click Reconnect.
+
+**How it works** (`convex/wispr.ts`, `convex/wisprOAuth.ts`, `convex/lib/mcpClient.ts`; rules in `src/lib/wispr.ts`):
+
+- Connect follows the MCP authorization spec: an unauthenticated call gets a 401 whose `WWW-Authenticate` names the protected resource metadata (RFC 9728), which names the authorization server (RFC 8414 metadata). Nest registers itself with dynamic client registration (RFC 7591) and signs in with OAuth 2.1, PKCE (S256) and the `resource` parameter. If the server doesn't offer dynamic client registration, Connect stops and says so; nothing is stored.
+- The sign-in comes back to `/wispr/callback`: `https://nest.pestokids.com/wispr/callback` in production (rewritten to Convex by `vercel.json` on the production host only, so preview deployments never reach production Convex) and `http://localhost:3000/wispr/callback` in dev (Vite proxies it to the dev deployment's `.convex.site`).
+- The client secret, the PKCE verifier and both tokens are encrypted at rest with `GOOGLE_TOKEN_KEY`, like Google's refresh token; no query returns them. An expired access token is refreshed before a run (and once more if the server answers 401). A refresh Wispr Flow refuses marks the connection "Needs reconnecting"; an outage is retried on the next run.
+- A cron every 15 minutes (`crons.ts`) runs one silent fetch per connected teammate. It covers their investor meetings (calendar meetings with an investor) that ended between 10 minutes and 7 days ago and have no Wispr note yet: first `get_meeting_by_calendar_id` with the Google event id, then, if that finds nothing, `search_meetings` around the meeting's time, taking the result that starts within 15 minutes of it and has the same title, and `get_meeting` for its notes. Tool arguments are always built from the input schemas `tools/list` returns, never from names written into Nest.
+- A note is saved through the same path as the `add_meeting_notes` MCP tool (source `wispr`): on the meeting and its investor when the meeting has exactly one, else wherever the notes matcher puts it, else in Unmatched notes on Today.
+- `wisprFetches` records each attempt (`convex/wisprSchema.ts`). The Wispr meeting id is the dedupe key, so the same note is never fetched or saved twice, Disconnect and Reconnect included. A meeting without a note is tried every run for the first hour, then hourly, then every 6 hours, and the cron stops trying 7 days after it ended.
+- Logs carry ids, counts and statuses only: never note text, titles or names.
+
+Preview: `/raise/settings?preview&wispr=off|connected|reconnect|fetching`.
 
 ## Suggested fixes
 

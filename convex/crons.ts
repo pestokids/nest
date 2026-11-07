@@ -8,4 +8,6 @@ crons.interval('google sync', { minutes: 10 }, internal.google.tick, {})
 crons.daily('suggestion checks', { hourUTC: 3, minuteUTC: 30 }, internal.suggestions.check, {})
 // PST-279: the morning brief on Today, at 08:00 IST (02:30 UTC).
 crons.daily('morning brief', { hourUTC: 2, minuteUTC: 30 }, internal.brief.run, {})
+// PST-285: Wispr Flow notes after investor meetings, one run per connected teammate.
+crons.interval('wispr notes', { minutes: 15 }, internal.wispr.tick, {})
 export default crons

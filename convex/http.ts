@@ -4,6 +4,8 @@ import { callback } from './googleOAuth'
 import { CALLBACK_PATH } from './lib/googleApi'
 import { viewerRoutes } from './viewerHttp'
 import { mcpRoutes } from './mcpHttp'
+import { callback as wisprCallback } from './wisprOAuth'
+import { WISPR_CALLBACK_PATH } from '../src/lib/wispr'
 
 const http = httpRouter()
 auth.addHttpRoutes(http)
@@ -13,4 +15,6 @@ http.route({ path: CALLBACK_PATH, method: 'GET', handler: callback })
 viewerRoutes(http)
 // PST-276: the Nest MCP server at /mcp, and the Nest skill at /mcp/skill.
 mcpRoutes(http)
+// PST-285: "Connect" on Settings' Wispr Flow card comes back here.
+http.route({ path: WISPR_CALLBACK_PATH, method: 'GET', handler: wisprCallback })
 export default http
