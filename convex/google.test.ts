@@ -8,6 +8,7 @@ import schema from './schema'
 import { decryptToken, encryptToken, signState, verifyState } from './lib/crypto'
 import { parseEvent, parseThread, RETRY } from './lib/googleApi'
 import { mapLimit } from './lib/mapLimit'
+import { PACE } from './googleSync'
 
 const modules = import.meta.glob('./**/*.ts')
 
@@ -79,8 +80,9 @@ beforeEach(() => {
   vi.stubEnv('SITE_URL', 'http://localhost:3000')
   google = { events: [], changes: [], threads: [], history: [], calls: [], revoked: [] }
   vi.stubGlobal('fetch', vi.fn(fakeFetch))
-  // No real waiting between rate-limit retries.
+  // No real waiting between rate-limit retries, and no pacing unless a test sets a rate.
   RETRY.baseMs = 0
+  PACE.threadsPerSecond = Infinity
 })
 afterEach(() => {
   vi.unstubAllEnvs()
@@ -616,7 +618,7 @@ describe('Gmail errors', () => {
     vi.mocked(console.warn).mockRestore()
   })
 
-  it('reads at most 4 threads at once', async () => {
+  it('reads at most 2 threads at once', async () => {
     const s = await setup()
     const now = Date.now()
     const conn = await s.connect(s.dev, 'founder@pestokids.com')
@@ -631,7 +633,83 @@ describe('Gmail errors', () => {
       return fakeFetch(input, init)
     }))
     expect(await s.t.action(internal.googleSync.run, { connectionId: conn })).toBe('done')
-    expect(most).toBe(4)
+    expect(most).toBe(2)
+  })
+
+  it('paces thread reads, retries included: never more than PACE.threadsPerSecond start in any second', async () => {
+    const s = await setup()
+    const now = Date.now()
+    const conn = await s.connect(s.dev, 'founder@pestokids.com')
+    google.threads = Array.from({ length: 30 }, (_, k) => newsThread(`th-${k}`, now - D - k * 6e4))
+    const starts: number[] = []
+    const attempts = new Map<string, number>()
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const th = /\/users\/me\/threads\/([^/?]+)/.exec(String(input))
+      if (!th) return fakeFetch(input, init)
+      starts.push(Date.now())
+      const n = (attempts.get(th[1]) ?? 0) + 1
+      attempts.set(th[1], n)
+      return th[1] === 'th-3' && n === 1 ? refused('rateLimitExceeded') : fakeFetch(input, init)
+    }))
+    PACE.threadsPerSecond = 20
+    expect(await s.t.action(internal.googleSync.run, { connectionId: conn })).toBe('done')
+    expect(starts).toHaveLength(31)
+    // Any 21 reads in a row span at least a second.
+    for (let k = 0; k + 20 < starts.length; k++) expect(starts[k + 20] - starts[k]).toBeGreaterThanOrEqual(1000)
+  })
+
+  it('a page where the 3rd of 10 threads stays rate-limited stores what was read, keeps the pageToken and sets lastError', async () => {
+    const s = await setup()
+    const now = Date.now()
+    const conn = await s.connect(s.dev, 'founder@pestokids.com')
+    // A first page of 100 that reads fine, then a page of 10 investor threads whose 3rd never stops being rate-limited.
+    google.threads = Array.from({ length: 110 }, (_, k) => (k < 100 ? newsThread(`th-${k}`, now - H - k * 6e4) : kiteThread(`th-${k}`, now - D - k * 6e4)))
+    const attempts = threadFetch((id) => (id === 'th-102' ? refused('rateLimitExceeded') : undefined))
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    expect(await s.t.action(internal.googleSync.run, { connectionId: conn })).toBe('error')
+    expect(attempts.get('th-102')).toBe(6)
+    const c = await s.t.run((ctx) => ctx.db.get(conn))
+    expect(c).toMatchObject({ status: 'syncing', scan: { done: 100, pageToken: '100', historyId: '100' }, lastError: 'Google gmail thread failed (403 rateLimitExceeded)' })
+    expect(c!.gmailHistoryId).toBeUndefined()
+    expect(c!.lastSyncAt).toBeUndefined()
+    expect(c!.lockUntil).toBeUndefined()
+    const stored = (await s.t.run((ctx) => ctx.db.query('emailTouches').collect())).map((t) => t.threadId)
+    expect(stored).toEqual(expect.arrayContaining(['th-100', 'th-101']))
+    expect(stored).not.toContain('th-102')
+    expect(log).toHaveBeenCalledWith(expect.stringMatching(/: read \d+ threads, skipped 0, 5 rate-limit retries, \d+\.\ds$/))
+
+    // Next run, the limit has lifted: the same page is read again (not the first one), and the read finishes.
+    threadFetch(() => undefined)
+    expect(await s.t.action(internal.googleSync.run, { connectionId: conn })).toBe('done')
+    const after = await s.t.run((ctx) => ctx.db.get(conn))
+    expect(after).toMatchObject({ status: 'connected', gmailHistoryId: '100' })
+    expect(after!.lastError).toBeUndefined()
+    expect(after!.scan).toBeUndefined()
+    expect((await s.t.run((ctx) => ctx.db.query('emailTouches').collect())).map((t) => t.threadId).sort()).toEqual(Array.from({ length: 10 }, (_, k) => `th-${100 + k}`))
+    expect(google.calls.filter((call) => call === 'GET /gmail/v1/users/me/threads/th-0')).toHaveLength(1)
+    vi.mocked(console.error).mockRestore()
+    log.mockRestore()
+  })
+
+  it('a run where the rate limit clears after 2 retries finishes normally and logs what it did', async () => {
+    const s = await setup()
+    const now = Date.now()
+    const conn = await s.connect(s.dev, 'founder@pestokids.com')
+    google.threads = [kiteThread('th-a', now - D), kiteThread('th-b', now - 2 * D), newsThread('th-c', now - 3 * D)]
+    const attempts = threadFetch((id, n) => (id === 'th-b' && n <= 2 ? refused('rateLimitExceeded') : undefined))
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    expect(await s.t.action(internal.googleSync.run, { connectionId: conn })).toBe('done')
+    expect(attempts.get('th-b')).toBe(3)
+    expect((await s.t.run((ctx) => ctx.db.query('emailTouches').collect())).map((t) => t.threadId).sort()).toEqual(['th-a', 'th-b'])
+    const c = await s.t.run((ctx) => ctx.db.get(conn))
+    expect(c).toMatchObject({ status: 'connected', gmailHistoryId: '100' })
+    expect(c!.lastError).toBeUndefined()
+    expect(c!.scan).toBeUndefined()
+    expect(log).toHaveBeenCalledTimes(1)
+    expect(log).toHaveBeenCalledWith(expect.stringMatching(new RegExp(`^google sync ${conn}: read 3 threads, skipped 0, 2 rate-limit retries, \\d+\\.\\ds$`)))
+    log.mockRestore()
   })
 })
 

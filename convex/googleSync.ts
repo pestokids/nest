@@ -2,15 +2,18 @@
 // or Sync now): Calendar incrementally with a sync token, then Gmail from the
 // stored history id, or a newest-first read of the last 30 days on the first run
 // (in chunks, so progress shows on Settings). A token Google refuses marks the
-// connection "needs reconnecting"; nothing here throws out of the run. Rate
-// limits are retried with backoff (lib/googleApi.ts); a single thread Google
-// refuses for any other reason (403, 404) is skipped and counted, not fatal.
+// connection "needs reconnecting"; nothing here throws out of the run. Thread
+// reads are paced (PACE) and rate limits retried with backoff (lib/googleApi.ts);
+// one that outlasts the retries keeps what the run read and fails it with the
+// reason. A single thread Google refuses for any other reason (403, 404) is
+// skipped and counted, not fatal.
 import { v } from 'convex/values'
 import { internalAction, type ActionCtx } from './_generated/server'
 import { internal } from './_generated/api'
 import type { Doc } from './_generated/dataModel'
 import { decryptToken, MissingKey } from './lib/crypto'
 import { mapLimit } from './lib/mapLimit'
+import { pacer } from './lib/pace'
 import {
   accessToken, getThread, GoogleError, gmailProfile, listEvents, listHistory, listThreads, parseEvent, parseThread, revoke, Revoked,
   type ParsedMeeting, type ParsedThread,
@@ -21,11 +24,18 @@ import { DAY_MS, GMAIL_BACK_DAYS, makeMatcher } from '../src/lib/google'
 const LOCK_MS = 9 * 6e4
 /** Threads read per run during the 30-day read; the rest continue in a follow-up run straight away. */
 const SCAN_CHUNK = 300
-/** Parallel Gmail requests. threads.get costs 10 of the 250 quota units each user gets per second, so 8 at once could go over it. */
-const PARALLEL = 4
+/** Parallel Gmail requests. Two keep PACE busy; more would only queue up behind it. */
+const PARALLEL = 2
+/**
+ * threads.get per second, across a run's workers and their retries. Each costs 10
+ * of the 250 quota units a user gets per second: 15 leaves room for the rest. Tests set it.
+ */
+export const PACE = { threadsPerSecond: 15 }
 const MAX_PAGES = 20
 
 type Conn = Doc<'googleConnections'>
+/** One run's pacer, and what it did (logged when the run ends). */
+type Run = { pace: () => Promise<void>; read: number; skipped: number; retries: number }
 
 async function syncCalendar(ctx: ActionCtx, c: Conn, token: string, now: number) {
   let syncToken = c.calendarSyncToken
@@ -75,24 +85,38 @@ const skippable = (e: unknown): e is GoogleError =>
  * threads (for progress) and how many were skipped. When Google refused every
  * thread on the page with a 403, throws the most common reason instead: nothing
  * moves forward, and the read tries the same page again next run. A 404 (the
- * thread was deleted) is always a quiet skip and never counts toward that.
+ * thread was deleted) is always a quiet skip and never counts toward that. A
+ * rate limit that outlasts the retries starts no new reads, writes the threads
+ * already read, then throws.
  */
-async function readThreads(ctx: ActionCtx, c: Conn, token: string, ids: string[], cutoff: number) {
+async function readThreads(ctx: ActionCtx, c: Conn, token: string, ids: string[], cutoff: number, run: Run) {
   const match = makeMatcher(await ctx.runQuery(internal.google.matchData, {}))
   const why = new Map<string, { status: number; reason: string; n: number }>()
-  const read = await mapLimit(ids, PARALLEL, async (id) => {
-    try {
-      return parseThread(await getThread(token, id), c.googleEmail)
-    } catch (e) {
-      if (!skippable(e)) throw e
-      const k = `${e.status}${e.reason ? ` ${e.reason}` : ''}`
-      const w = why.get(k) ?? { status: e.status, reason: e.reason, n: 0 }
-      why.set(k, { ...w, n: w.n + 1 })
-      return 'skipped' as const
-    }
-  })
+  const hooks = { pace: run.pace, onRetry: () => void run.retries++ }
+  const results = new Map<string, ParsedThread | null | 'skipped'>()
+  let limited: GoogleError | undefined
+  try {
+    await mapLimit(ids, PARALLEL, async (id) => {
+      try {
+        const t = await getThread(token, id, hooks)
+        run.read++
+        results.set(id, parseThread(t, c.googleEmail))
+      } catch (e) {
+        if (!skippable(e)) throw e
+        const k = `${e.status}${e.reason ? ` ${e.reason}` : ''}`
+        const w = why.get(k) ?? { status: e.status, reason: e.reason, n: 0 }
+        why.set(k, { ...w, n: w.n + 1 })
+        results.set(id, 'skipped')
+      }
+    })
+  } catch (e) {
+    if (!(e instanceof GoogleError && e.rateLimited)) throw e
+    limited = e
+  }
+  const read = ids.map((id) => results.get(id))
   const parsed = read.filter((t): t is ParsedThread => !!t && t !== 'skipped')
   const skipped = read.filter((t) => t === 'skipped').length
+  run.skipped += skipped
   if (skipped) console.warn(`google sync ${c._id}: skipped ${skipped} of ${ids.length} threads (${[...why].map(([k, w]) => `${k} ×${w.n}`).join(', ')})`)
   const refused = [...why.values()].filter((w) => w.status === 403)
   if (ids.length && refused.reduce((n, w) => n + w.n, 0) === ids.length) {
@@ -102,11 +126,12 @@ async function readThreads(ctx: ActionCtx, c: Conn, token: string, ids: string[]
   // Only threads with an investor ever leave this action.
   const keep = parsed.filter((t) => t.lastAt >= cutoff && match.people(t.participants, c.googleEmail).ids.length > 0)
   for (let k = 0; k < keep.length; k += 100) await ctx.runMutation(internal.google.upsertThreads, { userId: c.userId, self: c.googleEmail, items: keep.slice(k, k + 100) })
+  if (limited) throw limited
   return { parsed, skipped }
 }
 
 /** Gmail: history since the stored id, or the 30-day read. Returns true when the read continues in another run. */
-async function syncGmail(ctx: ActionCtx, c: Conn, token: string, now: number): Promise<boolean> {
+async function syncGmail(ctx: ActionCtx, c: Conn, token: string, now: number, run: Run): Promise<boolean> {
   const cutoff = now - GMAIL_BACK_DAYS * DAY_MS
   if (c.gmailHistoryId && !c.scan && !c.rescan) {
     const threadIds = new Set<string>()
@@ -129,7 +154,8 @@ async function syncGmail(ctx: ActionCtx, c: Conn, token: string, now: number): P
       }
     }
     if (!expired) {
-      await readThreads(ctx, c, token, [...threadIds], cutoff)
+      // Rate-limited for good: what was read is written, and the history id stays put, so next run reads the same changes.
+      await readThreads(ctx, c, token, [...threadIds], cutoff, run)
       await ctx.runMutation(internal.google.saveCursors, { connectionId: c._id, gmailHistoryId: historyId })
       return false
     }
@@ -137,19 +163,25 @@ async function syncGmail(ctx: ActionCtx, c: Conn, token: string, now: number): P
   // The 30-day read: newest first, until a whole page is older than 30 days.
   let scan: NonNullable<Conn['scan']> = c.scan && !c.rescan ? { ...c.scan } : { done: 0, startedAt: now, historyId: (await gmailProfile(token)).historyId }
   let read = 0
-  while (read < SCAN_CHUNK) {
-    const res = await listThreads(token, scan.pageToken)
-    const ids = (res.threads ?? []).map((t) => t.id)
-    const { parsed, skipped } = await readThreads(ctx, c, token, ids, cutoff)
-    read += ids.length
-    const newest = Math.max(0, ...parsed.map((t) => t.lastAt))
-    const oldest = parsed.length ? Math.max(cutoff, Math.min(...parsed.map((t) => t.lastAt))) : scan.oldest
-    scan = { ...scan, done: scan.done + ids.length, ...(oldest ? { oldest } : {}), ...(skipped || scan.skipped ? { skipped: (scan.skipped ?? 0) + skipped } : {}), pageToken: res.nextPageToken }
-    // A page with nothing read (all skipped) says nothing about dates: carry on to the next one.
-    if (!res.nextPageToken || !ids.length || (parsed.length > 0 && newest < cutoff)) {
-      await ctx.runMutation(internal.google.saveCursors, { connectionId: c._id, gmailHistoryId: scan.historyId, scan: null, rescan: false })
-      return false
+  try {
+    while (read < SCAN_CHUNK) {
+      const res = await listThreads(token, scan.pageToken)
+      const ids = (res.threads ?? []).map((t) => t.id)
+      const { parsed, skipped } = await readThreads(ctx, c, token, ids, cutoff, run)
+      read += ids.length
+      const newest = Math.max(0, ...parsed.map((t) => t.lastAt))
+      const oldest = parsed.length ? Math.max(cutoff, Math.min(...parsed.map((t) => t.lastAt))) : scan.oldest
+      scan = { ...scan, done: scan.done + ids.length, ...(oldest ? { oldest } : {}), ...(skipped || scan.skipped ? { skipped: (scan.skipped ?? 0) + skipped } : {}), pageToken: res.nextPageToken }
+      // A page with nothing read (all skipped) says nothing about dates: carry on to the next one.
+      if (!res.nextPageToken || !ids.length || (parsed.length > 0 && newest < cutoff)) {
+        await ctx.runMutation(internal.google.saveCursors, { connectionId: c._id, gmailHistoryId: scan.historyId, scan: null, rescan: false })
+        return false
+      }
     }
+  } catch (e) {
+    // Rate-limited for good: keep the pages this run finished, and the token of the one it was on, which is read again next run.
+    if (e instanceof GoogleError && e.rateLimited) await ctx.runMutation(internal.google.saveCursors, { connectionId: c._id, scan, rescan: false })
+    throw e
   }
   await ctx.runMutation(internal.google.saveCursors, { connectionId: c._id, scan, rescan: false })
   return true
@@ -163,6 +195,7 @@ export const run = internalAction({
     if (!c || c.status === 'reconnect') return 'skipped'
     const now = Date.now()
     if (!(await ctx.runMutation(internal.google.claim, { connectionId, until: now + LOCK_MS }))) return 'busy'
+    const gmail: Run = { pace: pacer(PACE.threadsPerSecond), read: 0, skipped: 0, retries: 0 }
     try {
       let refresh: string
       try {
@@ -174,7 +207,7 @@ export const run = internalAction({
       }
       const token = await accessToken(refresh)
       await syncCalendar(ctx, c, token, now)
-      const more = await syncGmail(ctx, c, token, now)
+      const more = await syncGmail(ctx, c, token, now, gmail)
       await ctx.runMutation(internal.google.applyPast, { userId: c.userId })
       await ctx.runMutation(internal.google.finish, { connectionId, more })
       if (more) await ctx.scheduler.runAfter(0, internal.googleSync.run, { connectionId })
@@ -188,6 +221,8 @@ export const run = internalAction({
       console.error(`google sync ${connectionId}: ${why}`)
       await ctx.runMutation(internal.google.finish, { connectionId, error: why, more: false })
       return 'error'
+    } finally {
+      console.log(`google sync ${connectionId}: read ${gmail.read} threads, skipped ${gmail.skipped}, ${gmail.retries} rate-limit retries, ${((Date.now() - now) / 1000).toFixed(1)}s`)
     }
   },
 })

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://api.capy.ai/schemas/setup.v1.json",
+  "format_version": 1,
+  "scripts": {
+    "initialize": "set -euo pipefail\nMAIN=$(git worktree list --porcelain | awk '/^worktree/{print $2; exit}')\nif [ -n \"$MAIN\" ] && [ \"$MAIN\" != \"$(pwd -P)\" ] && [ -f \"$MAIN/.env.local\" ]; then cp \"$MAIN/.env.local\" .env.local; fi\npnpm install --frozen-lockfile",
+    "refresh": "pnpm install --frozen-lockfile"
+  },
+  "startup": [
+    {
+      "name": "dev",
+      "command": "pnpm dev",
+      "port": 3000
+    }
+  ],
+  "commands": [
+    {
+      "name": "test",
+      "command": "pnpm test"
+    },
+    {
+      "name": "typecheck",
+      "command": "pnpm typecheck"
+    },
+    {
+      "name": "lint",
+      "command": "pnpm lint"
+    }
+  ]
+}

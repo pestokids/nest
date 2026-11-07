@@ -32,9 +32,13 @@ const isRateLimit = (status: number, reason: string) => status === 429 || (statu
 
 /**
  * How `get` backs off when Google rate-limits: `tries` attempts in all, waiting
- * about baseMs, 2×, 4×… (plus jitter, capped at maxMs) between them. Tests set baseMs to 0.
+ * about baseMs, 2×, 4×… (capped at maxMs, plus up to baseMs of jitter) between
+ * them: 2, 4, 8, 16 and 32 s. Tests set baseMs to 0.
  */
-export const RETRY = { tries: 5, baseMs: 1000, maxMs: 16_000 }
+export const RETRY = { tries: 6, baseMs: 2000, maxMs: 32_000 }
+
+/** Per-run hooks for `get`: `pace` is awaited before every request (retries too), `onRetry` hears each rate-limit retry. */
+export type Hooks = { pace?: () => Promise<void>; onRetry?: () => void }
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
 export const redirectUri = () => `${process.env.CONVEX_SITE_URL}${CALLBACK_PATH}`
@@ -113,8 +117,9 @@ async function errorReason(res: Response) {
   return reason.replace(/[^\w.-]/g, '').slice(0, 60)
 }
 
-async function get<T>(url: string, token: string, what: string): Promise<T> {
+async function get<T>(url: string, token: string, what: string, hooks: Hooks = {}): Promise<T> {
   for (let attempt = 1; ; attempt++) {
+    await hooks.pace?.()
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } })
     if (res.ok) return (await res.json()) as T
     if (res.status === 401) throw new Revoked(`${what} 401`)
@@ -122,6 +127,7 @@ async function get<T>(url: string, token: string, what: string): Promise<T> {
     // A scope was unticked or taken away: only reconnecting fixes that.
     if (res.status === 403 && /insufficientPermissions|ACCESS_TOKEN_SCOPE_INSUFFICIENT/i.test(reason)) throw new Revoked(`${what} ${reason}`)
     if (isRateLimit(res.status, reason) && attempt < RETRY.tries) {
+      hooks.onRetry?.()
       const wait = Math.min(RETRY.maxMs, RETRY.baseMs * 2 ** (attempt - 1))
       await sleep(wait + Math.random() * RETRY.baseMs)
       continue
@@ -202,10 +208,10 @@ export type GMessage = { id: string; threadId: string; internalDate?: string; la
 export type GThread = { id: string; messages?: GMessage[] }
 
 /** A thread's headers only (From, To, Cc, Subject). Never bodies or snippets. */
-export function getThread(token: string, id: string) {
+export function getThread(token: string, id: string, hooks?: Hooks) {
   const q = new URLSearchParams({ format: 'metadata' })
   for (const h of ['From', 'To', 'Cc', 'Subject']) q.append('metadataHeaders', h)
-  return get<GThread>(`${GMAIL}/threads/${encodeURIComponent(id)}?${q}`, token, 'gmail thread')
+  return get<GThread>(`${GMAIL}/threads/${encodeURIComponent(id)}?${q}`, token, 'gmail thread', hooks)
 }
 
 /** Threads with new messages since `startHistoryId`. A 404 means it's too old: read the last 30 days again. */
