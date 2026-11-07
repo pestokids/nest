@@ -92,8 +92,10 @@ export default defineSchema({
     lockUntil: v.optional(v.number()),
     calendarSyncToken: v.optional(v.string()),
     gmailHistoryId: v.optional(v.string()),
-    /** A full read of the last 30 days of Gmail, newest first, in chunks. */
-    scan: v.optional(v.object({ pageToken: v.optional(v.string()), done: v.number(), oldest: v.optional(v.number()), startedAt: v.number(), historyId: v.string() })),
+    /** A full read of the last 30 days of Gmail, newest first, in chunks. `skipped`: threads Google refused (403/404) and the read went past. */
+    scan: v.optional(
+      v.object({ pageToken: v.optional(v.string()), done: v.number(), oldest: v.optional(v.number()), skipped: v.optional(v.number()), startedAt: v.number(), historyId: v.string() }),
+    ),
     /** An investor's emails or domains changed: read the last 30 days again on the next run. */
     rescan: v.optional(v.boolean()),
   }).index('by_user', ['userId']),

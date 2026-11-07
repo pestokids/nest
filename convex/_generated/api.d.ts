@@ -21,6 +21,7 @@ import type * as lib_access from "../lib/access.js";
 import type * as lib_crypto from "../lib/crypto.js";
 import type * as lib_enums from "../lib/enums.js";
 import type * as lib_googleApi from "../lib/googleApi.js";
+import type * as lib_mapLimit from "../lib/mapLimit.js";
 import type * as lib_round from "../lib/round.js";
 import type * as prefs from "../prefs.js";
 import type * as prep from "../prep.js";
@@ -48,6 +49,7 @@ declare const fullApi: ApiFromModules<{
   "lib/crypto": typeof lib_crypto;
   "lib/enums": typeof lib_enums;
   "lib/googleApi": typeof lib_googleApi;
+  "lib/mapLimit": typeof lib_mapLimit;
   "lib/round": typeof lib_round;
   prefs: typeof prefs;
   prep: typeof prep;

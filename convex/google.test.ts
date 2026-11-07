@@ -6,7 +6,8 @@ import { api, internal } from './_generated/api'
 import type { Id } from './_generated/dataModel'
 import schema from './schema'
 import { decryptToken, encryptToken, signState, verifyState } from './lib/crypto'
-import { parseEvent, parseThread } from './lib/googleApi'
+import { parseEvent, parseThread, RETRY } from './lib/googleApi'
+import { mapLimit } from './lib/mapLimit'
 
 const modules = import.meta.glob('./**/*.ts')
 
@@ -42,7 +43,12 @@ function fakeFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Respon
     return Promise.resolve(json({ items: google.events, nextSyncToken: 'sync-1' }))
   }
   if (url.pathname.endsWith('/users/me/profile')) return Promise.resolve(json({ emailAddress: 'founder@pestokids.com', historyId: '100' }))
-  if (url.pathname.endsWith('/users/me/threads')) return Promise.resolve(json({ threads: google.threads.map((t) => ({ id: t.id })) }))
+  if (url.pathname.endsWith('/users/me/threads')) {
+    // Paged like Gmail: maxResults per page, the page token is just the offset.
+    const from = Number(url.searchParams.get('pageToken') ?? 0)
+    const to = from + Number(url.searchParams.get('maxResults') ?? 100)
+    return Promise.resolve(json({ threads: google.threads.slice(from, to).map((t) => ({ id: t.id })), ...(to < google.threads.length ? { nextPageToken: String(to) } : {}) }))
+  }
   const th = /\/users\/me\/threads\/([^/]+)$/.exec(url.pathname)
   if (th) return Promise.resolve(json(google.threads.find((t) => t.id === th[1])))
   if (url.pathname.endsWith('/users/me/history'))
@@ -73,6 +79,8 @@ beforeEach(() => {
   vi.stubEnv('SITE_URL', 'http://localhost:3000')
   google = { events: [], changes: [], threads: [], history: [], calls: [], revoked: [] }
   vi.stubGlobal('fetch', vi.fn(fakeFetch))
+  // No real waiting between rate-limit retries.
+  RETRY.baseMs = 0
 })
 afterEach(() => {
   vi.unstubAllEnvs()
@@ -359,5 +367,208 @@ describe('connect and disconnect', () => {
     await expect(s.t.action(api.google.connect, {})).rejects.toThrow(/Not signed in/)
     await expect(s.t.mutation(api.google.disconnect, {})).rejects.toThrow(/Not signed in/)
     await expect(s.asOut.mutation(api.google.syncNow, {})).rejects.toThrow(/doesn't have access/)
+  })
+})
+
+/* ---------- Gmail errors: reasons, rate limits, skipped threads ---------- */
+
+/** Google's error body for a 403 (or 429) with a reason. */
+const refused = (reason: string, status = 403) => json({ error: { code: status, message: 'Refused', errors: [{ domain: 'usageLimits', reason, message: 'Refused' }], status: 'PERMISSION_DENIED' } }, status)
+/** fetch that answers single-thread reads with `answer(threadId, attempt)` when it returns a Response, else the fake Google. */
+function threadFetch(answer: (id: string, attempt: number) => Response | undefined) {
+  const attempts = new Map<string, number>()
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const th = /\/users\/me\/threads\/([^/?]+)/.exec(String(input))
+    if (th) {
+      const n = (attempts.get(th[1]) ?? 0) + 1
+      attempts.set(th[1], n)
+      const r = answer(th[1], n)
+      if (r) {
+        google.calls.push(`GET thread ${th[1]} ${r.status}`)
+        return r
+      }
+    }
+    return fakeFetch(input, init)
+  }))
+  return attempts
+}
+const kiteThread = (id: string, when: number) => ({ id, messages: [msg(id, 1, 'sam@kite.example.com', 'founder@pestokids.com', when)] })
+const newsThread = (id: string, when: number) => ({ id, messages: [msg(id, 1, 'news@shop.example.com', 'founder@pestokids.com', when, 'Sale!')] })
+
+describe('Gmail errors', () => {
+  it('puts Google’s 403 reason in lastError', async () => {
+    const s = await setup()
+    const conn = await s.connect(s.dev, 'founder@pestokids.com')
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => (new URL(String(input)).pathname.endsWith('/users/me/threads') ? refused('failedPrecondition') : fakeFetch(input, init))))
+    expect(await s.t.action(internal.googleSync.run, { connectionId: conn })).toBe('error')
+    expect(await s.t.run((ctx) => ctx.db.get(conn))).toMatchObject({ lastError: 'Google gmail threads failed (403 failedPrecondition)' })
+  })
+
+  it('reads the reason from newer error shapes too, and never more than an identifier', async () => {
+    const s = await setup()
+    const conn = await s.connect(s.dev, 'founder@pestokids.com')
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) =>
+      new URL(String(input)).pathname.endsWith('/users/me/profile')
+        ? json({ error: { code: 403, message: 'secret-ish text', status: 'PERMISSION_DENIED', details: [{ '@type': 'type.googleapis.com/google.rpc.ErrorInfo', reason: 'SERVICE_DISABLED <b>' }] } }, 403)
+        : fakeFetch(input, init),
+    ))
+    expect(await s.t.action(internal.googleSync.run, { connectionId: conn })).toBe('error')
+    const c = await s.t.run((ctx) => ctx.db.get(conn))
+    expect(c!.lastError).toBe('Google gmail profile failed (403 SERVICE_DISABLEDb)')
+  })
+
+  it('retries rateLimitExceeded and userRateLimitExceeded (and 429) with backoff, then carries on', async () => {
+    const s = await setup()
+    const now = Date.now()
+    const conn = await s.connect(s.dev, 'founder@pestokids.com')
+    google.threads = [kiteThread('th-a', now - D), kiteThread('th-b', now - 2 * D), kiteThread('th-c', now - 3 * D)]
+    const attempts = threadFetch((id, n) => {
+      if (id === 'th-a' && n <= 2) return refused('rateLimitExceeded')
+      if (id === 'th-b' && n <= 3) return refused('userRateLimitExceeded')
+      if (id === 'th-c' && n === 1) return refused('rateLimitExceeded', 429)
+    })
+    const sleeps: number[] = []
+    const realSetTimeout = globalThis.setTimeout
+    vi.stubGlobal('setTimeout', (fn: () => void, ms?: number) => (sleeps.push(ms ?? 0), realSetTimeout(fn, 0)))
+    RETRY.baseMs = 1000
+    try {
+      expect(await s.t.action(internal.googleSync.run, { connectionId: conn })).toBe('done')
+    } finally {
+      RETRY.baseMs = 0
+    }
+    expect(Object.fromEntries(attempts)).toEqual({ 'th-a': 3, 'th-b': 4, 'th-c': 2 })
+    expect((await s.t.run((ctx) => ctx.db.query('emailTouches').collect())).map((t) => t.threadId).sort()).toEqual(['th-a', 'th-b', 'th-c'])
+    // Exponential: about 1 s, 2 s, 4 s (each plus up to 1 s of jitter).
+    const backoffs = sleeps.filter((ms) => ms >= 1000).sort((a, b) => a - b)
+    expect(backoffs).toHaveLength(6)
+    expect(backoffs.filter((ms) => ms >= 4000 && ms < 5000)).toHaveLength(1)
+    expect(await s.t.run((ctx) => ctx.db.get(conn))).toMatchObject({ status: 'connected' })
+  })
+
+  it('a rate limit that never lifts fails the run with the reason, after trying RETRY.tries times', async () => {
+    const s = await setup()
+    const now = Date.now()
+    const conn = await s.connect(s.dev, 'founder@pestokids.com')
+    google.threads = [kiteThread('th-a', now - D)]
+    const attempts = threadFetch(() => refused('userRateLimitExceeded'))
+    expect(await s.t.action(internal.googleSync.run, { connectionId: conn })).toBe('error')
+    expect(attempts.get('th-a')).toBe(RETRY.tries)
+    expect(await s.t.run((ctx) => ctx.db.get(conn))).toMatchObject({ status: 'syncing', lastError: 'Google gmail thread failed (403 userRateLimitExceeded)' })
+    // Not skipped past: the 30-day read starts over next run.
+    expect((await s.t.run((ctx) => ctx.db.get(conn)))!.gmailHistoryId).toBeUndefined()
+  })
+
+  it('skips a thread Google refuses (403) or can’t find (404), stores the rest, and finishes', async () => {
+    const s = await setup()
+    const now = Date.now()
+    const conn = await s.connect(s.dev, 'founder@pestokids.com')
+    google.threads = [kiteThread('th-ok', now - D), kiteThread('th-forbidden', now - 2 * D), kiteThread('th-gone', now - 3 * D)]
+    threadFetch((id) => (id === 'th-forbidden' ? refused('forbidden') : id === 'th-gone' ? json({ error: { code: 404, errors: [{ reason: 'notFound' }] } }, 404) : undefined))
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(await s.t.action(internal.googleSync.run, { connectionId: conn })).toBe('done')
+    expect((await s.t.run((ctx) => ctx.db.query('emailTouches').collect())).map((t) => t.threadId)).toEqual(['th-ok'])
+    const c = await s.t.run((ctx) => ctx.db.get(conn))
+    expect(c).toMatchObject({ status: 'connected', gmailHistoryId: '100' })
+    expect(c!.lastError).toBeUndefined()
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/skipped 2 of 3 threads \(403 forbidden ×1, 404 notFound ×1\)/))
+    warn.mockRestore()
+  })
+
+  it('counts skipped threads across the 30-day read and shows them while syncing', async () => {
+    const s = await setup()
+    const now = Date.now()
+    const conn = await s.connect(s.dev, 'founder@pestokids.com')
+    // 350 recent threads: more than one run's chunk (300), so the read continues in a second run.
+    google.threads = Array.from({ length: 350 }, (_, k) => (k === 5 ? kiteThread(`th-${k}`, now - D) : newsThread(`th-${k}`, now - D - k * 6e4)))
+    const bad = new Set(['th-10', 'th-20', 'th-320'])
+    threadFetch((id) => (bad.has(id) ? refused('forbidden') : undefined))
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    expect(await s.t.action(internal.googleSync.run, { connectionId: conn })).toBe('more')
+    let me = (await s.asDev.query(api.google.data, {})).me
+    expect(me).toMatchObject({ status: 'syncing', scan: { done: 300, skipped: 2 } })
+    expect(me!.lastError).toBeUndefined()
+
+    expect(await s.t.action(internal.googleSync.run, { connectionId: conn })).toBe('done')
+    me = (await s.asDev.query(api.google.data, {})).me
+    expect(me).toMatchObject({ status: 'connected' })
+    expect(me!.scan).toBeUndefined()
+    expect((await s.t.run((ctx) => ctx.db.query('emailTouches').collect())).map((t) => t.threadId)).toEqual(['th-5'])
+    vi.mocked(console.warn).mockRestore()
+  })
+
+  it('a skipped thread in an incremental (history) run doesn’t fail it either', async () => {
+    const s = await setup()
+    const now = Date.now()
+    const conn = await s.connect(s.dev, 'founder@pestokids.com')
+    await s.t.action(internal.googleSync.run, { connectionId: conn })
+    google.threads = [kiteThread('th-new', now - H), kiteThread('th-gone', now - H)]
+    google.history = ['th-new', 'th-gone']
+    threadFetch((id) => (id === 'th-gone' ? json({ error: { code: 404, errors: [{ reason: 'notFound' }] } }, 404) : undefined))
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(await s.t.action(internal.googleSync.run, { connectionId: conn })).toBe('done')
+    expect(await s.t.run((ctx) => ctx.db.get(conn))).toMatchObject({ gmailHistoryId: '101' })
+    expect((await s.t.run((ctx) => ctx.db.query('emailTouches').collect())).map((t) => t.threadId)).toEqual(['th-new'])
+    vi.mocked(console.warn).mockRestore()
+  })
+
+  it('reads at most 4 threads at once', async () => {
+    const s = await setup()
+    const now = Date.now()
+    const conn = await s.connect(s.dev, 'founder@pestokids.com')
+    google.threads = Array.from({ length: 20 }, (_, k) => kiteThread(`th-${k}`, now - D))
+    let inFlight = 0
+    let most = 0
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (!/\/users\/me\/threads\/[^/?]+/.test(String(input))) return fakeFetch(input, init)
+      most = Math.max(most, ++inFlight)
+      await new Promise((r) => setTimeout(r, 1))
+      inFlight--
+      return fakeFetch(input, init)
+    }))
+    expect(await s.t.action(internal.googleSync.run, { connectionId: conn })).toBe('done')
+    expect(most).toBe(4)
+  })
+})
+
+describe('mapLimit', () => {
+  it('keeps order and never runs more than n at once', async () => {
+    let inFlight = 0
+    let most = 0
+    const out = await mapLimit([5, 1, 4, 2, 3, 0], 2, async (x) => {
+      most = Math.max(most, ++inFlight)
+      await new Promise((r) => setTimeout(r, x))
+      inFlight--
+      return x * 10
+    })
+    expect(out).toEqual([50, 10, 40, 20, 30, 0])
+    expect(most).toBe(2)
+  })
+
+  it('on a failure, starts nothing new and waits for the calls in flight before throwing', async () => {
+    const started: number[] = []
+    const settled: number[] = []
+    const p = mapLimit([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 4, async (x) => {
+      started.push(x)
+      if (x === 0) throw new Error('boom')
+      await new Promise((r) => setTimeout(r, 20))
+      settled.push(x)
+      return x
+    })
+    let rejectedWith: unknown
+    await p.catch((e) => (rejectedWith = e))
+    expect(rejectedWith).toEqual(new Error('boom'))
+    // 1, 2, 3 were already running when 0 failed: they finished before mapLimit threw, and nothing after them started.
+    expect(started.sort()).toEqual([0, 1, 2, 3])
+    expect(settled.sort()).toEqual([1, 2, 3])
+  })
+
+  it('throws the first error when several fail', async () => {
+    await expect(
+      mapLimit([1, 2, 3], 3, async (x) => {
+        await new Promise((r) => setTimeout(r, x * 5))
+        throw new Error(`fail ${x}`)
+      }),
+    ).rejects.toThrow('fail 1')
   })
 })
