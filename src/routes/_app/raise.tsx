@@ -18,6 +18,7 @@ const TABS: TabItem[] = [
   { to: '/raise/investors', label: 'Investors' },
   { to: '/raise/materials', label: 'Materials' },
   { to: '/raise/qanda', label: 'Q&A' },
+  { to: '/raise/close', label: 'Close' },
   { to: '/raise/plan', label: 'Plan' },
   { to: '/raise/settings', label: 'Settings' },
 ]

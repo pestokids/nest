@@ -3,6 +3,7 @@ import { authTables } from '@convex-dev/auth/server'
 import { v } from 'convex/values'
 import { aiSettingsFields, enrichTables } from './enrichSchema'
 import { materialsTables } from './materialsSchema'
+import { closeTables, roundCapTableField } from './closeSchema'
 import { roundFields, vGeo, vMeetingAnswer, vPipelineStage, vStage, vSyncSource, vTier, vTouch, vType, vWarmth, vWave } from './validators'
 import { vSuggestionKind, vSuggestionPatch, vSuggestionSource, vSuggestionStatus, vSuggestionUndo } from './validators'
 import { vAnswerVersion, vAskSource, vQuestionMerge } from './validators'
@@ -59,7 +60,8 @@ export default defineSchema({
     .index('by_date', ['date']),
 
   // The round row (key "round"), and PST-274's AI toggles (key "ai").
-  settings: defineTable(v.union(v.object({ key: v.literal('round'), ...roundFields }), v.object(aiSettingsFields))).index('by_key', ['key']),
+  // PST-283: the round row also holds the cap table inputs (`capTable`, optional; see closeSchema.ts).
+  settings: defineTable(v.union(v.object({ key: v.literal('round'), ...roundFields, ...roundCapTableField }), v.object(aiSettingsFields))).index('by_key', ['key']),
 
   settingsLog: defineTable({
     userId: v.id('users'),
@@ -233,4 +235,8 @@ export default defineSchema({
 
   // ---------- PST-282: Materials (materials, materialVersions, shareLinks, views, viewerHits) ----------
   ...materialsTables,
+
+  /* ---------- PST-283: Close (closings) ---------- */
+  ...closeTables,
+  /* ---------- end PST-283 ---------- */
 })

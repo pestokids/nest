@@ -11,6 +11,8 @@
 import type * as access from "../access.js";
 import type * as activities from "../activities.js";
 import type * as auth from "../auth.js";
+import type * as closeSchema from "../closeSchema.js";
+import type * as closings from "../closings.js";
 import type * as crons from "../crons.js";
 import type * as enrich from "../enrich.js";
 import type * as enrichSchema from "../enrichSchema.js";
@@ -54,6 +56,8 @@ declare const fullApi: ApiFromModules<{
   access: typeof access;
   activities: typeof activities;
   auth: typeof auth;
+  closeSchema: typeof closeSchema;
+  closings: typeof closings;
   crons: typeof crons;
   enrich: typeof enrich;
   enrichSchema: typeof enrichSchema;

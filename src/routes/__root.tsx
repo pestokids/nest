@@ -20,6 +20,7 @@ import suggestions from '../styles/suggestions.css?url'
 import enrich from '../styles/enrich.css?url'
 import qanda from '../styles/qanda.css?url'
 import materials from '../styles/materials.css?url'
+import close from '../styles/close.css?url'
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
@@ -58,7 +59,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: 'stylesheet',
         href: 'https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap',
       },
-      ...[tokens, base, motion, ui, shell, signin, home, raise, pipeline, today, drawer, system, investors, plan, settings, suggestions, enrich, qanda, materials].map((href) => ({ rel: 'stylesheet', href })),
+      ...[tokens, base, motion, ui, shell, signin, home, raise, pipeline, today, drawer, system, investors, plan, settings, suggestions, enrich, qanda, materials, close].map((href) => ({ rel: 'stylesheet', href })),
     ],
   }),
   component: () => (

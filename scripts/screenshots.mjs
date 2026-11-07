@@ -81,6 +81,9 @@ const SCREENS = [
   ['viewer-download', '/d/preview?preview&viewer=download'],
   ['viewer-link', '/d/preview?preview&viewer=link'],
   ['viewer-expired', '/d/preview?preview&viewer=expired'],
+  // PST-283: Close
+  ...['default', 'record', 'status', 'remind', 'modeller', 'captable', 'nocaptable', 'closed', 'empty'].map((s) => [`close-${s}`, `/raise/close?preview&close=${s}`]),
+  ['close-settings-cap-table', '/raise/settings?preview&close#cap-table'],
 ]
 
 /** Sideways scroll, and (phones) visible controls smaller than 44 × 44. */

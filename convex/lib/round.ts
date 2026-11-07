@@ -10,6 +10,7 @@ export async function getRoundRow(ctx: QueryCtx) {
 export async function loadRound(ctx: QueryCtx): Promise<{ round: Round; exists: boolean }> {
   const row = await getRoundRow(ctx)
   if (!row) return { round: mergeRound(null), exists: false }
-  const { _id: _i, _creationTime: _c, key: _k, ...rest } = row
+  // PST-283: the cap table is read and written on its own (convex/closings.ts), never through the round form.
+  const { _id: _i, _creationTime: _c, key: _k, capTable: _t, ...rest } = row
   return { round: mergeRound(rest), exists: true }
 }
