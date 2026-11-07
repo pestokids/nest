@@ -2,6 +2,7 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useRaise } from '../../../components/data'
 import { GoogleToday } from '../../../components/GoogleToday'
+import { MaterialOpens } from '../../../components/materials/Opens'
 import { Suggestions } from '../../../components/Suggestions'
 import { EggHatching, NestSleeping, NestWithEggs } from '../../../components/illustrations'
 import { PhaseBar } from '../../../components/PhaseBar'
@@ -85,6 +86,7 @@ function Today() {
       <Moves moves={moves} note={movesNote(r, today)} asked={asked} onAsk={logAsk} />
       <Kpis today={today} />
       <GoogleToday today={today} />
+      <MaterialOpens />
       <div className="today__lists">
         <DueToday today={today} />
         <GoneQuiet today={today} />

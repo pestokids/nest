@@ -3,6 +3,8 @@ import { lazy, Suspense, useEffect } from 'react'
 import { AppShell } from '../components/AppShell'
 import { AuthGate } from '../components/AuthGate'
 import { ConvexData } from '../components/ConvexData'
+import { ConvexMaterials } from '../components/materials/data'
+import { OpenToasts } from '../components/materials/Opens'
 import { ConvexSounds } from '../components/session'
 import { installSound } from '../lib/sound'
 
@@ -35,7 +37,11 @@ function AppLayout() {
     <AuthGate>
       <ConvexSounds>
         <ConvexData>
-          <AppShell />
+          <ConvexMaterials>
+            <AppShell>
+              <OpenToasts />
+            </AppShell>
+          </ConvexMaterials>
         </ConvexData>
       </ConvexSounds>
     </AuthGate>

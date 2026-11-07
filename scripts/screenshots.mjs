@@ -65,6 +65,22 @@ const SCREENS = [
   ['suggestions-agent', '/raise/today?preview&suggestions=agent'],
   ['suggestions-tidy', '/raise/today?preview&suggestions=tidy'],
   ['suggestions-none', '/raise/today?preview&suggestions=none'],
+  // PST-282: Materials and the public viewer
+  ['materials-library', '/raise/materials?preview'],
+  ['materials-empty', '/raise/materials?preview&materials=empty'],
+  ['materials-versions', '/raise/materials?preview&materials=versions'],
+  ['materials-views', '/raise/materials?preview&materials=views'],
+  ['materials-share', '/raise/materials?preview&materials=share'],
+  ['materials-sent', '/raise/materials?preview&materials=sent'],
+  ['materials-sent-noemail', '/raise/materials?preview&materials=noemail'],
+  ['materials-upload', '/raise/materials?preview&materials=upload'],
+  ['materials-drawer', '/raise/materials?preview&drawer=materials'],
+  ['materials-today', '/raise/today?preview&materials=default'],
+  ['viewer-open', '/d/preview?preview'],
+  ['viewer-gate', '/d/preview?preview&viewer=gate'],
+  ['viewer-download', '/d/preview?preview&viewer=download'],
+  ['viewer-link', '/d/preview?preview&viewer=link'],
+  ['viewer-expired', '/d/preview?preview&viewer=expired'],
 ]
 
 /** Sideways scroll, and (phones) visible controls smaller than 44 × 44. */
@@ -106,7 +122,7 @@ for (const size of SIZES) {
     await page.waitForTimeout(name.endsWith('-win') ? 1000 : 900)
     // Full-page capture resizes the viewport, which re-snaps the phone moves carousel: keep the win at viewport size there.
     // Overlays (sheets, toasts, the palette, the bulk bar) are fixed to the viewport: shoot the viewport.
-    const full = !/^(sign-in|drawer-|google-drawer-|system-cmdk|google-cmdk|system-save|investors-(import|bulk|exported)|suggestions-(all|agent|tidy))/.test(name) && !(size.mobile && name.endsWith('-win'))
+    const full = !/^(sign-in|drawer-|google-drawer-|system-cmdk|google-cmdk|system-save|investors-(import|bulk|exported)|suggestions-(all|agent|tidy)|materials-(versions|views|share|sent|upload|drawer)|viewer-)/.test(name) && !(size.mobile && name.endsWith('-win'))
     await page.screenshot({ path: `${out}/${name}--${size.name}.png`, fullPage: full })
     const a = await page.evaluate(audit, size.mobile)
     if (a.sideways || a.small.length) report[`${name}--${size.name}`] = a

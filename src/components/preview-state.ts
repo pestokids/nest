@@ -3,7 +3,7 @@ import { createContext, useContext } from 'react'
 // DEV/preview only: which state `?preview` should show (Today, the drawer, and the
 // Investors / Plan / Settings / system states). Null outside preview.
 export const PREVIEW_TODAY = ['default', 'nothingdue', 'win'] as const
-export const PREVIEW_DRAWER = ['view', 'edit', 'new', 'advance', 'touch', 'history', 'emails', 'notes', 'delete'] as const
+export const PREVIEW_DRAWER = ['view', 'edit', 'new', 'advance', 'touch', 'history', 'emails', 'materials', 'notes', 'delete'] as const
 export type PreviewToday = (typeof PREVIEW_TODAY)[number]
 export type PreviewDrawer = (typeof PREVIEW_DRAWER)[number]
 export type PreviewState = {
@@ -22,6 +22,8 @@ export type PreviewState = {
   suggestions?: string | null
   /** PST-281 `&qanda=empty|answer|edit|new|same|prep` */
   qanda?: string | null
+  /** PST-282 `&materials=empty|versions|views|share|sent|upload|noemail|opened` */
+  materials?: string | null
 }
 
 export const PreviewStateContext = createContext<PreviewState | null>(null)
