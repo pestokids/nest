@@ -59,6 +59,8 @@ const SCREENS = [
   ['google-settings-reconnect', '/raise/settings?preview&google=reconnect'],
   ['google-settings-not-connected', '/raise/settings?preview'],
   ['google-cmdk-gmail', '/raise/today?preview&system=cmdk&google=connected'],
+  // PST-285: Wispr Flow
+  ...['off', 'connected', 'reconnect', 'fetching'].map((s) => [`wispr-settings-${s}`, `/raise/settings?preview&wispr=${s}`]),
   // PST-275: Suggested fixes
   ['suggestions-today', '/raise/today?preview'],
   ['suggestions-all', '/raise/today?preview&suggestions=all'],

@@ -3,6 +3,7 @@
   "buildCommand": "if [ \"$VERCEL_ENV\" = \"production\" ]; then npx convex deploy --cmd 'pnpm build' --cmd-url-env-var-name VITE_CONVEX_URL; else pnpm build; fi",
   "rewrites": [
     { "source": "/mcp", "destination": "https://grandiose-armadillo-852.convex.site/mcp", "has": [{ "type": "host", "value": "nest.pestokids.com" }] },
-    { "source": "/mcp/skill", "destination": "https://grandiose-armadillo-852.convex.site/mcp/skill", "has": [{ "type": "host", "value": "nest.pestokids.com" }] }
+    { "source": "/mcp/skill", "destination": "https://grandiose-armadillo-852.convex.site/mcp/skill", "has": [{ "type": "host", "value": "nest.pestokids.com" }] },
+    { "source": "/wispr/callback", "destination": "https://grandiose-armadillo-852.convex.site/wispr/callback", "has": [{ "type": "host", "value": "nest.pestokids.com" }] }
   ]
 }

@@ -278,7 +278,7 @@ export const undo = mutation({
  */
 export async function addMeetingNotes(
   ctx: MutationCtx,
-  a: { investorId?: Id<'investors'>; email?: string; meetingTitle: string; date: string; text: string; source: Infer<typeof vNoteSource> },
+  a: { investorId?: Id<'investors'>; meetingId?: Id<'meetings'>; email?: string; meetingTitle: string; date: string; text: string; source: Infer<typeof vNoteSource> },
 ): Promise<{ unmatchedId: Id<'unmatchedNotes'> } | { noteId: Id<'notes'>; investorId: Id<'investors'>; readId: Id<'noteReads'> | null }> {
     const text = a.text.trim().slice(0, LIMITS.note)
     if (!text) throw new ConvexError('The notes are empty.')
@@ -298,8 +298,10 @@ export async function addMeetingNotes(
       return { unmatchedId }
     }
     const investorId = match.investorId as Id<'investors'>
+    // PST-285: a Wispr Flow note fetched for a calendar meeting names that meeting.
+    const meetingId = a.meetingId ?? (match.meetingId as Id<'meetings'> | undefined)
     const noteId = await ctx.db.insert('notes', {
-      investorId, date, text, title: meetingTitle.slice(0, LIMITS.title), source: a.source, ...(match.meetingId ? { meetingId: match.meetingId as Id<'meetings'> } : {}),
+      investorId, date, text, title: meetingTitle.slice(0, LIMITS.title), source: a.source, ...(meetingId ? { meetingId } : {}),
     })
     return { noteId, investorId, readId: await startRead(ctx, noteId, { auto: true }) }
 }
