@@ -185,6 +185,8 @@ export function diffRound(before: Round, after: Round): RoundChange[] {
 const FIELD_LABEL: Record<string, string> = {
   target: 'Raise target', stretch: 'Stretch', deadline: 'Close date', kickoff: 'Kickoff date', instrument: 'Instrument',
   cap: 'Valuation cap', minCheck: 'Minimum check', quietDays: 'Gone quiet after (days)',
+  // PST-283
+  capTable: 'Cap table',
 }
 /** Human label for a change-log path, e.g. `phases.1.targets.2.t` → "Phase 2 · target 3". */
 export function fieldLabel(path: string): string {

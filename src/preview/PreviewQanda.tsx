@@ -6,7 +6,7 @@ import { useRaise } from '../components/data'
 import { usePreviewState } from '../components/preview-state'
 import { QandaContext, type QandaActions, type QandaData } from '../components/qanda/data'
 import { isISODate, todayIST } from '../lib/dates'
-import { cleanQuestion, cleanTheme, guessTheme, LIMITS, needsAnswer, NEXT_DECK, noteLines, sameText, type Question } from '../lib/qanda'
+import { cleanQuestion, cleanTheme, guessTheme, LIMITS, needsAnswer, noteLines, sameText, type Question } from '../lib/qanda'
 import { EMPTY_QANDA, fixtureQanda, type QandaStore, type QRow } from './qandaFixture'
 
 const live = (q: QRow | undefined): q is QRow => !!q && !q.removed && !q.mergedInto
@@ -142,11 +142,11 @@ export function PreviewQanda({ fail, children }: { fail: boolean; children: Reac
         patchQ(id, { removed: false })
         return id
       }),
-      addToDeck: w((id) => {
+      addToDeck: w((id, deck) => {
         const q = get(id)
         if (q.onDeck) throw no('It’s already on a slide.')
-        patchQ(id, { deckGap: { deck: NEXT_DECK, at: Date.now() } })
-        return NEXT_DECK
+        patchQ(id, { deckGap: { deck, at: Date.now() } })
+        return deck
       }),
       removeFromDeck: w((id) => {
         patchQ(id, { deckGap: undefined })

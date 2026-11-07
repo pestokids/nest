@@ -7,6 +7,7 @@ import { F, PhaseList } from '../../../components/settings/PhaseList'
 import { ChangeLog, MembersCard } from '../../../components/settings/SideCards'
 import { connectMessage, GoogleCard } from '../../../components/settings/GoogleCard'
 import { AICard, ClaudeSees } from '../../../components/settings/AICard'
+import { CapTableCard } from '../../../components/settings/CapTableCard'
 import { usePreviewState } from '../../../components/preview-state'
 import { useSaveAction } from '../../../components/system/useSaveAction'
 import { Button, Icon } from '../../../components/ui'
@@ -227,6 +228,7 @@ function Settings() {
             </Button>
           </div>
         </div>
+        <CapTableCard />
         <AICard />
         <ChangeLog rows={log} />
       </div>

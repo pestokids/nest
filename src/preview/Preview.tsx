@@ -18,6 +18,8 @@
 //   &qanda=empty|answer|edit|new|same|prep  Q&A: an empty bank, the Answer panel (new question, edit with earlier answers, add),
 //                            Same as another, Today's prep brief (implies &google=connected). &drawer=notes for the Notes tab
 //   &materials=<state>       Materials (PST-282): empty, versions, views, share, sent, upload, noemail, opened (a first open arrives)
+//   &close=<state>           Close (PST-283): default, record, status, remind, modeller, captable, nocaptable, closed, empty
+//                            (see preview/closeFixture.ts; the closing investors stay while you move between tabs)
 //   &fail                    every write fails (save-failed toast with Retry)
 //   any unknown path         the 404, e.g. /nowhere?preview
 import { useEffect } from 'react'
@@ -32,6 +34,7 @@ import { PREVIEW_GOOGLE, type PreviewGoogle } from './googleFixture'
 import { PREVIEW_SUGGESTIONS, type PreviewSuggestions } from './suggestionsFixture'
 import { PREVIEW_MATERIALS, PreviewMaterials, type PreviewMaterials as MaterialsState } from './materialsFixture'
 import { OpenToasts } from '../components/materials/Opens'
+import { closePreview, rememberClosePreview } from './closeFixture'
 
 const session = { me: { firstName: 'Dev', name: 'Dev Preview', email: 'dev@example.com' }, signOut: () => {} }
 
@@ -41,6 +44,7 @@ export function Preview() {
   else if (q.has('preview')) sessionStorage.removeItem('nest_preview_data')
   if (q.has('pipeline')) sessionStorage.setItem('nest_preview_board', '1')
   else if (q.has('preview')) sessionStorage.removeItem('nest_preview_board')
+  rememberClosePreview(q)
   const signin = q.get('signin') as SignInState | null
   if (signin && SIGN_IN_STATES.includes(signin))
     return (
@@ -70,6 +74,7 @@ export function Preview() {
             google={google}
             suggestions={suggestions}
             ai={ai}
+            close={closePreview()}
           >
             <PreviewMaterials state={materials}>
               <AppShell>

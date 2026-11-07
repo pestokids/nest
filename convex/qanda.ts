@@ -17,7 +17,7 @@ import type { Doc, Id } from './_generated/dataModel'
 import { firstName, requireUser } from './lib/access'
 import { vAskSource } from './validators'
 import { isISODate, todayIST } from '../src/lib/dates'
-import { cleanQuestion, cleanTheme, guessTheme, LIMITS, needsAnswer, NEXT_DECK, noteLines, sameText } from '../src/lib/qanda'
+import { cleanQuestion, cleanTheme, guessTheme, LIMITS, needsAnswer, nextDeck, noteLines, sameText } from '../src/lib/qanda'
 
 type Q = Doc<'questions'>
 const isLive = (q: Q | null): q is Q => !!q && !q.removedAt && !q.mergedInto
@@ -271,15 +271,19 @@ export const restore = mutation({
   },
 })
 
-/** "Add to deck vN": onto the deck-gaps list for the next deck. */
+/** "Add to deck vN": onto the deck-gaps list for the version after the current pitch deck in Materials. */
 export const addToDeck = mutation({
   args: { id: v.id('questions') },
   handler: async (ctx, { id }) => {
     await requireUser(ctx)
     const q = await liveQuestion(ctx, id)
     if (q.onDeck) throw new ConvexError('It’s already on a slide.')
-    await ctx.db.patch(id, { deckGap: { deck: NEXT_DECK, at: Date.now() } })
-    return NEXT_DECK
+    const materials = await ctx.db.query('materials').collect()
+    const versions = []
+    for (const m of materials) if (m.kind === 'deck' && m.currentVersionId) versions.push(await ctx.db.get(m.currentVersionId))
+    const deck = nextDeck(materials, versions.filter((x) => x !== null))
+    await ctx.db.patch(id, { deckGap: { deck, at: Date.now() } })
+    return deck
   },
 })
 

@@ -3,17 +3,18 @@
 // fixes do. Sounds follow interactions-ai.png: one per click, none on Undo but
 // the undo sound itself.
 import { useMemo } from 'react'
-import { NEXT_DECK, type Ask, type Note, type Question } from '../../lib/qanda'
+import type { Ask, Note, Question } from '../../lib/qanda'
 import { play } from '../../lib/sound'
 import { useUI } from '../raise-ui'
 import { useSaveAction } from '../system/useSaveAction'
-import { useQanda } from './data'
+import { useNextDeck, useQanda } from './data'
 import { openPanel } from './panels'
 
 const short = (s: string, n = 48) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s)
 
 export function useQandaActions() {
   const { act } = useQanda()
+  const next = useNextDeck()
   const ui = useUI()
   const save = useSaveAction()
   return useMemo(() => {
@@ -43,14 +44,15 @@ export function useQandaActions() {
       },
       addToDeck: async (q: Question) => {
         play('rule-check', { volume: 0.6 })
-        const deck = await save(() => act.addToDeck(q._id), { failMessage: 'Couldn’t add it to the deck list.' })
+        const deck = await save(() => act.addToDeck(q._id, next), { failMessage: 'Couldn’t add it to the deck list.' })
         if (deck === undefined) return
         ui.toast({ message: `On the list for deck v${deck}.`, action: { label: 'Undo', onClick: undo(() => act.removeFromDeck(q._id)) } })
       },
       removeFromDeck: async (q: Question) => {
         const r = await save(() => act.removeFromDeck(q._id), { failMessage: 'Couldn’t take it off the list.' })
         if (r === undefined) return
-        ui.toast({ tone: 'info', message: `Off the list for deck v${q.deckGap?.deck ?? NEXT_DECK}.`, action: { label: 'Undo', onClick: undo(() => act.addToDeck(q._id)) } })
+        const deck = q.deckGap?.deck ?? next
+        ui.toast({ tone: 'info', message: `Off the list for deck v${deck}.`, action: { label: 'Undo', onClick: undo(() => act.addToDeck(q._id, deck)) } })
       },
       markLine: async (n: Note, line: number, name: string) => {
         play('rule-check', { volume: 0.6 })
@@ -73,5 +75,5 @@ export function useQandaActions() {
         ui.toast({ tone: 'info', icon: 'trash', message: 'Notes deleted. Their questions stay in the bank.', action: { label: 'Undo', onClick: undo(() => act.restoreNote(n._id)) } })
       },
     }
-  }, [act, ui, save])
+  }, [act, ui, save, next])
 }

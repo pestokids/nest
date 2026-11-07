@@ -17,6 +17,7 @@ import { acceptsTogether, reconcile, ruleSuggestions, sortSuggestions, type Chec
 import {
   fixtureAgentSuggestion, fixtureExtraSuggestions, fixtureSuggestionInvestors, fixtureSuggestionMeetings, type PreviewSuggestions,
 } from '../preview/suggestionsFixture'
+import { fixtureCloseInvestors, type PreviewClose } from '../preview/closeFixture'
 import { RaiseContext, type LogRow, type RaiseData } from './data'
 import { PreviewQanda } from '../preview/PreviewQanda'
 
@@ -33,7 +34,7 @@ const stamp = (now: number) => (d: SuggestionDraft, k: number): Suggestion => ({
 
 /** `board`: add the Pipeline board's extra fake cards (`&pipeline=…`). `today`: the Raise · Today preview state. `extra`: the Investors, Plan and system states. */
 export function PreviewData({
-  source, home = 'default', board = false, today: todayState = 'default', extra = {}, google: googleState = 'none', suggestions: suggestionsState = 'default', ai: aiState = 'default', children,
+  source, home = 'default', board = false, today: todayState = 'default', extra = {}, google: googleState = 'none', suggestions: suggestionsState = 'default', ai: aiState = 'default', close = null, children,
 }: {
   source: 'fixture' | 'seed'
   home?: PreviewHome
@@ -45,6 +46,8 @@ export function PreviewData({
   suggestions?: PreviewSuggestions
   /** PST-274 `&ai=…` */
   ai?: PreviewAI
+  /** PST-283 `&close=…`: adds the closing investors. */
+  close?: PreviewClose | null
   children: ReactNode
 }) {
   const [investors, setInvestors] = useState<Investor[] | null>(null)
@@ -125,7 +128,7 @@ export function PreviewData({
     // The real seed file only exists locally; deployed previews always use the fixture.
     const withSuggestions = suggestionsState !== 'none' && suggestionsState !== 'tidy'
     if (source === 'fixture' || !import.meta.env.DEV)
-      return load([...fixtureInvestors(t), ...(board ? fixtureBoardExtras(t) : []), ...(withSuggestions ? fixtureSuggestionInvestors(t) : [])], fixtureRound(t))
+      return load([...fixtureInvestors(t), ...(board ? fixtureBoardExtras(t) : []), ...(withSuggestions ? fixtureSuggestionInvestors(t) : []), ...(close ? fixtureCloseInvestors(t, close) : [])], fixtureRound(t))
     fetch('/internal/seed.json')
       .then((r) => r.json() as Promise<Seed>)
       .then((s) => {
@@ -135,7 +138,7 @@ export function PreviewData({
           mergeRound(s.round),
         )
       })
-  }, [source, home, board, todayState, extra.mid, suggestionsState])
+  }, [source, home, board, todayState, extra.mid, suggestionsState, close])
 
   const latest = useRef(investors)
   const latestActs = useRef(acts)
