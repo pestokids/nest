@@ -4,7 +4,7 @@
 import { defineTable } from 'convex/server'
 import { v } from 'convex/values'
 import { NOTE_SOURCES, READ_STATUSES } from '../src/lib/meetingNotes'
-import { vPipelineStage } from './validators'
+import { runModelFields, vPipelineStage } from './validators'
 
 const lit = <T extends string>(xs: readonly T[]) => v.union(...xs.map((x) => v.literal(x)))
 
@@ -37,6 +37,7 @@ export const notesReadTables = {
     startedAt: v.number(),
     finishedAt: v.optional(v.number()),
     error: v.optional(v.string()),
+    ...runModelFields,
     /** Apply or Dismiss in the drawer: what Undo puts back. */
     decided: v.optional(
       v.object({

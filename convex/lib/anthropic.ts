@@ -3,34 +3,24 @@
 // turns with no tools for reading meeting notes and drafting answers, and (PST-279) turns
 // with Nest's own read tools for Ask Nest. It streams, so a run
 // can report progress while Claude works, and prices every run from its usage.
+// PST-273: every call names its model (Settings › AI picks it; src/lib/models.ts has the prices).
 // The key is ANTHROPIC_API_KEY in the Convex env; nothing here logs it or puts it in an error.
+import { costOf, type Model, type Usage } from '../../src/lib/models'
 
-export const MODEL = 'claude-sonnet-5-5'
-/** PST-277: the cheap model, for drafting an answer from the Q&A bank. */
-export const HAIKU = 'claude-haiku-5-5'
-export type Model = typeof MODEL | typeof HAIKU
+export { AI_MODEL, costOf, HAIKU, OPUS, PRICES, SONNET, usageRow, type Model, type RunUsage, type Usage } from '../../src/lib/models'
+
 const API = 'https://api.anthropic.com/v1/messages'
 /** The current API version (docs.claude.com/en/api/versioning). Server tools need no beta header on it. */
 const VERSION = '2026-10-21'
 
-/** Server tools (docs.claude.com/en/docs/agents-and-tools/tool-use/web-search-tool and …/web-fetch-tool). */
-export const TOOLS = [
-  { type: 'web_search_20260318', name: 'web_search', max_uses: 6 },
-  { type: 'web_fetch_20260318', name: 'web_fetch', max_uses: 6, max_content_tokens: 20000 },
-]
-
 /**
- * Dollars per million tokens, and per web search. From
- * https://docs.claude.com/en/docs/about-claude/pricing (Claude Sonnet 5.5, and Claude
- * Haiku 5.5 for prompts up to 100,000 tokens, which is all Nest sends it) and
- * https://docs.claude.com/en/docs/agents-and-tools/tool-use/web-search-tool#usage-and-pricing
- * ($10 per 1,000 searches). Web fetch costs nothing beyond its tokens. Checked 7 Nov 2026.
+ * Server tools (docs.claude.com/en/docs/agents-and-tools/tool-use/web-search-tool and …/web-fetch-tool).
+ * Every result is read again on each later step of the run, so these limits set most of a run's tokens.
  */
-export const PRICES = {
-  [MODEL]: { input: 2, output: 10, cacheWrite5m: 2.5, cacheWrite1h: 4, cacheRead: 0.1 },
-  [HAIKU]: { input: 0.1, output: 0.5, cacheWrite5m: 0.125, cacheWrite1h: 0.2, cacheRead: 0.01 },
-  webSearch: 0.01,
-} as const
+export const TOOLS = [
+  { type: 'web_search_20260318', name: 'web_search', max_uses: 4 },
+  { type: 'web_fetch_20260318', name: 'web_fetch', max_uses: 3, max_content_tokens: 8000 },
+]
 
 /** ANTHROPIC_API_KEY isn't set (Vercel previews): the UI says "AI isn't set up here" instead of failing. */
 export class NoAIKey extends Error {
@@ -52,24 +42,8 @@ export class AIError extends Error {
 
 export const hasAIKey = () => !!process.env.ANTHROPIC_API_KEY?.trim()
 
-export type Usage = {
-  input_tokens?: number
-  output_tokens?: number
-  cache_creation_input_tokens?: number
-  cache_read_input_tokens?: number
-  cache_creation?: { ephemeral_5m_input_tokens?: number; ephemeral_1h_input_tokens?: number }
-  server_tool_use?: { web_search_requests?: number; web_fetch_requests?: number }
-}
-
-/** What a run cost, in dollars: tokens at the model's prices plus web search requests. */
-export function costOf(u: Usage, model: Model = MODEL): number {
-  const p = PRICES[model]
-  const w1h = u.cache_creation?.ephemeral_1h_input_tokens ?? 0
-  const w5m = u.cache_creation?.ephemeral_5m_input_tokens ?? Math.max(0, (u.cache_creation_input_tokens ?? 0) - w1h)
-  const tokens =
-    (u.input_tokens ?? 0) * p.input + (u.output_tokens ?? 0) * p.output + w5m * p.cacheWrite5m + w1h * p.cacheWrite1h + (u.cache_read_input_tokens ?? 0) * p.cacheRead
-  return tokens / 1e6 + (u.server_tool_use?.web_search_requests ?? 0) * PRICES.webSearch
-}
+/** A system prompt marked for the cache: the tools come before it, so a run's later turns read the tools and the system prompt from the cache. */
+const cachedSystem = (text: string) => [{ type: 'text', text, cache_control: { type: 'ephemeral' } }]
 
 /** Two requests' usage added up (a turn that paused and went on). */
 export function addUsage(a: Usage, b: Usage): Usage {
@@ -122,20 +96,23 @@ async function streamed(body: Record<string, unknown>, hooks: Hooks) {
 
 /**
  * One research turn: Claude with web search and web fetch, streamed. Pauses
- * (stop_reason pause_turn) are continued. Returns all of Claude's text and the
- * summed usage with its cost.
+ * (stop_reason pause_turn) are continued. Returns all of Claude's text, the
+ * summed usage, and the cost (each request priced on its own).
  */
-export async function research(o: { system: string; prompt: string; maxTokens?: number; hooks?: Hooks }): Promise<{ text: string; usage: Usage; costUsd: number }> {
+export async function research(o: { model: Model; system: string; prompt: string; maxTokens?: number; hooks?: Hooks }): Promise<{ text: string; usage: Usage; costUsd: number }> {
   const messages: Message[] = [{ role: 'user', content: o.prompt }]
   let usage: Usage = {}
+  let costUsd = 0
   let text = ''
   for (let round = 0; ; round++) {
-    const r = await streamed({ model: MODEL, max_tokens: o.maxTokens ?? 8000, system: o.system, messages, tools: TOOLS }, o.hooks ?? {})
+    const r = await streamed({ model: o.model, max_tokens: o.maxTokens ?? 8000, system: cachedSystem(o.system), messages, tools: TOOLS }, o.hooks ?? {})
     usage = addUsage(usage, r.usage)
+    // Each step reads at most the instructions and what TOOLS allows (under 50K), so never the long-prompt price, however far the steps add up.
+    costUsd += costOf(r.usage, o.model, false)
     text += r.blocks.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('')
     if (r.stop !== 'pause_turn') {
       if (r.stop === 'max_tokens') throw new AIError(200, 'ran out of room before answering')
-      return { text, usage, costUsd: costOf(usage) }
+      return { text, usage, costUsd }
     }
     if (round >= MAX_CONTINUATIONS) throw new AIError(200, 'kept pausing without an answer')
     messages.push({ role: 'assistant', content: r.blocks })
@@ -153,7 +130,7 @@ export type Message = { role: 'user' | 'assistant'; content: unknown }
  */
 export async function converse(o: { model: Model; system: string; messages: Message[]; tools: ToolDef[]; toolChoice?: 'auto' | 'none'; maxTokens?: number; hooks?: Hooks }) {
   return await streamed(
-    { model: o.model, max_tokens: o.maxTokens ?? 2000, system: o.system, messages: o.messages, tools: o.tools, tool_choice: { type: o.toolChoice ?? 'auto' } },
+    { model: o.model, max_tokens: o.maxTokens ?? 2000, system: cachedSystem(o.system), messages: o.messages, tools: o.tools, tool_choice: { type: o.toolChoice ?? 'auto' } },
     o.hooks ?? {},
   )
 }
@@ -243,13 +220,25 @@ async function readStream(body: ReadableStream<Uint8Array>, hooks: Hooks) {
   return { blocks: blocks.filter(Boolean), stop, usage }
 }
 
-/** The JSON object in Claude's answer: the last fenced json block, else the outermost braces. */
+/** Line breaks and tabs typed straight into JSON strings (Haiku does this), escaped. */
+const escapeBreaks = (raw: string) => raw.replace(/"(?:[^"\\]|\\.)*"/g, (s) => s.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t'))
+
+/**
+ * The JSON object in Claude's answer: the last fenced json block, else the
+ * outermost braces, each tried again with raw line breaks in strings escaped.
+ */
 export function extractJson(text: string): unknown {
-  const fenced = [...text.matchAll(/```(?:json)?\s*\n([\s\S]*?)```/g)].at(-1)?.[1]
-  const raw = fenced ?? text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1)
-  try {
-    return JSON.parse(raw)
-  } catch {
-    throw new AIError(200, 'answered without readable JSON')
+  const fenced = [...text.matchAll(/```(?:json)?[ \t]*\n?([\s\S]*?)```/g)].at(-1)?.[1]
+  const braces = text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1)
+  for (const raw of [fenced, braces]) {
+    if (!raw?.trim()) continue
+    for (const s of [raw, escapeBreaks(raw)]) {
+      try {
+        return JSON.parse(s)
+      } catch {
+        // the next way of reading it
+      }
+    }
   }
+  throw new AIError(200, 'answered without readable JSON')
 }

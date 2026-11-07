@@ -1,6 +1,9 @@
 // DEV ONLY: made-up enrichment for ?preview, so every new state shows without a key:
 // &ai=enriching (a run in progress), &ai=review (facts to keep, one clashing with
 // Expected), &ai=nokey (AI isn't set up here), &ai=bulk (four investors enriching).
+// PST-273: &ai=models (Settings › AI's Model section with two features on their own
+// model, estimates from real runs for two of them), &ai=spend (a month split across
+// all three models).
 // The default shows Kite Angels enriched and reviewed. Clicking Enrich, Refresh or a
 // bulk Enrich plays a pretend run. Invented people at example.com addresses only.
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -8,11 +11,27 @@ import type { AIActions } from '../components/data'
 import { investorWrite, NO_AI, type AIData, type AISettings, type Fact, type FactPerson, type InvestorAI, type Person, type Rank, type RecentRun, type Run } from '../lib/enrich'
 import { todayIST } from '../lib/dates'
 import { fieldsOf, NEW_INVESTOR, type Investor, type InvestorFields } from '../lib/pipeline'
+import { DEFAULT_CHOICE, estimate, HAIKU, OPUS, SONNET, type Feature, type Model, type ModelChoice, type RealUsage } from '../lib/models'
 
-export const PREVIEW_AI = ['default', 'enriching', 'review', 'nokey', 'bulk'] as const
+export const PREVIEW_AI = ['default', 'enriching', 'review', 'nokey', 'bulk', 'models', 'spend'] as const
 export type PreviewAI = (typeof PREVIEW_AI)[number]
 
-type DB = { runs: Run[]; facts: Fact[]; people: Person[]; settings: AISettings; connected: boolean }
+type DB = { runs: Run[]; facts: Fact[]; people: Person[]; settings: AISettings; connected: boolean; models: ModelChoice; state: PreviewAI }
+
+const real = (runs: number, input: number, output: number, webSearches = 0): RealUsage => ({ runs, avg: { input, output, cacheRead: 0, cacheWrite: 0, webSearches } })
+/** This month's runs per feature, their real usage, and the spend (enrichment's grows with the pretend runs' cost). */
+function monthOf(state: PreviewAI): { features: AIData['features']; byModel: Record<Model, number>; byFeature: Record<Feature, number> } {
+  const features: AIData['features'] = {
+    enrich: { month: 51, real: state === 'models' || state === 'spend' ? real(23, 71_400, 2_650, 2.6) : real(3, 64_000, 2_400, 2.3) },
+    notes: { month: 6, real: state === 'models' ? real(6, 5_200, 880) : null },
+    drafts: { month: 4, real: null },
+    ask: { month: 11, real: null },
+    brief: { month: 7, real: null },
+  }
+  if (state === 'spend')
+    return { features, byModel: { [HAIKU]: 0.92, [SONNET]: 2.1, [OPUS]: 1.35 }, byFeature: { enrich: 3.05, notes: 0.21, drafts: 0.18, ask: 0.86, brief: 0.07 } }
+  return { features, byModel: { [HAIKU]: 0.31, [SONNET]: 1.53, [OPUS]: 0 }, byFeature: { enrich: 1.62, notes: 0.05, drafts: 0.03, ask: 0.12, brief: 0.02 } }
+}
 
 const STEPS = ['Who they are and their rank', 'What the fund is and its size', 'Checking recent deals', 'Typical check size, and whether they lead', 'Other partners and what they cover']
 const SENDER_STEPS = ['Who they are', 'Their firm, if they have one', 'Whether they invest, and in what']
@@ -100,12 +119,13 @@ const SENDERS: Record<string, Seed> = {
 }
 
 /** Settings › AI's recent runs: a question asked two hours ago and today's 08:00 brief. */
-function asksAndBriefs(): RecentRun[] {
+function asksAndBriefs(state: PreviewAI): RecentRun[] {
   const at8 = Date.parse(todayIST() + 'T08:00:00+05:30')
   const base = { wasInvestor: false, facts: 0, cached: false, status: 'done' as const }
+  const opus = state === 'spend'
   return [
-    { ...base, _id: 'pask-recent', at: Math.max(at8 + 6e4, Date.now() - 2 * H), kind: 'ask', question: 'Who should I chase today?', tools: 2, costUsd: 0.012 },
-    { ...base, _id: 'pbrief-recent', at: at8, kind: 'brief', moves: 3, costUsd: 0.0004 },
+    { ...base, _id: 'pask-recent', at: Math.max(at8 + 6e4, Date.now() - 2 * H), kind: 'ask', question: 'Who should I chase today?', tools: 2, costUsd: opus ? 0.11 : 0.004, model: opus ? OPUS : HAIKU },
+    { ...base, _id: 'pbrief-recent', at: at8, kind: 'brief', moves: 3, costUsd: 0.0002, model: HAIKU },
   ]
 }
 
@@ -159,11 +179,14 @@ function factsOf(seed: Seed, runId: string, o: { inv?: Investor; email?: string;
 const REVIEW_ONLY = ['person.name', 'person.title', 'person.rank', 'person.covers', 'person.linkedin', 'person.x', 'fund.size', 'fund.stage', 'fund.check', 'fund.leads', 'fund.geography', 'fund.recentDeals']
 
 function initial(state: PreviewAI, investors: Investor[], now: number): DB {
-  const db: DB = { runs: [], facts: [], people: [], settings: { lookups: true, enrichNew: true, meetingNotes: true, morningBrief: true }, connected: state !== 'nokey' }
+  const db: DB = {
+    runs: [], facts: [], people: [], settings: { lookups: true, enrichNew: true, meetingNotes: true, morningBrief: true }, connected: state !== 'nokey', state,
+    models: state === 'models' ? { default: HAIKU, features: { enrich: SONNET, ask: OPUS } } : DEFAULT_CHOICE,
+  }
   if (state === 'nokey') return db
   const kite = investors.find((i) => i.name === 'Kite Angels')
   const done = (inv: Investor | undefined, seed: Seed, at: number, extra: Partial<Run> = {}): Run | undefined =>
-    inv && { _id: uid('r'), investorId: inv._id, email: inv.email, status: 'done', steps: STEPS.map((l, k) => ({ label: seed.found[k]?.[0] ?? l, state: 'done' as const, ...(seed.found[k]?.[1] ? { source: seed.found[k][1] } : {}) })), costUsd: 0.04, startedAt: at - 40e3, finishedAt: at, auto: false, factCount: 12, verdict: seed.verdict, summary: seed.summary, ...extra }
+    inv && { _id: uid('r'), investorId: inv._id, email: inv.email, status: 'done', steps: STEPS.map((l, k) => ({ label: seed.found[k]?.[0] ?? l, state: 'done' as const, ...(seed.found[k]?.[1] ? { source: seed.found[k][1] } : {}) })), costUsd: 0.04, startedAt: at - 40e3, finishedAt: at, auto: false, factCount: 12, verdict: seed.verdict, summary: seed.summary, model: HAIKU, ...extra }
   if (kite && state === 'enriching') {
     db.runs.push({
       _id: uid('r'), investorId: kite._id, email: kite.email, status: 'running', auto: false, costUsd: 0.03, startedAt: now - 22e3,
@@ -180,7 +203,7 @@ function initial(state: PreviewAI, investors: Investor[], now: number): DB {
     db.runs.push(run)
     db.facts.push(...factsOf(KITE, run._id, { inv: kite, only: REVIEW_ONLY }))
   } else if (kite) {
-    const run = done(kite, KITE, now - 3 * H)!
+    const run = done(kite, KITE, now - 3 * H, state === 'spend' ? { model: SONNET, costUsd: 0.27 } : {})!
     db.runs.push(run)
     db.facts.push(...factsOf(KITE, run._id, { inv: kite, status: 'kept' }))
     db.people.push(
@@ -201,12 +224,12 @@ function initial(state: PreviewAI, investors: Investor[], now: number): DB {
   }
   // Who's this? (with &google=connected): three looked up, one still looking.
   for (const [email, seed] of Object.entries(SENDERS)) {
-    const run: Run = { _id: uid('r'), email, status: 'done', auto: true, costUsd: 0.03, startedAt: now - 2 * H, finishedAt: now - 2 * H + 30e3, steps: SENDER_STEPS.map((l, k) => ({ label: seed.found[k]?.[0] ?? l, state: 'done' as const })), verdict: seed.verdict, summary: seed.summary }
+    const run: Run = { _id: uid('r'), email, status: 'done', auto: true, costUsd: 0.03, model: HAIKU, startedAt: now - 2 * H, finishedAt: now - 2 * H + 30e3, steps: SENDER_STEPS.map((l, k) => ({ label: seed.found[k]?.[0] ?? l, state: 'done' as const })), verdict: seed.verdict, summary: seed.summary }
     const facts = factsOf(seed, run._id, { email })
     db.runs.push({ ...run, factCount: facts.length })
     db.facts.push(...facts)
   }
-  db.runs.push({ _id: uid('r'), email: 'm.tan@northbridge.example.com', status: 'running', auto: true, costUsd: 0.01, startedAt: now - 6e3, steps: SENDER_STEPS.map((l, k) => ({ label: l, state: k === 0 ? 'running' : 'waiting' })) })
+  db.runs.push({ _id: uid('r'), email: 'm.tan@northbridge.example.com', status: 'running', auto: true, costUsd: 0.01, model: HAIKU, startedAt: now - 6e3, steps: SENDER_STEPS.map((l, k) => ({ label: l, state: k === 0 ? 'running' : 'waiting' })) })
   return db
 }
 
@@ -264,7 +287,8 @@ export function useAIPreview(state: PreviewAI, investors: Investor[] | null, sav
         if (!r || r.status !== 'running') return
         const seed = seedOf(r)
         const steps = r.steps.map((s, j) => (j < k + 1 ? { label: seed.found[j]?.[0] ?? s.label, state: 'done' as const, ...(seed.found[j]?.[1] ? { source: seed.found[j][1] } : {}) } : j === k + 1 ? { ...s, state: 'running' as const, source: j === 2 ? 'reading 3 news pages' : undefined } : s))
-        const costUsd = Math.round((k + 1) * 0.008 * 1000) / 1000
+        const total = estimate('enrich', r.model ?? HAIKU).usd
+        const costUsd = Math.round(((k + 1) / r.steps.length) * total * 1000) / 1000
         if (k + 1 < r.steps.length) {
           patchRun(id, { steps, costUsd })
           tick(id, k + 1)
@@ -278,17 +302,17 @@ export function useAIPreview(state: PreviewAI, investors: Investor[] | null, sav
           return {
             ...d,
             facts: [...d.facts.filter((f) => !(old(f) && f.status === 'pending')), ...facts.filter((f) => !settled.has(f.group + f.field + f.value))],
-            runs: d.runs.map((x) => (x._id === id ? { ...x, status: 'done', steps, costUsd: 0.04, finishedAt: Date.now(), factCount: facts.length, verdict: seed.verdict, summary: seed.summary } : x)),
+            runs: d.runs.map((x) => (x._id === id ? { ...x, status: 'done', steps, costUsd: total, finishedAt: Date.now(), factCount: facts.length, verdict: seed.verdict, summary: seed.summary } : x)),
           }
         })
         pump()
       }, STEP_MS))
     }
-    const queueRun = (t: { investorId?: string; email?: string }) => {
+    const queueRun = (t: { investorId?: string; email?: string; model?: Model }) => {
       const open = ref.current?.runs.find((r) => (t.investorId ? r.investorId === t.investorId : r.email === t.email && !r.investorId) && (r.status === 'queued' || r.status === 'running'))
       if (open) return open._id
       const id = uid('r')
-      update((d) => ({ ...d, runs: [...d.runs, { _id: id, ...t, status: 'queued', auto: false, costUsd: 0, startedAt: Date.now(), steps: (t.investorId ? STEPS : SENDER_STEPS).map((label) => ({ label, state: 'waiting' as const })) }] }))
+      update((d) => ({ ...d, runs: [...d.runs, { _id: id, ...t, model: t.model ?? d.models.features.enrich ?? d.models.default, status: 'queued', auto: false, costUsd: 0, startedAt: Date.now(), steps: (t.investorId ? STEPS : SENDER_STEPS).map((label) => ({ label, state: 'waiting' as const })) }] }))
       pump()
       return id
     }
@@ -314,7 +338,7 @@ export function useAIPreview(state: PreviewAI, investors: Investor[] | null, sav
     const pendingOf = (runId: string) => (ref.current?.facts ?? []).filter((f) => f.runId === runId && f.status === 'pending')
     const wait = () => new Promise((r) => setTimeout(r, 120))
     const a: AIActions = {
-      enrich: async (id) => (ref.current?.connected ? queueRun({ investorId: id, email: inv.current.find((x) => x._id === id)?.email }) : noKey()),
+      enrich: async (id, model) => (ref.current?.connected ? queueRun({ investorId: id, email: inv.current.find((x) => x._id === id)?.email, model }) : noKey()),
       enrichMany: async (ids) => (ref.current?.connected ? ids.map((id) => queueRun({ investorId: id })) : noKey()),
       lookup: async (email) => (ref.current?.connected ? queueRun({ email }) : noKey()),
       stop: async (runId) => {
@@ -339,6 +363,16 @@ export function useAIPreview(state: PreviewAI, investors: Investor[] | null, sav
         return fs.length
       },
       setAuto: async (p) => update((d) => ({ ...d, settings: { ...d.settings, ...p } })),
+      setModel: async (feature, model) => {
+        update((d) => {
+          if (!feature) return { ...d, models: { ...d.models, default: model ?? HAIKU } }
+          const features = { ...d.models.features }
+          if (model) features[feature] = model
+          else delete features[feature]
+          return { ...d, models: { ...d.models, features } }
+        })
+        return ref.current!.models
+      },
       addSender: async (email, investorId) => {
         const d = ref.current!
         const run = latestRun(d.runs, (r) => r.email === email && !r.investorId)
@@ -380,18 +414,25 @@ export function useAIPreview(state: PreviewAI, investors: Investor[] | null, sav
     for (const r of [...db.runs].sort((a, b) => b.startedAt - a.startedAt)) if (!r.investorId && r.email && !senders.has(r.email)) senders.set(r.email, r)
     const names = new Map((investors ?? []).map((i) => [i._id, i.name]))
     const spent = db.runs.reduce((s, r) => s + r.costUsd, 0)
+    const m = monthOf(db.state)
+    const byFeature = { ...m.byFeature, enrich: m.byFeature.enrich + spent }
+    const byModel = { ...m.byModel }
+    for (const r of db.runs) byModel[r.model ?? HAIKU] += r.costUsd
     return {
       loaded: true,
       connected: db.connected,
       settings: db.settings,
-      month: { usd: db.connected ? 1.84 + spent : 0, lookups: db.connected ? 42 : 0, enrichments: db.connected ? 9 : 0 },
+      models: db.models,
+      features: m.features,
+      spend: { byModel, byFeature },
+      month: { usd: db.connected ? Object.values(byFeature).reduce((s, x) => s + x, 0) : 0, lookups: db.connected ? 42 : 0, enrichments: db.connected ? 9 : 0, noteReads: 6, asks: 11 },
       capLeft: 24,
       runs: [...runs.values()].map((r) => ({ ...r, pending: db.facts.filter((f) => f.investorId === r.investorId && f.status === 'pending').length })),
       senders: [...senders.entries()].map(([email, run]) => ({ email, run, facts: db.facts.filter((f) => f.runId === run._id && f.status !== 'dismissed' && !f.investorId) })),
       recent: [
-        ...[...db.runs].map((r): RecentRun => ({ _id: r._id, at: r.finishedAt ?? r.startedAt, investor: r.investorId ? names.get(r.investorId) : undefined, email: r.email, wasInvestor: !!r.investorId, facts: r.factCount ?? 0, costUsd: r.costUsd, status: r.status, cached: !!r.cached })),
+        ...[...db.runs].map((r): RecentRun => ({ _id: r._id, at: r.finishedAt ?? r.startedAt, investor: r.investorId ? names.get(r.investorId) : undefined, email: r.email, wasInvestor: !!r.investorId, facts: r.factCount ?? 0, costUsd: r.costUsd, status: r.status, cached: !!r.cached, model: r.model })),
         // PST-279: an Ask Nest question and this morning's brief.
-        ...(db.connected ? asksAndBriefs() : []),
+        ...(db.connected ? asksAndBriefs(db.state) : []),
       ]
         .sort((a, b) => b.at - a.at)
         .slice(0, 8),

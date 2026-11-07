@@ -8,9 +8,11 @@ import { ConvexError, v } from 'convex/values'
 import { internalAction, internalMutation, internalQuery, mutation, query } from './_generated/server'
 import { internal } from './_generated/api'
 import { requireUser } from './lib/access'
-import { AIError, hasAIKey, NoAIKey } from './lib/anthropic'
+import { AIError, hasAIKey, NoAIKey, usageRow, type RunUsage } from './lib/anthropic'
+import { featureModel } from './lib/enrichQueue'
 import { askLoop, askSystem, type ToolResult } from './lib/ask'
 import { vAskStatus, vSources } from './askSchema'
+import { vModel, vUsage } from './validators'
 import { checkArgs, toolNamed } from '../src/lib/agents'
 import { QUESTION_MAX } from '../src/lib/ask'
 import { NO_AI_KEY } from '../src/lib/enrich'
@@ -20,10 +22,10 @@ const FLUSH_MS = 150
 /** A run still going after this long died without saying so. */
 const STALE_MS = 3 * 6e4
 
-/** Ask a question; resolves with the run the palette watches. */
+/** Ask a question; resolves with the run the palette watches. PST-273: `model` is the Ask chip's pick, for this question only. */
 export const start = mutation({
-  args: { question: v.string() },
-  handler: async (ctx, { question }) => {
+  args: { question: v.string(), model: v.optional(vModel) },
+  handler: async (ctx, { question, model }) => {
     const { userId } = await requireUser(ctx)
     const q = question.trim().replace(/\s+/g, ' ')
     if (!q) throw new ConvexError('Type a question first.')
@@ -31,6 +33,7 @@ export const start = mutation({
     if (!hasAIKey()) throw new ConvexError({ code: NO_AI_KEY, message: 'AI isn’t set up here.' })
     const id = await ctx.db.insert('askRuns', {
       userId, question: q, status: 'thinking', text: '', tools: [], sources: { investors: 0, threads: 0, meetings: 0 }, costUsd: 0, startedAt: Date.now(),
+      model: model ?? (await featureModel(ctx, 'ask')),
     })
     await ctx.scheduler.runAfter(0, internal.ask.execute, { runId: id })
     return id
@@ -46,7 +49,7 @@ export const get = query({
     if (!r || r.userId !== userId) return null
     const dead = (r.status === 'thinking' || r.status === 'answering') && Date.now() - r.startedAt > STALE_MS
     return {
-      _id: r._id, question: r.question, status: dead ? ('failed' as const) : r.status, text: r.text, tools: r.tools, sources: r.sources, costUsd: r.costUsd,
+      _id: r._id, question: r.question, status: dead ? ('failed' as const) : r.status, text: r.text, tools: r.tools, sources: r.sources, costUsd: r.costUsd, ...(r.model ? { model: r.model } : {}),
       ...(dead ? { error: 'It didn’t finish. Try again.' } : r.error ? { error: r.error } : {}),
     }
   },
@@ -56,7 +59,7 @@ export const input = internalQuery({
   args: { runId: v.id('askRuns') },
   handler: async (ctx, { runId }) => {
     const r = await ctx.db.get(runId)
-    return r && r.status === 'thinking' ? { question: r.question } : null
+    return r && r.status === 'thinking' ? { question: r.question, model: r.model ?? (await featureModel(ctx, 'ask')) } : null
   },
 })
 
@@ -69,7 +72,10 @@ export const progress = internalMutation({
 })
 
 export const finish = internalMutation({
-  args: { runId: v.id('askRuns'), status: v.union(v.literal('done'), v.literal('failed')), text: v.string(), tools: v.array(v.string()), sources: vSources, costUsd: v.number(), error: v.optional(v.string()) },
+  args: {
+    runId: v.id('askRuns'), status: v.union(v.literal('done'), v.literal('failed')), text: v.string(), tools: v.array(v.string()), sources: vSources, costUsd: v.number(), error: v.optional(v.string()),
+    model: vModel, usage: v.optional(vUsage),
+  },
   handler: async (ctx, { runId, ...patch }) => {
     if (await ctx.db.get(runId)) await ctx.db.patch(runId, { ...patch, finishedAt: Date.now() })
   },
@@ -87,6 +93,7 @@ export const execute = internalAction({
     const calls: string[] = []
     let text = ''
     let cost = 0
+    let usage: RunUsage | undefined
     let saved = 0
     const save = async (force = false) => {
       if (!force && Date.now() - saved < FLUSH_MS) return
@@ -107,6 +114,7 @@ export const execute = internalAction({
     let status: 'done' | 'failed' = 'done'
     try {
       const out = await askLoop({
+        model: job.model,
         question: job.question,
         system: askSystem(Date.now()),
         callTool,
@@ -118,18 +126,19 @@ export const execute = internalAction({
           text = ''
           return save(true)
         },
-        onCost: (usd) => {
+        onCost: (usd, u) => {
           cost = usd
+          usage = usageRow(u)
         },
       })
       const sources = { investors: seen.investors.size, threads: seen.threads.size, meetings: seen.meetings.size }
-      await ctx.runMutation(internal.ask.finish, { runId, status, text: out.text, tools: calls, sources, costUsd: out.costUsd })
+      await ctx.runMutation(internal.ask.finish, { runId, status, text: out.text, tools: calls, sources, costUsd: out.costUsd, model: job.model, usage: usageRow(out.usage) })
       cost = out.costUsd
     } catch (e) {
       status = 'failed'
       const error = e instanceof NoAIKey ? 'AI isn’t set up here.' : e instanceof AIError ? e.message.slice(0, 200) : 'Something went wrong while answering. Try again.'
-      await ctx.runMutation(internal.ask.finish, { runId, status, text: '', tools: calls, sources: { investors: 0, threads: 0, meetings: 0 }, costUsd: cost, error })
+      await ctx.runMutation(internal.ask.finish, { runId, status, text: '', tools: calls, sources: { investors: 0, threads: 0, meetings: 0 }, costUsd: cost, error, model: job.model, usage })
     }
-    console.log('ask run=' + runId + ' status=' + status + ' tools=' + (calls.join(',') || '-') + ' cost=$' + cost.toFixed(4) + ' secs=' + Math.round((Date.now() - t0) / 1000))
+    console.log('ask run=' + runId + ' status=' + status + ' tools=' + (calls.join(',') || '-') + ' cost=$' + cost.toFixed(4) + ' model=' + job.model + ' secs=' + Math.round((Date.now() - t0) / 1000))
   },
 })

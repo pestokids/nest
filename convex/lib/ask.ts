@@ -1,4 +1,4 @@
-// PST-279: Ask Nest's tool loop. Claude (Sonnet, no web tools) gets Nest's read
+// PST-279: Ask Nest's tool loop. Claude (the Ask model, no web tools) gets Nest's read
 // tools: the same definitions the MCP server lists (src/lib/agents.ts), run by the
 // same handlers (mcp.ts `read`, through the caller's callTool). It loops on
 // tool_use until it answers, with at most MAX_TOOL_CALLS calls; after the last one
@@ -8,15 +8,10 @@ import { toolsFor } from '../../src/lib/agents'
 import { DONT_KNOW, MAX_TOOL_CALLS } from '../../src/lib/ask'
 import { timeOf } from '../../src/lib/google'
 import { todayIST } from '../../src/lib/dates'
-import { addUsage, AIError, converse, costOf, MODEL, type Block, type Message, type ToolDef, type Usage } from './anthropic'
+import { addUsage, AIError, converse, costOf, type Block, type Message, type Model, type ToolDef, type Usage } from './anthropic'
 
-/** The read tools, as Claude is given them. The last one carries the cache mark, so the tools and the system prompt are cached between turns. */
-export const ASK_TOOLS: ToolDef[] = toolsFor('read').map((t, i, all) => ({
-  name: t.name,
-  description: t.description,
-  input_schema: t.inputSchema,
-  ...(i === all.length - 1 ? { cache_control: { type: 'ephemeral' } } : {}),
-}))
+/** The read tools, as Claude is given them. The system prompt after them carries the cache mark (converse), so both are cached between turns. */
+export const ASK_TOOLS: ToolDef[] = toolsFor('read').map((t) => ({ name: t.name, description: t.description, input_schema: t.inputSchema }))
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
@@ -67,28 +62,31 @@ function markLatest(messages: Message[]) {
  * answer, the read tools it called and what it cost.
  */
 export async function askLoop(o: {
+  model: Model
   question: string
   system: string
   callTool: (name: string, input: unknown) => Promise<ToolResult>
   onText?: (delta: string) => unknown
   /** A turn is calling tools (its text so far was only a preamble). */
   onTool?: (name: string) => unknown
-  /** The cost so far, after every turn (so a run that fails later still logs it). */
-  onCost?: (usd: number) => unknown
+  /** The cost and usage so far, after every turn (so a run that fails later still logs them). */
+  onCost?: (usd: number, usage: Usage) => unknown
 }): Promise<{ text: string; calls: string[]; usage: Usage; costUsd: number }> {
   const messages: Message[] = [{ role: 'user', content: o.question }]
   const calls: string[] = []
   let usage: Usage = {}
+  let costUsd = 0
   for (;;) {
     const last = calls.length >= MAX_TOOL_CALLS
-    const r = await converse({ model: MODEL, system: o.system, messages, tools: ASK_TOOLS, toolChoice: last ? 'none' : 'auto', hooks: { onText: o.onText } })
+    const r = await converse({ model: o.model, system: o.system, messages, tools: ASK_TOOLS, toolChoice: last ? 'none' : 'auto', hooks: { onText: o.onText } })
     usage = addUsage(usage, r.usage)
-    await o.onCost?.(costOf(usage, MODEL))
+    costUsd += costOf(r.usage, o.model)
+    await o.onCost?.(costUsd, usage)
     if (r.stop === 'max_tokens') throw new AIError(200, 'ran out of room before answering')
     const uses = r.blocks.filter((b) => b.type === 'tool_use')
     if (!uses.length || last) {
       const text = r.blocks.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('').trim()
-      return { text: text || DONT_KNOW, calls, usage, costUsd: costOf(usage, MODEL) }
+      return { text: text || DONT_KNOW, calls, usage, costUsd }
     }
     messages.push({ role: 'assistant', content: r.blocks })
     const results: Block[] = []

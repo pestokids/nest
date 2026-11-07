@@ -5,6 +5,11 @@
 .cmdk--ask .cmdk-search { margin: 20px 20px 0; height: 56px; padding: 0 18px; border: 1px solid var(--line-default); border-radius: var(--radius-small); background: var(--surface-paper); }
 .cmdk--ask .cmdk-input { font-weight: 600; }
 .cmdk-ask-tag { font: 600 12px/1 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--brand-leaf); }
+/* PST-273: the model chip (a pick lasts one question) */
+.cmdk-model { display: inline-flex; flex: none; align-items: center; gap: 2px; height: 28px; margin-left: 10px; padding: 0 8px 0 10px; border: 1px solid var(--line-default); border-radius: 999px; background: var(--surface-white); font: 500 13px/1 var(--font-ui); color: var(--text-primary); cursor: pointer; }
+.cmdk-model:hover { border-color: var(--brand-forest); }
+.cmdk-model:focus-visible { outline: 3px solid var(--brand-lime); outline-offset: 2px; }
+.cmdk-model.is-picked { border-color: var(--brand-forest); background: var(--brand-forest); color: var(--text-on-dark); }
 .cmdk-modes { display: flex; gap: 8px; padding: 14px 24px 0; flex: none; }
 .cmdk--ask .cmdk-modes { padding: 14px 20px 0; }
 .cmdk-mode {

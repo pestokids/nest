@@ -15,6 +15,8 @@
 //   &suggestions=all|tidy|none|agent  Suggested fixes: the list open, cleared ("All tidy."), none (no card), an agent's row arriving
 //   &ai=enriching|review|nokey|bulk  investor enrichment: a run in progress, facts to review, AI not set up, four enriching
 //                            (default: Kite Angels enriched; with &google=connected Today shows Who's this? lookups)
+//   &ai=models|spend         Settings › AI (PST-273): features on their own models with estimates from real runs; a month's
+//                            spend split across Haiku, Sonnet and Opus
 //   &qanda=empty|answer|edit|new|same|prep  Q&A: an empty bank, the Answer panel (new question, edit with earlier answers, add),
 //                            Same as another, Today's prep brief (implies &google=connected). &drawer=notes for the Notes tab
 //   &materials=<state>       Materials (PST-282): empty, versions, views, share, sent, upload, noemail, opened (a first open arrives)

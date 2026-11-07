@@ -9,6 +9,7 @@ import type { Suggestion } from '../lib/suggestions'
 import type { AgentCall, AgentKeyRow, AgentScope, CreatedKey } from '../lib/agents'
 import type { AskRun } from '../lib/ask'
 import type { Brief } from '../lib/brief'
+import type { Feature, Model, ModelChoice } from '../lib/models'
 
 export type LogRow = RoundChange & { _id: string; at: number; by: string }
 
@@ -57,8 +58,8 @@ export type RaiseData = {
   agentsDo: AgentActions
   /** A key's last 50 calls, newest first. A hook. */
   useAgentActivity: (keyId: string | null) => AgentCall[] | undefined
-  /** PST-279: Ask Nest in ⌘K. Resolves with the run to watch; Ask only reads. */
-  ask: (question: string) => Promise<string>
+  /** PST-279: Ask Nest in ⌘K. Resolves with the run to watch; Ask only reads. PST-273: `model` for this question only (the Ask chip). */
+  ask: (question: string, model?: Model) => Promise<string>
   /** One of your Ask runs as its answer streams in (null: not yours, or gone). A hook. */
   useAskRun: (runId: string | null) => AskRun | null | undefined
   /** PST-279: today's morning brief (null: none today; undefined: loading). */
@@ -87,7 +88,8 @@ export type SuggestionActions = {
 }
 
 export type AIActions = {
-  enrich: (investorId: string) => Promise<unknown>
+  /** PST-273: `model` makes it a one-off on that model (Redo with Sonnet). */
+  enrich: (investorId: string, model?: Model) => Promise<unknown>
   enrichMany: (ids: string[]) => Promise<unknown>
   lookup: (email: string) => Promise<unknown>
   stop: (runId: string) => Promise<unknown>
@@ -98,6 +100,8 @@ export type AIActions = {
   keepAll: (runId: string) => Promise<number>
   dismissAll: (runId: string) => Promise<number>
   setAuto: (patch: Partial<AISettings>) => Promise<unknown>
+  /** PST-273: the default model (no feature), or a feature's own (null: back to the default). */
+  setModel: (feature: Feature | null, model: Model | null) => Promise<ModelChoice>
   /** Who's this?: a new investor (no id), or this person joins an existing one. Resolves with the investor's id. */
   addSender: (email: string, investorId?: string) => Promise<string>
   addPerson: (investorId: string, p: { name: string; title?: string; email?: string }) => Promise<unknown>

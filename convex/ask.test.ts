@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
 import schema from './schema'
-import { costOf, MODEL } from './lib/anthropic'
+import { AI_MODEL, costOf, HAIKU, OPUS, SONNET } from './lib/anthropic'
 import { toolsFor } from '../src/lib/agents'
 import { DONT_KNOW, MAX_TOOL_CALLS, parseAnswer } from '../src/lib/ask'
 import { todayIST } from '../src/lib/dates'
@@ -45,7 +45,7 @@ function turn(parts: Part[]): Response {
   return sse(events)
 }
 
-type Body = { model: string; stream: boolean; tools: { name: string }[]; tool_choice: { type: string }; system: string; messages: { role: string; content: unknown }[] }
+type Body = { model: string; stream: boolean; tools: { name: string; cache_control?: unknown }[]; tool_choice: { type: string }; system: { text: string; cache_control?: unknown }[]; messages: { role: string; content: unknown }[] }
 let claude: { bodies: Body[]; reply: (body: Body, n: number) => Response }
 const calls = () => claude.bodies.length
 
@@ -95,8 +95,8 @@ async function drain(t: S['t']) {
   vi.useRealTimers()
 }
 
-async function ask(s: S, question: string) {
-  const id = await s.as.mutation(api.ask.start, { question })
+async function ask(s: S, question: string, model?: typeof HAIKU | typeof SONNET | typeof OPUS) {
+  const id = await s.as.mutation(api.ask.start, { question, model })
   await drain(s.t)
   return { id, run: (await s.as.query(api.ask.get, { id }))! }
 }
@@ -123,11 +123,14 @@ describe('the tool loop', () => {
     expect(claude.bodies).toHaveLength(MAX_TOOL_CALLS + 1)
     expect(claude.bodies.map((b) => b.tool_choice.type)).toEqual([...Array(MAX_TOOL_CALLS).fill('auto'), 'none'])
     expect(run.text).toBe('Chase [[investor:' + s.kite + '|Kite Angels]].')
-    // Sonnet, streamed, with no web tools.
+    // Haiku (the default), streamed, with no web tools; the tools and the system prompt cached through the system prompt's mark.
     for (const b of claude.bodies) {
-      expect(b.model).toBe(MODEL)
+      expect(b.model).toBe(AI_MODEL)
+      expect(b.model).toBe(HAIKU)
       expect(b.stream).toBe(true)
       expect(b.tools.some((x) => /web_/.test(x.name))).toBe(false)
+      expect(b.system[0].cache_control).toEqual({ type: 'ephemeral' })
+      expect(b.tools.some((x) => x.cache_control)).toBe(false)
     }
   })
 
@@ -181,7 +184,7 @@ describe('answers', () => {
   it('tells Claude to cite, never to invent numbers, and to say when it doesn’t know', async () => {
     const s = await setup()
     await ask(s, 'What’s our churn?')
-    const sys = claude.bodies[0].system
+    const sys = claude.bodies[0].system[0].text
     expect(sys).toContain('[[investor:<id>|<name>]]')
     expect(sys).toContain(DONT_KNOW)
     expect(sys).toMatch(/Never estimate, round up or invent/)
@@ -249,15 +252,22 @@ describe('costs', () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {})
     claude.reply = (_b, n) => (n === 1 ? turn([{ tool: 'todays_moves' }]) : turn([{ text: 'Kite Angels.' }]))
     const { id, run } = await ask(s, 'Who should I chase today?')
-    const cost = 2 * costOf(TURN_USAGE, MODEL)
+    const cost = 2 * costOf(TURN_USAGE, AI_MODEL)
     expect(run.costUsd).toBeCloseTo(cost, 10)
+    expect(run.model).toBe(HAIKU)
+    // PST-273: the row keeps what the run used, both turns added up.
+    const row = await s.t.run((ctx) => ctx.db.get(id))
+    expect(row?.usage).toEqual({ input: 4000, output: 200, cacheRead: 0, cacheWrite: 0, webSearches: 0 })
     expect(log.mock.calls.flat().join('\n')).toMatch(new RegExp(`ask run=${id} status=done tools=todays_moves cost=\\$${cost.toFixed(4).replace('.', '\\.')}`))
     // The log line never carries the question or the answer.
     expect(log.mock.calls.flat().join('\n')).not.toMatch(/chase|Kite/)
     const ai = await s.as.query(api.enrich.data, {})
     expect(ai.month.usd).toBeCloseTo(cost, 10)
     expect(ai.month.asks).toBe(1)
-    expect(ai.recent[0]).toMatchObject({ kind: 'ask', question: 'Who should I chase today?', tools: 1, status: 'done' })
+    expect(ai.recent[0]).toMatchObject({ kind: 'ask', question: 'Who should I chase today?', tools: 1, status: 'done', model: HAIKU })
+    expect(ai.spend.byModel[HAIKU]).toBeCloseTo(cost, 10)
+    expect(ai.spend.byFeature.ask).toBeCloseTo(cost, 10)
+    expect(ai.features.ask.month).toBe(1)
     expect(ai.recent[0].costUsd).toBeCloseTo(cost, 10)
     // Sam sees the run and its cost, not the question.
     const sams = await s.asSam.query(api.enrich.data, {})
@@ -271,7 +281,28 @@ describe('costs', () => {
     const { run } = await ask(s, 'Who should I chase today?')
     expect(run.status).toBe('failed')
     expect(run.error).toBe('Claude refused the request: overloaded_error (529)')
-    expect(run.costUsd).toBeCloseTo(costOf(TURN_USAGE, MODEL), 10)
+    expect(run.costUsd).toBeCloseTo(costOf(TURN_USAGE, AI_MODEL), 10)
+    expect((await s.t.run((ctx) => ctx.db.get(run._id as Id<'askRuns'>)))?.usage).toMatchObject({ input: 2000, output: 100 })
+  })
+
+  it('runs one question on the model the chip picked, then goes back to the Ask model', async () => {
+    const s = await setup()
+    claude.reply = () => turn([{ text: 'Kite Angels.' }])
+    const once = await ask(s, 'Who should I chase today?', OPUS)
+    expect(claude.bodies[0].model).toBe(OPUS)
+    expect(once.run.model).toBe(OPUS)
+    expect(once.run.costUsd).toBeCloseTo(costOf(TURN_USAGE, OPUS), 10)
+    expect(once.run.costUsd).toBeCloseTo((2000 * 4 + 100 * 20) / 1e6, 10)
+    const next = await ask(s, 'Who should I chase today?')
+    expect(claude.bodies[1].model).toBe(HAIKU)
+    expect(next.run.model).toBe(HAIKU)
+    // Settings › AI gives Ask its own model; a question without a pick uses it.
+    await s.as.mutation(api.enrich.setModel, { feature: 'ask', model: SONNET })
+    const third = await ask(s, 'Who should I chase today?')
+    expect(claude.bodies[2].model).toBe(SONNET)
+    expect(third.run.costUsd).toBeCloseTo((2000 * 2 + 100 * 10) / 1e6, 10)
+    const ai = await s.as.query(api.enrich.data, {})
+    expect(ai.spend.byModel).toMatchObject({ [OPUS]: expect.closeTo(once.run.costUsd, 10), [HAIKU]: expect.closeTo(next.run.costUsd, 10), [SONNET]: expect.closeTo(third.run.costUsd, 10) })
   })
 })
 

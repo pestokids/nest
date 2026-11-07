@@ -8,6 +8,7 @@ import { NEW_INVESTOR, type InvestorFields } from './pipeline'
 import { domainOf, GENERIC_DOMAINS, normDomain, normEmail } from './google'
 import type { Round } from './round'
 import { TYPES, type Geo, type InvestorType } from './stages'
+import { DEFAULT_CHOICE, FEATURES, MODELS, type Feature, type Model, type ModelChoice, type RealUsage } from './models'
 
 export const RANKS = ['managing partner', 'partner', 'principal', 'associate', 'scout', 'angel'] as const
 export type Rank = (typeof RANKS)[number]
@@ -80,6 +81,8 @@ export type Run = {
   summary?: string
   auto: boolean
   cached?: boolean
+  /** PST-273: the model it ran on. */
+  model?: Model
 }
 
 export type Person = {
@@ -232,11 +235,13 @@ export function fit(facts: readonly Fact[], round: Pick<Round, 'minCheck' | 'tar
 
 /* ---------- labels ---------- */
 
-/** "4¢", "$1.84". */
+/** "4¢", "$1.84", and under a cent (PST-273: most Haiku runs) "0.4¢" or "<0.1¢". */
 export function cents(usd: number): string {
   if (usd >= 1) return '$' + usd.toFixed(2)
-  const c = Math.round(usd * 100)
-  return (usd > 0 && c === 0 ? '<1' : String(c)) + '¢'
+  const c = usd * 100
+  if (c <= 0) return '0¢'
+  if (c < 0.05) return '<0.1¢'
+  return (c < 0.95 ? c.toFixed(1) : String(Math.round(c))) + '¢'
 }
 
 /** "linkedin.com" from a URL; the input when it isn't one. */
@@ -333,6 +338,8 @@ export type RecentRun = {
   question?: string
   tools?: number
   moves?: number
+  /** PST-273: the model it ran on (none for a run copied from a recent lookup). */
+  model?: Model
 }
 export type AIData = {
   loaded: boolean
@@ -348,8 +355,18 @@ export type AIData = {
   /** Looked-up senders (Who's this?) with what was found. */
   senders: Sender[]
   recent: RecentRun[]
+  /** PST-273: Settings › AI's models. */
+  models: ModelChoice
+  /** Each feature's runs this month, and the average usage of its latest runs that stored it (null: none yet). */
+  features: Record<Feature, { month: number; real: RealUsage | null }>
+  /** This month's spend by model and by feature (runs from before PST-273 count as the model they used). */
+  spend: { byModel: Record<Model, number>; byFeature: Record<Feature, number> }
 }
 export type InvestorAI = { run: Run | null; facts: Fact[]; people: Person[] }
+const perFeature = <T>(x: () => T) => Object.fromEntries(FEATURES.map((k) => [k, x()])) as Record<Feature, T>
 export const NO_AI: AIData = {
   loaded: false, connected: false, settings: { lookups: true, enrichNew: true, meetingNotes: true, morningBrief: true }, month: { usd: 0, lookups: 0, enrichments: 0 }, capLeft: 30, runs: [], senders: [], recent: [],
+  models: DEFAULT_CHOICE,
+  features: perFeature(() => ({ month: 0, real: null })),
+  spend: { byModel: Object.fromEntries(MODELS.map((m) => [m, 0])) as Record<Model, number>, byFeature: perFeature(() => 0) },
 }

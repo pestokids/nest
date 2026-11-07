@@ -9,12 +9,14 @@ import { action, internalAction, internalMutation, internalQuery, mutation, quer
 import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
 import { requireUser } from './lib/access'
-import { AIError, complete, extractJson, hasAIKey, HAIKU, MODEL, NoAIKey } from './lib/anthropic'
+import { AIError, complete, extractJson, hasAIKey, NoAIKey, usageRow, type RunUsage } from './lib/anthropic'
+import { featureModel } from './lib/enrichQueue'
 import { conform, SchemaError } from './lib/jsonSchema'
 import { DRAFT_SYSTEM, draftPrompt, notePrompt, SYSTEM, vNoteAnswer } from './lib/notesPrompt'
 import { READ_STALE_MS, startRead } from './lib/noteRead'
 import { acceptOne, insertSuggestion, reopen } from './suggestions'
 import { vNoteSource, vProposal } from './notesSchema'
+import { vModel, vUsage } from './validators'
 import { expectedClash, matchNote, proposalsFrom, type ProposalState } from '../src/lib/meetingNotes'
 import { NO_AI_KEY } from '../src/lib/enrich'
 import { isISODate, todayIST } from '../src/lib/dates'
@@ -92,6 +94,7 @@ export const input = internalQuery({
       .map((q) => ({ _id: q._id as string, text: q.text }))
     const investor = { stage: inv.stage, expected: inv.expected, nextStep: inv.nextStep, nextDate: inv.nextDate }
     return {
+      model: r.model ?? (await featureModel(ctx, 'notes')),
       prompt: notePrompt({ today: todayIST(), note: { date: note.date, title: note.title, text: note.text }, investor: { ...investor, name: inv.name, firm: inv.firm, type: inv.type, path: inv.path, notes: inv.notes }, bank }),
       check: { note: note.text, investor, bank },
     }
@@ -123,14 +126,15 @@ function rowFor(p: ProposalDoc, inv: Doc<'investors'>, note: Doc<'notes'>, today
 
 /** Store what Claude found, and put each proposal in Suggestions. An earlier read of the same note gives way. */
 export const finish = internalMutation({
-  args: { readId: v.id('noteReads'), summary: v.array(v.string()), proposals: v.array(vProposal), costUsd: v.number() },
+  args: { readId: v.id('noteReads'), summary: v.array(v.string()), proposals: v.array(vProposal), costUsd: v.number(), model: vModel, usage: vUsage },
   handler: async (ctx, a) => {
     const r = await ctx.db.get(a.readId)
     if (!r) return
-    if (r.status !== 'reading') return void (await ctx.db.patch(r._id, { costUsd: a.costUsd }))
+    const spent = { costUsd: a.costUsd, model: a.model, usage: a.usage }
+    if (r.status !== 'reading') return void (await ctx.db.patch(r._id, spent))
     const note = await ctx.db.get(r.noteId)
     const inv = await ctx.db.get(r.investorId)
-    if (!note || note.removedAt || !inv) return void (await ctx.db.patch(r._id, { status: 'failed', error: 'The notes or the investor were deleted.', costUsd: a.costUsd, finishedAt: Date.now() }))
+    if (!note || note.removedAt || !inv) return void (await ctx.db.patch(r._id, { status: 'failed', error: 'The notes or the investor were deleted.', ...spent, finishedAt: Date.now() }))
     for (const old of await ctx.db.query('noteReads').withIndex('by_note', (q) => q.eq('noteId', r.noteId)).collect()) {
       if (old._id === r._id || old.status !== 'ready') continue
       for (const p of old.proposals) if (p.suggestionId && (await ctx.db.get(p.suggestionId))?.status === 'open') await ctx.db.delete(p.suggestionId)
@@ -147,15 +151,15 @@ export const finish = internalMutation({
       const suggestionId = await insertSuggestion(ctx, { ...rowFor(p, inv, note, today), investorId: inv._id, source: 'notes', key: 'notes:' + r._id + ':' + p.id })
       proposals.push(suggestionId ? { ...p, suggestionId } : p)
     }
-    await ctx.db.patch(r._id, { status: 'ready', summary: a.summary, proposals, costUsd: a.costUsd, finishedAt: Date.now() })
+    await ctx.db.patch(r._id, { status: 'ready', summary: a.summary, proposals, ...spent, finishedAt: Date.now() })
   },
 })
 
 export const fail = internalMutation({
-  args: { readId: v.id('noteReads'), error: v.string(), costUsd: v.number() },
-  handler: async (ctx, a) => {
-    const r = await ctx.db.get(a.readId)
-    if (r?.status === 'reading') await ctx.db.patch(r._id, { status: 'failed', error: a.error, costUsd: a.costUsd, finishedAt: Date.now() })
+  args: { readId: v.id('noteReads'), error: v.string(), costUsd: v.number(), model: v.optional(vModel), usage: v.optional(vUsage) },
+  handler: async (ctx, { readId, ...a }) => {
+    const r = await ctx.db.get(readId)
+    if (r?.status === 'reading') await ctx.db.patch(r._id, { status: 'failed', ...a, finishedAt: Date.now() })
   },
 })
 
@@ -167,20 +171,22 @@ export const execute = internalAction({
     const job = await ctx.runQuery(internal.noteReads.input, { readId })
     if (!job) return void (await ctx.runMutation(internal.noteReads.fail, { readId, error: 'Nothing to read', costUsd: 0 }))
     let cost = 0
+    let usage: RunUsage | undefined
     let found = 0
     let status = 'ready'
     try {
-      const out = await complete({ model: MODEL, system: SYSTEM, prompt: job.prompt, maxTokens: 3000 })
+      const out = await complete({ model: job.model, system: SYSTEM, prompt: job.prompt, maxTokens: 3000 })
       cost = out.costUsd
+      usage = usageRow(out.usage)
       const { summary, proposals } = proposalsFrom(conform(vNoteAnswer, extractJson(out.text + '\n')), job.check)
       found = proposals.length
-      await ctx.runMutation(internal.noteReads.finish, { readId, summary, proposals: proposals as ProposalDoc[], costUsd: cost })
+      await ctx.runMutation(internal.noteReads.finish, { readId, summary, proposals: proposals as ProposalDoc[], costUsd: cost, model: job.model, usage })
     } catch (e) {
       status = 'failed'
       const error = e instanceof NoAIKey ? NO_AI_KEY : e instanceof AIError || e instanceof SchemaError ? e.message.slice(0, 200) : 'Something went wrong while reading the notes.'
-      await ctx.runMutation(internal.noteReads.fail, { readId, error, costUsd: cost })
+      await ctx.runMutation(internal.noteReads.fail, { readId, error, costUsd: cost, model: job.model, usage })
     }
-    console.log('notes read=' + readId + ' status=' + status + ' proposals=' + found + ' cost=$' + cost.toFixed(4) + ' secs=' + Math.round((Date.now() - t0) / 1000))
+    console.log('notes read=' + readId + ' status=' + status + ' proposals=' + found + ' cost=$' + cost.toFixed(4) + ' model=' + job.model + ' secs=' + Math.round((Date.now() - t0) / 1000))
   },
 })
 
@@ -396,8 +402,9 @@ export const draftAnswer = action({
     const job = await ctx.runQuery(internal.noteReads.draftInput, { questionId })
     if (!hasAIKey()) throw noKey()
     if (!job.prompt) throw new ConvexError('Nothing to draft from yet: no past answers or notes for this one.')
+    const model = await ctx.runQuery(internal.enrich.modelOf, { feature: 'drafts' })
     try {
-      const out = await complete({ model: HAIKU, system: DRAFT_SYSTEM, prompt: job.prompt, maxTokens: 600 })
+      const out = await complete({ model, system: DRAFT_SYSTEM, prompt: job.prompt, maxTokens: 600 })
       const text = out.text.trim().replace(/^["“]+|["”]+$/g, '').slice(0, LIMITS.answer)
       if (!text) throw new AIError(200, 'answered with nothing')
       console.log('notes draft question=' + questionId + ' cost=$' + out.costUsd.toFixed(5))

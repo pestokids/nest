@@ -1,6 +1,8 @@
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { QUESTION_MAX } from '../../lib/ask'
+import { cents } from '../../lib/enrich'
+import { estimate, MODEL_INFO, modelFor, MODELS, type Model } from '../../lib/models'
 import { onOpenCommandPalette, recentInvestors, rememberInvestor } from '../../lib/commandPalette'
 import { todayIST } from '../../lib/dates'
 import { addressesOf, gmailSearchLink } from '../../lib/google'
@@ -18,6 +20,7 @@ import { NestEmpty } from '../illustrations'
 import { useQanda } from '../qanda/data'
 import { openPanel, playPrepOpen } from '../qanda/panels'
 import { AskBody } from './AskNest'
+import { Menu } from './Menu'
 import type { OpenOptions } from '../raise-ui'
 import { Icon, Kbd, useToast, type IconName } from '../ui'
 import { Modal } from './Modal'
@@ -180,6 +183,8 @@ function Palette({
   const [mode, setMode] = useState<Mode>(initialMode)
   const [runId, setRunId] = useState<string | null>(null)
   const [askError, setAskError] = useState<string | null>(null)
+  /** PST-273: the Ask chip's model, for the next question only (null: Settings › AI's Ask model). */
+  const [oneOff, setOneOff] = useState<Model | null>(null)
   const input = useRef<HTMLInputElement>(null)
   const asking = mode === 'ask'
 
@@ -190,13 +195,14 @@ function Palette({
       setQ(text)
       setAskError(null)
       setRunId(null)
+      setOneOff(null)
       try {
-        setRunId(await d.ask(text))
+        setRunId(await d.ask(text, oneOff ?? undefined))
       } catch (e) {
         setAskError(errorMessage(e))
       }
     },
-    [d],
+    [d, oneOff],
   )
   const asked = useRef(false)
   useEffect(() => {
@@ -360,6 +366,7 @@ function Palette({
           spellCheck={asking}
         />
         {asking ? <span className="cmdk-ask-tag" aria-hidden="true">Ask</span> : null}
+        {asking && d.ai.connected ? <AskModelChip oneOff={oneOff} onPick={setOneOff} /> : null}
         <button type="button" className="cmdk-close" onClick={onClose} aria-label="Close search">
           <Icon name="close" size={20} />
         </button>
@@ -418,5 +425,44 @@ function Palette({
         <Kbd>⌘K</Kbd>
       </div>
     </Modal>
+  )
+}
+
+/**
+ * PST-273: Ask's model chip ("Haiku ▾"). A pick applies to the next question
+ * only; each choice shows what a question on it should cost.
+ */
+function AskModelChip({ oneOff, onPick }: { oneOff: Model | null; onPick: (m: Model | null) => void }) {
+  const d = useRaise()
+  const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null)
+  const usual = modelFor(d.ai.models, 'ask')
+  const now = oneOff ?? usual
+  const cost = (m: Model) => estimate('ask', m, d.ai.features.ask.real).usd
+  return (
+    <>
+      <button
+        type="button"
+        className={'cmdk-model' + (oneOff ? ' is-picked' : '')}
+        aria-haspopup="menu"
+        aria-expanded={!!anchor}
+        aria-label={'Model for this question: ' + MODEL_INFO[now].name}
+        onClick={(e) => setAnchor(anchor ? null : e.currentTarget)}
+      >
+        {MODEL_INFO[now].name}
+        <Icon name="chevron-down" size={14} />
+      </button>
+      {anchor ? (
+        <Menu
+          anchor={anchor}
+          title="Model for this question"
+          onClose={() => setAnchor(null)}
+          items={MODELS.map((m) => ({
+            label: MODEL_INFO[m].name + ' · ≈ ' + cents(cost(m)) + (m === usual ? ' · usual' : ''),
+            checked: m === now,
+            onSelect: () => onPick(m === usual ? null : m),
+          }))}
+        />
+      ) : null}
+    </>
   )
 }

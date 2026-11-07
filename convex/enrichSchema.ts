@@ -3,6 +3,7 @@
 import { defineTable } from 'convex/server'
 import { v } from 'convex/values'
 import { RANKS } from '../src/lib/enrich'
+import { runModelFields, vModel } from './validators'
 
 const lit = <T extends string>(xs: readonly T[]) => v.union(...xs.map((x) => v.literal(x)))
 
@@ -38,6 +39,9 @@ export const aiSettingsFields = {
   lookups: v.optional(v.boolean()),
   enrichNew: v.optional(v.boolean()),
   meetingNotes: v.optional(v.boolean()),
+  /** PST-273: the default model (left out = AI_MODEL, Haiku), and the features that have their own. */
+  model: v.optional(vModel),
+  models: v.optional(v.object({ enrich: v.optional(vModel), notes: v.optional(vModel), drafts: v.optional(vModel), ask: v.optional(vModel), brief: v.optional(vModel) })),
 }
 
 export const enrichTables = {
@@ -75,6 +79,8 @@ export const enrichTables = {
     factCount: v.optional(v.number()),
     verdict: v.optional(vVerdict),
     summary: v.optional(v.string()),
+    /** PST-273: set when the run was a one-off on another model (Redo with Sonnet), else when it ran. */
+    ...runModelFields,
   })
     .index('by_investor', ['investorId', 'startedAt'])
     .index('by_email', ['email', 'startedAt'])

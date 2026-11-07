@@ -191,7 +191,7 @@ function Answer({ run, onClose, onAsk, actions }: { run: AskRun; onClose: () => 
         )}
       </div>
       {buttons.length ? <div className="ask-card__actions">{buttons}</div> : null}
-      {done ? <p className="ask-card__foot">{sourcesLine(run.sources, run.costUsd)}</p> : null}
+      {done ? <p className="ask-card__foot">{sourcesLine(run.sources, run.costUsd, run.model)}</p> : null}
     </div>
   )
 }

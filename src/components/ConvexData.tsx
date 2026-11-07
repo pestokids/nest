@@ -9,6 +9,7 @@ import { DEFAULT_ROUND } from '../lib/round'
 import { NO_AI, type AIData } from '../lib/enrich'
 import type { Suggestion } from '../lib/suggestions'
 import type { AgentScope } from '../lib/agents'
+import type { Feature, Model } from '../lib/models'
 import { RaiseContext, type RaiseData } from './data'
 import { ConvexQanda } from './qanda/ConvexQanda'
 
@@ -92,9 +93,10 @@ export function ConvexData({ children }: { children: ReactNode }) {
   const aiAddSender = useMutation(api.enrich.addSender)
   const aiAddPerson = useMutation(api.enrich.addPerson)
   const aiSetPrimary = useMutation(api.enrich.setPrimary)
+  const aiSetModel = useMutation(api.enrich.setModel)
   const aiDo = useMemo(
     () => ({
-      enrich: (id: string) => aiEnrich({ investorId: id as Id<'investors'> }),
+      enrich: (id: string, model?: Model) => aiEnrich({ investorId: id as Id<'investors'>, model }),
       enrichMany: (ids: string[]) => aiEnrichMany({ ids: ids as Id<'investors'>[] }),
       lookup: (email: string) => aiLookup({ email }),
       stop: (runId: string) => aiStop({ runId: runId as Id<'enrichRuns'> }),
@@ -107,8 +109,9 @@ export function ConvexData({ children }: { children: ReactNode }) {
       addSender: (email: string, investorId?: string) => aiAddSender({ email, investorId: investorId as Id<'investors'> | undefined }),
       addPerson: (investorId: string, p: { name: string; title?: string; email?: string }) => aiAddPerson({ investorId: investorId as Id<'investors'>, ...p }),
       setPrimary: (personId: string) => aiSetPrimary({ personId: personId as Id<'people'> }),
+      setModel: (feature: Feature | null, model: Model | null) => aiSetModel({ ...(feature ? { feature } : {}), model }),
     }),
-    [aiEnrich, aiEnrichMany, aiLookup, aiStop, aiKeep, aiDismiss, aiUndo, aiKeepAll, aiDismissAll, aiSetAuto, aiAddSender, aiAddPerson, aiSetPrimary],
+    [aiEnrich, aiEnrichMany, aiLookup, aiStop, aiKeep, aiDismiss, aiUndo, aiKeepAll, aiDismissAll, aiSetAuto, aiAddSender, aiAddPerson, aiSetPrimary, aiSetModel],
   )
   const agentRows = useQuery(api.agents.list)
   const agents = useMemo(() => (agentRows ? { loaded: true, ...agentRows } : NO_AGENTS), [agentRows])
@@ -172,7 +175,7 @@ export function ConvexData({ children }: { children: ReactNode }) {
       agents,
       agentsDo,
       useAgentActivity,
-      ask: (question) => askStart({ question }),
+      ask: (question, model) => askStart({ question, model }),
       useAskRun,
       brief,
       setBriefDismissed: (id, dismissed) => briefDismiss({ id: id as Id<'briefs'>, dismissed }),

@@ -56,7 +56,10 @@ describe('fit', () => {
 describe('labels', () => {
   it('prices in cents under a dollar', () => {
     expect(cents(0.04)).toBe('4¢')
-    expect(cents(0.001)).toBe('<1¢')
+    expect(cents(0.004)).toBe('0.4¢')
+    expect(cents(0.0002)).toBe('<0.1¢')
+    expect(cents(0.0098)).toBe('1¢')
+    expect(cents(0)).toBe('0¢')
     expect(cents(1.84)).toBe('$1.84')
   })
   it('shows the Enriched cell from the latest run', () => {

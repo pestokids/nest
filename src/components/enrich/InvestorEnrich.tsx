@@ -9,11 +9,13 @@ import {
   asRank, cardState, cents, factOrder, fieldLabel, fit, initials, investorWrite, RANK_LABEL, shortDay, sourceHost, timeLeft,
   type Fact, type Person, type Run,
 } from '../../lib/enrich'
+import { estimate, MODEL_INFO, modelFor, MODELS, type Model } from '../../lib/models'
 import { pop, replay, rise, shine, useCountUp, wobble } from '../../lib/motion'
 import type { Investor, InvestorFields } from '../../lib/pipeline'
 import { play } from '../../lib/sound'
 import { useRaise } from '../data'
 import { useUI } from '../raise-ui'
+import { Menu } from '../system/Menu'
 import { Button, Icon, Input } from '../ui'
 
 const rankText = (v: string) => {
@@ -59,11 +61,12 @@ export function InvestorEnrich({ inv, sheet }: { inv: Investor; sheet: boolean }
   }
   if (!x || !d.ai.loaded) return null
 
-  async function start() {
+  /** Enrich, Refresh, or (PST-273) Redo with another model, just this once. */
+  async function start(model?: Model) {
     setStarting(true)
     play('pesto-hop', { volume: 0.5 })
     try {
-      await d.aiDo.enrich(inv._id)
+      await d.aiDo.enrich(inv._id, model)
     } catch (e) {
       ui.fail(e)
     } finally {
@@ -75,14 +78,14 @@ export function InvestorEnrich({ inv, sheet }: { inv: Investor; sheet: boolean }
   return (
     <div className="enrich">
       {state === 'running' && run ? <Progress run={run} name={inv.name} /> : null}
-      {state === 'review' && run ? <Review inv={inv} run={run} facts={pending} fresh={fresh} /> : null}
+      {state === 'review' && run ? <Review inv={inv} run={run} facts={pending} fresh={fresh} onRedo={start} /> : null}
       {state === 'nokey' ? <NotSetUp /> : null}
       {state === 'idle' || state === 'failed' ? <Start inv={inv} run={state === 'failed' ? run : null} starting={starting} onStart={start} /> : null}
       {kept.length ? <FundCard inv={inv} facts={kept} people={x.people} run={run} sheet={sheet} busy={starting || state === 'running'} onRefresh={start} /> : null}
-      {x.people.length || kept.length ? <People inv={inv} people={x.people} sheet={sheet} canFind={state !== 'running' && d.ai.connected} onFind={start} /> : null}
+      {x.people.length || kept.length ? <People inv={inv} people={x.people} sheet={sheet} canFind={state !== 'running' && d.ai.connected} onFind={() => start()} /> : null}
       {!sheet && kept.length ? <FitCard facts={kept} /> : null}
       {sheet && kept.length ? (
-        <Button variant="secondary" block icon="spark" className="enrich-refresh" loading={starting} loadingLabel="Starting…" disabled={state === 'running'} onClick={start}>
+        <Button variant="secondary" block icon="spark" className="enrich-refresh" loading={starting} loadingLabel="Starting…" disabled={state === 'running'} onClick={() => start()}>
           Refresh
         </Button>
       ) : null}
@@ -92,7 +95,38 @@ export function InvestorEnrich({ inv, sheet }: { inv: Investor; sheet: boolean }
 
 /* ---------- before anything is found ---------- */
 
-function Start({ inv, run, starting, onStart }: { inv: Investor; run: Run | null | undefined; starting: boolean; onStart: () => void }) {
+/**
+ * PST-273: Redo with a stronger model, just this once (Settings › AI keeps its
+ * model). Each choice shows what a run on it should cost before it starts.
+ */
+function RedoMenu({ disabled, onRedo }: { disabled?: boolean; onRedo: (m: Model) => void }) {
+  const d = useRaise()
+  const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null)
+  const current = modelFor(d.ai.models, 'enrich')
+  return (
+    <>
+      <button type="button" className="enrich-link enrich-redo" aria-haspopup="menu" aria-expanded={!!anchor} disabled={disabled} onClick={(e) => setAnchor(anchor ? null : e.currentTarget)}>
+        Redo
+        <Icon name="chevron-down" size={16} />
+      </button>
+      {anchor ? (
+        <Menu
+          anchor={anchor}
+          title="Redo with another model"
+          onClose={() => setAnchor(null)}
+          items={MODELS.filter((m) => m !== current).map((m) => ({
+            label: 'Redo with ' + MODEL_INFO[m].name + ' · ≈ ' + cents(estimate('enrich', m, d.ai.features.enrich.real).usd),
+            onSelect: () => onRedo(m),
+          }))}
+        />
+      ) : null}
+    </>
+  )
+}
+
+function Start({ inv, run, starting, onStart }: { inv: Investor; run: Run | null | undefined; starting: boolean; onStart: (model?: Model) => void }) {
+  const d = useRaise()
+  const cost = estimate('enrich', modelFor(d.ai.models, 'enrich'), d.ai.features.enrich.real).usd
   return (
     <section className="enrich-card enrich-card--start">
       <div className="enrich-eyebrow eyebrow-mono">
@@ -100,11 +134,16 @@ function Start({ inv, run, starting, onStart }: { inv: Investor; run: Run | null
         Enrich
       </div>
       <h3 className="enrich-card__title">Find out about {inv.name}</h3>
-      <p className="enrich-card__text">Nest reads their site, LinkedIn and news: who they are, the fund, check size and partners. About 30 seconds and 4¢. Nothing is saved until you keep it.</p>
+      <p className="enrich-card__text">
+        Nest reads their site, LinkedIn and news: who they are, the fund, check size and partners. About 30 seconds and {cents(cost)}. Nothing is saved until you keep it.
+      </p>
       {run ? <p className="enrich-card__error">The last try didn’t finish{run.error ? ': ' + run.error : '.'}</p> : null}
-      <Button variant="primary" icon="spark" loading={starting} loadingLabel="Starting…" onClick={onStart}>
-        {run ? 'Try again' : 'Enrich'}
-      </Button>
+      <div className="enrich-card__actions">
+        <Button variant="primary" icon="spark" loading={starting} loadingLabel="Starting…" onClick={() => onStart()}>
+          {run ? 'Try again' : 'Enrich'}
+        </Button>
+        {run ? <RedoMenu disabled={starting} onRedo={onStart} /> : null}
+      </div>
     </section>
   )
 }
@@ -200,7 +239,7 @@ function Progress({ run, name }: { run: Run; name: string }) {
 
 /* ---------- review ---------- */
 
-function Review({ inv, run, facts, fresh }: { inv: Investor; run: Run; facts: Fact[]; fresh: boolean }) {
+function Review({ inv, run, facts, fresh, onRedo }: { inv: Investor; run: Run; facts: Fact[]; fresh: boolean; onRedo: (m: Model) => void }) {
   const d = useRaise()
   const ui = useUI()
   const card = useRef<HTMLElement>(null)
@@ -300,6 +339,7 @@ function Review({ inv, run, facts, fresh }: { inv: Investor; run: Run; facts: Fa
           <Button variant="ghost" loading={busy === 'dismiss'} loadingLabel="Dismissing…" disabled={!!busy} onClick={dismissAll}>
             Dismiss all
           </Button>
+          <RedoMenu disabled={!!busy} onRedo={onRedo} />
         </div>
       </div>
       {groups.map(([title, list]) =>
@@ -364,7 +404,7 @@ function Clash({ text }: { text: string }) {
 const keptValue = (facts: Fact[], field: string) =>
   facts.filter((f) => f.group === 'fund' && f.field === field).sort((a, b) => (b.keptAt ?? 0) - (a.keptAt ?? 0))[0]?.value
 
-function FundCard({ inv, facts, people, run, sheet, busy, onRefresh }: { inv: Investor; facts: Fact[]; people: Person[]; run: Run | null; sheet: boolean; busy: boolean; onRefresh: () => void }) {
+function FundCard({ inv, facts, people, run, sheet, busy, onRefresh }: { inv: Investor; facts: Fact[]; people: Person[]; run: Run | null; sheet: boolean; busy: boolean; onRefresh: (model?: Model) => void }) {
   const v = (k: string) => keptValue(facts, k)
   const partners = people.length || (facts.some((f) => f.field === 'partner') ? facts.filter((f) => f.field === 'partner').length + 1 : 0)
   const stats: [string, string | undefined][] = sheet
@@ -407,11 +447,14 @@ function FundCard({ inv, facts, people, run, sheet, busy, onRefresh }: { inv: In
           Found by Nest{at ? ' · ' + shortDay(at) : ''}
           {!sheet && sources ? ' · ' + plural(sources, 'source') : ''}
         </span>
-        {!sheet ? (
-          <button type="button" className="enrich-link" disabled={busy} onClick={onRefresh}>
-            Refresh
-          </button>
-        ) : null}
+        <span className="enrich-fund__redo">
+          {!sheet ? (
+            <button type="button" className="enrich-link" disabled={busy} onClick={() => onRefresh()}>
+              Refresh
+            </button>
+          ) : null}
+          <RedoMenu disabled={busy} onRedo={onRefresh} />
+        </span>
       </div>
     </section>
   )
