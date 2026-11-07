@@ -1,10 +1,14 @@
 // The investor drawer: a side drawer on desktop, a bottom sheet on phones.
-// States: view (Details / History), edit, new, advance stage, log a touch,
+// States: view (Details / History / Emails), edit, new, advance stage, log a touch,
 // park, and the in-drawer delete confirm. Data logic: useRaise(), the form
 // helpers below, and activities.forInvestor (d.useLog).
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { parseMoney } from '../lib/csv'
-import { dayDiff, todayIST } from '../lib/dates'
+import { dayDiff, shortDate, todayIST } from '../lib/dates'
+import {
+  addressesOf, agoShort, dayOf, dedupeMeetings, GENERIC_DOMAINS, gmailSearchLink, isWaiting, makeMatcher, nameFromEmail, normDomain, normEmail, splitList, timeOf,
+  type SyncedThread,
+} from '../lib/google'
 import { dayMonth, monDay } from '../lib/home'
 import { confetti, replay, shake, shine } from '../lib/motion'
 import { money } from '../lib/money'
@@ -18,11 +22,12 @@ import { addDays, celebrates, stageChange } from '../lib/today'
 import { useRaise } from './data'
 import { Egg, EggCracking, EggHatching } from './illustrations'
 import { useUI } from './raise-ui'
-import { Button, Checkbox, Chip, Icon, Input, Segmented, Select, SubTabButtons, Textarea, Toggle, type ChipTone } from './ui'
+import { Button, buttonClass, Checkbox, Chip, Icon, Input, Segmented, Select, SubTabButtons, Textarea, Toggle, type ChipTone } from './ui'
+import { Link } from '@tanstack/react-router'
 
-export type DrawerStart = 'view' | 'edit' | 'advance' | 'touch' | 'history' | 'delete'
+export type DrawerStart = 'view' | 'edit' | 'advance' | 'touch' | 'history' | 'emails' | 'delete'
 type Mode = 'view' | 'edit' | 'advance' | 'touch' | 'park' | 'delete'
-type Tab = 'details' | 'history'
+type Tab = 'details' | 'history' | 'emails'
 
 const PROGRESS = STAGES.slice(1) // Asked … Money in
 const WARM_SHORT: Record<Investor['warmth'], [string, ChipTone]> = {
@@ -34,15 +39,18 @@ const firstName = (name: string) => name.trim().split(/\s+/)[0] || name
 /* ---------- form helpers ---------- */
 
 /** Form state: numbers and dates as strings so inputs can be empty. */
-type Form = Omit<InvestorFields, 'expected' | 'committed' | 'nextDate' | 'lastTouch' | 'email' | 'parkedUntil'> & {
+type Form = Omit<InvestorFields, 'expected' | 'committed' | 'nextDate' | 'lastTouch' | 'email' | 'parkedUntil' | 'emails' | 'domains'> & {
   expected: string
   committed: string
   nextDate: string
   lastTouch: string
   email: string
   parkedUntil: string
+  /** Comma-separated in the form. */
+  emails: string
+  domains: string
 }
-type FormErrors = Partial<Record<'name' | 'expected' | 'committed' | 'email', string>>
+type FormErrors = Partial<Record<'name' | 'expected' | 'committed' | 'email' | 'emails' | 'domains', string>>
 
 const moneyText = (n: number | undefined) => (n == null ? '' : `$${n.toLocaleString('en-US')}`)
 const toForm = (v: InvestorFields): Form => ({
@@ -53,6 +61,8 @@ const toForm = (v: InvestorFields): Form => ({
   lastTouch: v.lastTouch ?? '',
   email: v.email ?? '',
   parkedUntil: v.parkedUntil ?? '',
+  emails: (v.emails ?? []).join(', '),
+  domains: (v.domains ?? []).join(', '),
 })
 
 /** Validate and convert; errors when a field can't be read. */
@@ -68,11 +78,20 @@ function fromForm(f: Form): { body: InvestorFields; errors: FormErrors } {
   if (!name) errors.name = 'Add a name. Everything else can wait.'
   const email = f.email.trim()
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = 'That doesn’t look like an email address.'
+  const emails = splitList(f.emails)
+  const badEmail = emails.find((x) => !normEmail(x))
+  if (badEmail) errors.emails = `“${badEmail}” doesn’t look like an email address.`
+  const domains = splitList(f.domains)
+  const badDomain = domains.find((x) => !normDomain(x))
+  const generic = domains.map(normDomain).find((x) => GENERIC_DOMAINS.has(x))
+  if (badDomain) errors.domains = `“${badDomain}” doesn’t look like a domain, like northstar.vc.`
+  else if (generic) errors.domains = `${generic} is personal mail, so it can’t stand for a firm. Add the person’s email instead.`
   const body: InvestorFields = {
     ...f,
     name, firm: f.firm.trim(), path: f.path.trim(), nextStep: f.nextStep.trim(), notes: f.notes.trim(), source: f.source.trim(),
     expected: amount('expected'), committed: amount('committed'), nextDate: f.nextDate || undefined, lastTouch: f.lastTouch || undefined,
     email: email || undefined, parkedUntil: f.stage === 'parked' ? f.parkedUntil || undefined : undefined,
+    emails: [...new Set(emails.map(normEmail))], domains: [...new Set(domains.map(normDomain))],
   }
   return { body, errors }
 }
@@ -120,8 +139,8 @@ export function Drawer({ id, start = 'view', forceSheet, onClose }: { id: string
   const sheet = !!forceSheet || phone
   const inv = id ? d.investors.find((i) => i._id === id) : undefined
   const isNew = !id
-  const [mode, setMode] = useState<Mode>(isNew ? 'edit' : start === 'history' ? 'view' : start)
-  const [tab, setTab] = useState<Tab>(start === 'history' ? 'history' : 'details')
+  const [mode, setMode] = useState<Mode>(isNew ? 'edit' : start === 'history' || start === 'emails' ? 'view' : start)
+  const [tab, setTab] = useState<Tab>(start === 'history' ? 'history' : start === 'emails' ? 'emails' : 'details')
   const [closing, setClosing] = useState(false)
   /** A touch was just logged: History slides its newest entry in. */
   const [fresh, setFresh] = useState(false)
@@ -130,6 +149,7 @@ export function Drawer({ id, start = 'view', forceSheet, onClose }: { id: string
   const stageChip = useRef<HTMLSpanElement>(null)
   const uid = useId()
   const log = d.useLog(inv ? inv._id : null)
+  const emailCount = inv ? d.google.threads.filter((t) => t.investorIds.includes(inv._id)).length : 0
 
   const close = useCallback(() => {
     if (closing) return
@@ -267,6 +287,9 @@ export function Drawer({ id, start = 'view', forceSheet, onClose }: { id: string
             items={[
               { value: 'details', label: 'Details' },
               { value: 'history', label: 'History' },
+              ...(d.google.team.length || emailCount
+                ? [{ value: 'emails' as const, label: emailCount ? <>Emails <span className="tab-count">{emailCount}</span></> : 'Emails' }]
+                : []),
             ]}
           />
         ) : null}
@@ -283,6 +306,8 @@ export function Drawer({ id, start = 'view', forceSheet, onClose }: { id: string
             <ParkPanel inv={inv} onDone={() => setMode('view')} />
           ) : tab === 'history' ? (
             <History inv={inv} log={log} fresh={fresh} />
+          ) : tab === 'emails' ? (
+            <Emails inv={inv} onEdit={() => setMode('edit')} />
           ) : (
             <Details inv={inv} log={log} sheet={sheet} onDelete={() => setMode('delete')} onEdit={() => setMode('edit')} />
           )}
@@ -508,13 +533,22 @@ function eventText(a: Activity): [string, string] {
   return ['Note', a.note ?? '']
 }
 
+const SOURCE_LABEL = { calendar: 'From Calendar', gmail: 'From Gmail' } as const
+
 function History({ inv, log, fresh }: { inv: Investor; log: Activity[] | undefined; fresh: boolean }) {
   const today = todayIST()
+  const { google } = useRaise()
   if (log === undefined) return <div className="history history--loading" aria-busy="true" />
-  const items = log.map((a) => {
+  type Item = { key: string; date: string; title: string; sub: string; by?: string; from?: keyof typeof SOURCE_LABEL; at?: number }
+  const items: Item[] = log.map((a) => {
     const [t, sub] = eventText(a)
-    return { key: a._id, date: a.date, title: t, sub, by: a.by }
+    return { key: a._id, date: a.date, title: t, sub, by: a.by, from: a.source }
   })
+  // Meetings from Calendar (either founder's), newest first among the log by day.
+  const now = Date.now()
+  for (const m of dedupeMeetings(google.meetings.filter((x) => x.investorIds.includes(inv._id))))
+    items.push({ key: 'm-' + m._id, date: dayOf(m.start), at: m.start, title: m.start > now ? 'Meeting booked' : 'Meeting', sub: `${m.title} · ${timeOf(m.start)}`, by: m.by, from: 'calendar' })
+  items.sort((a, b) => b.date.localeCompare(a.date) || (b.at ?? 0) - (a.at ?? 0))
   if (inv._creationTime)
     items.push({ key: 'added', date: todayIST(inv._creationTime), title: 'Added to the nest', sub: inv.source || '', by: undefined })
   if (!items.length)
@@ -533,11 +567,101 @@ function History({ inv, log, fresh }: { inv: Investor; log: Activity[] | undefin
             {x.date === today ? 'Today' : x.date === addDays(today, -1) ? 'Yesterday' : monDay(x.date)}
             {x.by ? <span className="history__by"> · {x.by}</span> : null}
           </span>
-          <span className="history__title">{x.title}</span>
+          <span className="history__title">
+            {x.title}
+            {x.from ? <span className="history__src">{SOURCE_LABEL[x.from]}</span> : null}
+          </span>
           {x.sub ? <span className="history__sub">{x.sub}</span> : null}
         </li>
       ))}
     </ol>
+  )
+}
+
+/* ---------- emails (PST-263) ---------- */
+
+/** "2h ago" today-ish, else "Nov 4". */
+const emailWhen = (ms: number, now: number) => (now - ms < 24 * 36e5 ? agoShort(ms, now) : shortDate(dayOf(ms)))
+
+/** Who sent the last message, by name: "You", a teammate, or the person at the investor. */
+function lastSender(t: SyncedThread, inv: Investor, myEmail: string | undefined) {
+  if (t.lastFrom === 'us') return myEmail && t.lastFromEmail === myEmail ? 'You' : nameFromEmail(t.lastFromEmail) || t.by
+  return t.lastFromEmail === normEmail(inv.email) ? firstName(inv.name) : nameFromEmail(t.lastFromEmail)
+}
+
+/** The Emails tab (screens/drawer/emails.png): recent threads, who wrote last, Open in Gmail. Headers only, never bodies. */
+function Emails({ inv, onEdit }: { inv: Investor; onEdit: () => void }) {
+  const { google } = useRaise()
+  const now = Date.now()
+  const mine = google.me?.email
+  const threads = google.threads.filter((t) => t.investorIds.includes(inv._id)).sort((a, b) => b.lastAt - a.lastAt)
+  const addrs = addressesOf(inv)
+  const how = makeMatcher([{ _id: inv._id, email: inv.email, emails: inv.emails, domains: inv.domains }])
+  const on = [...new Set(threads.map((t) => how.people(t.participants).how[inv._id]?.on).filter(Boolean))]
+  if (!google.team.length)
+    return (
+      <div className="drawer-empty">
+        <Egg size={40} />
+        <p>Connect Google in Settings and emails with {firstName(inv.name)} show up here by themselves.</p>
+        <Link to="/raise/settings" className={buttonClass({ variant: 'secondary' })}>
+          Go to Settings
+        </Link>
+      </div>
+    )
+  if (!threads.length)
+    return (
+      <div className="drawer-empty">
+        <Egg size={40} />
+        <p>
+          No emails with {firstName(inv.name)} in the last 30 days.
+          {!addrs.emails.length && !addrs.domains.length ? ' Add their email or firm domain so Nest can match them.' : ''}
+        </p>
+        {!addrs.emails.length && !addrs.domains.length ? (
+          <Button variant="secondary" onClick={onEdit}>
+            Add an email
+          </Button>
+        ) : null}
+      </div>
+    )
+  return (
+    <div className="emails">
+      <p className="emails__eyebrow eyebrow-mono">From Gmail{on.length ? ` · matched by ${on.slice(0, 2).join(', ')}` : ''}</p>
+      <ul className="emails__list">
+        {threads.map((t) => {
+          const waiting = isWaiting(t, now)
+          const body = (
+            <>
+              <span className="email-card__top">
+                <Icon name="mail" size={18} className="email-card__icon" />
+                <span className="email-card__subject">{t.subject}</span>
+                <span className="email-card__when">{emailWhen(t.lastAt, now)}</span>
+              </span>
+              <span className="email-card__who">
+                {lastSender(t, inv, mine)} wrote last{t.count > 1 ? ` · ${t.count} messages` : ''}
+                {t.mine ? '' : ` · in ${t.by}’s inbox`}
+              </span>
+              {waiting ? <span className="email-card__flag">Waiting on you</span> : null}
+            </>
+          )
+          return (
+            <li key={t._id}>
+              {t.mine ? (
+                <a className={`email-card${waiting ? ' email-card--waiting' : ''}`} href={t.link} target="_blank" rel="noreferrer" aria-label={`${t.subject}, open in Gmail`}>
+                  {body}
+                </a>
+              ) : (
+                <div className={`email-card${waiting ? ' email-card--waiting' : ''}`}>{body}</div>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+      {mine ? (
+        <a className={buttonClass({ variant: 'secondary', className: 'emails__all' })} href={gmailSearchLink(mine, addrs)} target="_blank" rel="noreferrer">
+          Open all in Gmail
+        </a>
+      ) : null}
+    </div>
   )
 }
 
@@ -547,7 +671,9 @@ function EditForm({ inv, onDone, onCelebrate }: { inv: Investor | null; onDone: 
   const d = useRaise()
   const ui = useUI()
   // "New" from a Pipeline column's + starts in that column's stage.
-  const [form, setForm] = useState<Form>(() => toForm(inv ? fieldsOf(inv) : { ...NEW_INVESTOR, stage: ui.opening.stage ?? NEW_INVESTOR.stage, name: ui.opening.name?.trim() ?? NEW_INVESTOR.name }))
+  const [form, setForm] = useState<Form>(() =>
+    toForm(inv ? fieldsOf(inv) : { ...NEW_INVESTOR, stage: ui.opening.stage ?? NEW_INVESTOR.stage, name: ui.opening.name?.trim() ?? NEW_INVESTOR.name, email: ui.opening.email ?? NEW_INVESTOR.email }),
+  )
   const [errors, setErrors] = useState<FormErrors>({})
   const [busy, setBusy] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
@@ -555,7 +681,7 @@ function EditForm({ inv, onDone, onCelebrate }: { inv: Investor | null; onDone: 
     setForm((f) => ({ ...f, [k]: v }))
     if (k in errors) setErrors((e) => ({ ...e, [k]: undefined }))
   }
-  const text = (k: 'name' | 'firm' | 'path' | 'nextStep' | 'source' | 'email' | 'expected' | 'committed') => ({
+  const text = (k: 'name' | 'firm' | 'path' | 'nextStep' | 'source' | 'email' | 'expected' | 'committed' | 'emails' | 'domains') => ({
     value: form[k],
     onChange: (e: React.ChangeEvent<HTMLInputElement>) => set(k, e.target.value),
     error: k in errors ? errors[k as keyof FormErrors] : undefined,
@@ -629,7 +755,7 @@ function EditForm({ inv, onDone, onCelebrate }: { inv: Investor | null; onDone: 
             <Input label="Due" type="date" value={form.nextDate} onChange={(e) => set('nextDate', e.target.value)} />
           </div>
           <Textarea label="Notes" rows={4} value={form.notes} onChange={(e) => set('notes', e.target.value)} />
-          <details className="dform__more" open={form.stage !== inv.stage || undefined}>
+          <details className="dform__more" open={form.stage !== inv.stage || !!errors.emails || !!errors.domains || undefined}>
             <summary>More details</summary>
             <div className="dform__row">
               {field.stage}
@@ -649,6 +775,10 @@ function EditForm({ inv, onDone, onCelebrate }: { inv: Investor | null; onDone: 
             <div className="dform__row">
               <Input label="Committed" inputMode="decimal" placeholder="Once they say a number" {...text('committed')} />
               <Input label="Last touch" type="date" value={form.lastTouch} onChange={(e) => set('lastTouch', e.target.value)} />
+            </div>
+            <div className="dform__row">
+              <Input label="Other emails" inputMode="email" placeholder="e.g. partner@northstar.vc" help="Matched with Calendar and Gmail, like Email." {...text('emails')} />
+              <Input label="Firm domains" placeholder="e.g. northstar.vc" help="Anyone at these domains counts. Personal mail never does." {...text('domains')} />
             </div>
             <Input label="Source" {...text('source')} />
             <Checkbox label="Can lead or anchor" checked={form.lead} onChange={(e) => set('lead', e.target.checked)} />

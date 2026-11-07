@@ -2,8 +2,8 @@
 // (next, skip, back, passed, parked), its sounds and toast, the [ and ] keys,
 // undo, and where a card lands in a column. Pure, shared by the UI and Convex.
 import { dayDiff } from './dates'
-import { applySave, type Investor, type InvestorFields } from './pipeline'
-import { ACTIVE, COMMIT, IDX, type PipelineStage, type Stage } from './stages'
+import { applySave, quietFor, type Investor, type InvestorFields } from './pipeline'
+import { COMMIT, IDX, type PipelineStage, type Stage } from './stages'
 import type { PlayOptions, SoundName } from './sound'
 
 /** Board columns in order ("Not contacted" lives in Investors, not on the board). */
@@ -102,13 +102,8 @@ export function applyUndo(current: Pick<Investor, 'stage'>, rec: MoveRecord): Sa
 
 /* ---------- column contents ---------- */
 
-/** Live and uncommitted, with no touch in `quietDays`+ days (same rule as Today's quiet list). */
-export function quietDaysOf(i: Pick<Investor, 'stage' | 'lastTouch'>, today: string, quietDays: number): number | null {
-  if (!ACTIVE.has(i.stage) || COMMIT.has(i.stage)) return null
-  if (!i.lastTouch) return Infinity
-  const d = dayDiff(today, i.lastTouch)
-  return d >= quietDays ? d : null
-}
+/** Today's "Gone quiet" rule (`quietFor` in pipeline.ts). */
+export const quietDaysOf = (i: Pick<Investor, 'stage' | 'lastTouch' | 'contact'>, today: string, quietDays: number): number | null => quietFor(i, today, quietDays)
 
 export type ColumnSort = 'attention' | 'amount' | 'name'
 export const COLUMN_SORTS: { k: ColumnSort; l: string }[] = [

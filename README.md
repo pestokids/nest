@@ -35,7 +35,7 @@ pnpm dev                     # convex dev (push + watch) and Vite on http://loca
 
 Other scripts: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`, `pnpm dev:web` (Vite only).
 
-Preview: `?preview` renders Home and every Raise view from a small made-up fixture (`src/preview/fixture.ts`) with in-memory writes, without signing in. It works on `http://localhost:3000/?preview` in local dev and on the Vercel preview build of every PR (`https://<preview-url>/?preview`), which always uses the fake fixture (never `internal/seed.json` or real data). Add `&seed` (local dev only) to use `internal/seed.json` instead, `&home=firstrun` or `&home=prepdone` for the Home states, `&signin=default|hover|checking|noaccess|error|signedout` for the sign-in states, `&today=nothingdue|win` for Raise · Today, `&drawer=view|edit|new|advance|touch|history|delete` for the investor drawer (on any Raise view; add `&sheet` for the phone bottom sheet at any width), or `&pipeline=hidden|shown|end` (with `&stage=<key>` on a phone) for the Pipeline board states. Investors, Plan, Settings and the system states: `&investors=filtered|empty|bulk|exported|import1|import2|import3`, `&plan=mid`, `&settings=errors`, `&system=cmdk|cmdk-empty|cmdk-none|offline|savefailed|loading`, any unknown path for the 404 (e.g. `/nowhere?preview`), and `&fail` to make every write fail (the save-failed toast with Retry). It's stripped from production builds.
+Preview: `?preview` renders Home and every Raise view from a small made-up fixture (`src/preview/fixture.ts`) with in-memory writes, without signing in. It works on `http://localhost:3000/?preview` in local dev and on the Vercel preview build of every PR (`https://<preview-url>/?preview`), which always uses the fake fixture (never `internal/seed.json` or real data). Add `&seed` (local dev only) to use `internal/seed.json` instead, `&home=firstrun` or `&home=prepdone` for the Home states, `&signin=default|hover|checking|noaccess|error|signedout` for the sign-in states, `&today=nothingdue|win` for Raise · Today, `&drawer=view|edit|new|advance|touch|history|emails|delete` for the investor drawer (on any Raise view; add `&sheet` for the phone bottom sheet at any width), or `&pipeline=hidden|shown|end` (with `&stage=<key>` on a phone) for the Pipeline board states. Investors, Plan, Settings and the system states: `&investors=filtered|empty|bulk|exported|import1|import2|import3`, `&plan=mid`, `&settings=errors`, `&system=cmdk|cmdk-empty|cmdk-none|offline|savefailed|loading`, any unknown path for the 404 (e.g. `/nowhere?preview`), `&google=connected|syncing|reconnect` for Calendar and Gmail (Today's meetings, Waiting on you and Who's this?, the Settings card, the palette's Gmail row; `&drawer=emails` implies `connected`), and `&fail` to make every write fail (the save-failed toast with Retry). It's stripped from production builds.
 
 Screenshots of every preview screen at 1440 × 900, 440 × 956 and 412 × 915: run `pnpm dev:web`, then `node scripts/screenshots.mjs http://localhost:3000` (writes to `.context/screens/`). They use the fixture, never real data. The script also reports any screen that scrolls sideways and, on phones, any control under 44 × 44 (`checks.json`).
 
@@ -56,8 +56,9 @@ Screenshots of every preview screen at 1440 × 900, 440 × 956 and 412 × 915: r
 | `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` | Google OAuth client (Internal consent screen, pestokids.com Workspace) |
 | `SITE_URL` | Where sign-in returns to: `http://localhost:3000` (dev), `https://nest.pestokids.com` (prod) |
 | `JWT_PRIVATE_KEY`, `JWKS` | Convex Auth signing keys: `node scripts/generate-auth-keys.mjs --set` (add `--prod` for production) |
+| `GOOGLE_TOKEN_KEY` | Encrypts Google refresh tokens at rest (Calendar and Gmail). 32 random bytes, base64: `openssl rand -base64 32`. Set it straight into Convex; don't keep a copy anywhere else. Changing it means everyone reconnects. |
 
-Google OAuth redirect URI per deployment: `https://<deployment>.convex.site/api/auth/callback/google`.
+Google OAuth redirect URIs per deployment: `https://<deployment>.convex.site/api/auth/callback/google` (sign-in) and `https://<deployment>.convex.site/google/callback` (Connect Google). The Google Cloud project needs the Gmail API and the Google Calendar API turned on.
 
 ## Access
 
@@ -74,6 +75,26 @@ Nothing about the raise is hard-coded. Target, stretch, close and kickoff dates,
 `/raise/today` (`src/routes/_app/raise/today.tsx`, rules in `src/lib/today.ts`): the summary card, **Your next 3 moves** (the current phase's unmet targets in phase order, then "ask for a number" for the furthest-along conversation between a first meeting and a yes that hasn't been asked yet; filled in from what's due, who's quiet and who's next), the KPIs, **Due today** (a next step dated today or earlier on a live conversation, or a parked investor whose park-until day has come), **Gone quiet** (live and uncommitted, no touch in the round's quiet days) and **How a conversation moves**. Logging the ask, ticking a due step and nudging all write an activity with a `touch` kind (`ask`, `done`, `nudge`).
 
 The drawer (`src/components/Drawer.tsx`) is a side drawer on desktop and a bottom sheet on phones (swipe down or tap outside to close). Only moving forward a stage celebrates (`celebrates()` in `src/lib/today.ts`); back, passed, parked and reopening don't. Delete hides the investor at once and sends the delete when the Undo toast goes (6s), or straight away when you leave Raise or close the tab.
+
+## Calendar and Gmail
+
+Each teammate connects their own Google account on Settings (Connect Google: a separate OAuth flow from sign-in, read-only scopes `calendar.readonly` and `gmail.metadata`, offline). The callback is an HTTP action at `/google/callback` (`convex/googleOAuth.ts`). A cron (`convex/crons.ts`) syncs every connection every 10 minutes (`convex/googleSync.ts`): Calendar incrementally with a sync token (first sync 30 days back, 60 ahead), Gmail from the stored history id (first sync reads the last 30 days of threads, newest first). Matching and rules live in `src/lib/google.ts`:
+
+- An investor is matched by exact email first (`email` and `emails`), then by firm domain (`domains`). Personal mail domains (gmail.com, outlook.com…) and our own pestokids.com addresses never match.
+- A future meeting moves the investor to Booked if they're behind it (forward only, never past Diligence), and sets the next step and date. A past meeting, or an email either way, sets Last touch. Stage changes from sync are logged with `source: calendar`.
+- "Gone quiet" uses the latest of Last touch, the latest email and the latest past meeting (`lastContact` / `quietFor` in `src/lib/pipeline.ts`, used by Today, Pipeline, Investors, the palette and the drawer).
+- Today: meetings today and tomorrow (and "How did it go?" the morning after), Waiting on you (the investor wrote last 48+ hours ago), and Who's this? (outside people from your recent meetings who match nobody).
+- A token Google stops accepting marks the connection "needs reconnecting" on Settings; the cron skips it until you reconnect.
+
+### Privacy
+
+What Nest stores, per teammate who connects:
+
+- **The connection**: the Google address, sync cursors, last sync time, and the refresh token, encrypted (AES-256-GCM) with `GOOGLE_TOKEN_KEY`. No query returns the token and it never reaches the browser.
+- **Meetings**: calendar events with at least one person from outside pestokids.com: title, start and end, the outside attendees' emails and display names, and the event link. Meetings that match no investor are only shown to the person whose calendar they're on, and are dropped after 15 days.
+- **Email touches**: only Gmail threads with an investor in them: subject, participants' email addresses, the date and sender of the last message, the message count and the Gmail link. Never bodies, snippets or attachments (the `gmail.metadata` scope can't read them anyway).
+
+Disconnecting (Settings → Disconnect) deletes your connection, your meetings and your email touches, and asks Google to revoke the grant. Stage moves that sync already made stay in each investor's History.
 
 ## System states
 

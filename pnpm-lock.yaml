@@ -200,6 +200,9 @@ importers:
         specifier: ^19.3.1
         version: 19.3.1(react@19.3.1)
     devDependencies:
+      '@edge-runtime/vm':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@eslint/js':
         specifier: ^9.39.5
         version: 9.39.5
@@ -218,6 +221,9 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^6.2.1
         version: 6.2.1(vite@8.3.6(@types/node@26.6.6)(esbuild@0.27.0)(jiti@2.7.0))
+      convex-test:
+        specifier: ^0.0.67
+        version: 0.0.67(convex@1.49.0(react@19.3.1))
       eslint:
         specifier: ^9.39.5
         version: 9.39.5(jiti@2.7.0)(supports-color@7.2.0)
@@ -250,7 +256,7 @@ importers:
         version: 6.1.1(supports-color@7.2.0)(typescript@5.9.3)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.27.0)(jiti@2.7.0))
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@26.6.6)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.27.0)(jiti@2.7.0))
+        version: 5.1.0(@edge-runtime/vm@5.0.0)(@types/node@26.6.6)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.27.0)(jiti@2.7.0))
 
 packages:
 
@@ -351,6 +357,14 @@ packages:
     peerDependencies:
       '@tanstack/react-query': ^5.0.0
       convex: ^1.29.3
+
+  '@edge-runtime/primitives@6.0.0':
+    resolution: {integrity: sha512-FqoxaBT+prPBHBwE1WXS1ocnu/VLTQyZ6NMUBAdbP7N2hsFTTxMC/jMu2D/8GAlMQfxeuppcPuCUk/HO3fpIvA==}
+    engines: {node: '>=18'}
+
+  '@edge-runtime/vm@5.0.0':
+    resolution: {integrity: sha512-NKBGBSIKUG584qrS1tyxVpX/AKJKQw5HgjYEnPLC0QsTw79JrGn+qUr8CXFb955Iy7GUdiiUv1rJ6JBGvaKb6w==}
+    engines: {node: '>=18'}
 
   '@esbuild/aix-ppc64@0.27.0':
     resolution: {integrity: sha512-KuZrd2hRjz01y5JK9mEBSD3Vj3mbCvemhT466rSuJYeE/hjuBrHfjjcjMdTm/sz7au+++sdbJZJmuBwQLuw68A==}
@@ -1081,6 +1095,11 @@ packages:
 
   convert-source-map@2.0.0:
     resolution: {integrity: sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==}
+
+  convex-test@0.0.67:
+    resolution: {integrity: sha512-UCAzL8pwo4akHs6dppAU3Rbo2Gzdp1KZp9kcsLGFBaL7JuXOfUZFxe16ywQjnyDZ+uQhawjTRx2j6Hd8FoBm5Q==}
+    peerDependencies:
+      convex: ^1.43.0
 
   convex@1.49.0:
     resolution: {integrity: sha512-mkr9oXF8/arkCI1kvYyGytWd62oVXNABh4uwLeI4UQVN6Zuudm4DlmSzNUJKF63djk6f/uUXC+6ffuVSkPLvzA==}
@@ -2062,6 +2081,12 @@ snapshots:
       '@tanstack/react-query': 5.106.1(@types/react@19.3.0)(react@19.3.1)
       convex: 1.49.0(react@19.3.1)
 
+  '@edge-runtime/primitives@6.0.0': {}
+
+  '@edge-runtime/vm@5.0.0':
+    dependencies:
+      '@edge-runtime/primitives': 6.0.0
+
   '@esbuild/aix-ppc64@0.27.0':
     optional: true
 
@@ -2750,6 +2775,10 @@ snapshots:
 
   convert-source-map@2.0.0: {}
 
+  convex-test@0.0.67(convex@1.49.0(react@19.3.1)):
+    dependencies:
+      convex: 1.49.0(react@19.3.1)
+
   convex@1.49.0(react@19.3.1):
     dependencies:
       esbuild: 0.27.0
@@ -3355,7 +3384,7 @@ snapshots:
     optionalDependencies:
       vite: 8.3.6(@types/node@26.6.6)(esbuild@0.27.0)(jiti@2.7.0)
 
-  vitest@5.1.0(@types/node@26.6.6)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.27.0)(jiti@2.7.0)):
+  vitest@5.1.0(@edge-runtime/vm@5.0.0)(@types/node@26.6.6)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.27.0)(jiti@2.7.0)):
     dependencies:
       '@types/chai': 5.2.3
       '@vitest/mocker': 5.1.0(vite@8.3.6(@types/node@26.6.6)(esbuild@0.27.0)(jiti@2.7.0))
@@ -3372,6 +3401,7 @@ snapshots:
       vite: 8.3.6(@types/node@26.6.6)(esbuild@0.27.0)(jiti@2.7.0)
       why-is-node-running: 3.2.1
     optionalDependencies:
+      '@edge-runtime/vm': 5.0.0
       '@types/node': 26.6.6
     transitivePeerDependencies:
       - msw

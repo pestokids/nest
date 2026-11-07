@@ -1,11 +1,9 @@
 // How an investor reads in lists: quiet or not, "2 days ago", "Send deck · Thu 12".
 import { dayDiff, isISODate } from './dates'
-import type { Investor } from './pipeline'
-import { ACTIVE, COMMIT } from './stages'
+import { quietFor, type Investor } from './pipeline'
 
-/** A live, uncommitted conversation with no touch in `quietDays`+ days (Today's "Gone quiet" rule). */
-export const isQuiet = (i: Pick<Investor, 'stage' | 'lastTouch'>, today: string, quietDays: number) =>
-  ACTIVE.has(i.stage) && !COMMIT.has(i.stage) && (!i.lastTouch || dayDiff(today, i.lastTouch) >= quietDays)
+/** Today's "Gone quiet" rule (`quietFor` in pipeline.ts). */
+export const isQuiet = (i: Pick<Investor, 'stage' | 'lastTouch' | 'contact'>, today: string, quietDays: number) => quietFor(i, today, quietDays) !== null
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']

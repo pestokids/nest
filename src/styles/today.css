@@ -114,6 +114,65 @@
 .empty-state--mint { background: var(--state-success-bg); color: var(--state-success); }
 .empty-state--mint .empty-state__title { color: var(--text-primary); }
 
+/* ---------- Calendar and Gmail (calendar-gmail-connected.png, PST-263) ---------- */
+.today__google { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: stretch; }
+.today__google--two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.gcard.card { display: flex; flex-direction: column; padding: 22px 22px 18px; min-width: 0; }
+.gcard__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.gcard__title.today__h2 { font-size: 22px; gap: 10px; min-width: 0; }
+.gcard__title svg { flex: none; }
+.gcard__from { flex: none; color: var(--brand-leaf); }
+.gcard__day { margin: 14px 0 8px; color: var(--text-faint); }
+.gcard__empty { margin: 4px 0 0; font-size: 14px; color: var(--text-secondary); }
+.gcard__more { margin: 10px 0 0; font-size: 13px; color: var(--text-muted); }
+.gcard__link { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; min-height: 44px; margin-top: auto; padding-top: 10px; font: 600 15px/1 var(--font-ui); color: var(--text-primary); text-decoration: none; }
+.gcard__link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.gcard__link:focus-visible { outline: 3px solid var(--brand-lime); outline-offset: 2px; border-radius: 6px; }
+
+.gmeet__list, .gwait__list { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.gmeet__main { position: relative; display: flex; flex-direction: column; gap: 3px; padding: 10px 14px 10px 24px; border-radius: 12px; background: var(--surface-cream); color: inherit; text-decoration: none; cursor: pointer; }
+.gmeet__main::before { content: ''; position: absolute; left: 10px; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--brand-lime); }
+.gmeet__main:hover { background: #efebdf; }
+.gmeet__main:focus-visible { outline: 3px solid var(--brand-lime); outline-offset: -3px; }
+.gmeet--new .gmeet__main { background: none; }
+.gmeet--new .gmeet__main:hover { background: var(--surface-cream); }
+.gmeet--new .gmeet__main::before { background: var(--brand-orange-soft); }
+.gmeet--past .gmeet__main { opacity: 0.7; }
+.gmeet__time { font: 500 12px/1.2 var(--font-mono); color: var(--text-secondary); }
+.gmeet__name { font: 600 15px/1.3 var(--font-ui); color: var(--text-primary); overflow-wrap: anywhere; }
+.gmeet__sub { font: 400 14px/1.3 var(--font-ui); color: var(--text-secondary); }
+.gmeet__sub--new { color: var(--text-orange-deep); }
+
+.gask { margin: 0 0 10px; padding: 14px 14px 12px; border-radius: 12px; background: var(--surface-mint); }
+.gask__q { margin: 0; font: 700 16px/1.3 var(--font-ui); color: var(--text-primary); }
+.gask__sub { margin: 2px 0 0; font-size: 13px; color: var(--text-secondary); }
+.gask__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin-top: 10px; }
+.gask__text { min-height: 44px; padding: 0 2px; border: 0; background: none; font: 600 14px/1 var(--font-ui); color: var(--text-primary); cursor: pointer; }
+.gask__text:hover { text-decoration: underline; text-underline-offset: 3px; }
+.gask__text:focus-visible { outline: 3px solid var(--brand-lime); outline-offset: 2px; border-radius: 6px; }
+
+.gwait__main { display: flex; flex-direction: column; gap: 4px; margin: 0 -2px; padding: 10px 12px; border-radius: 12px; color: inherit; text-decoration: none; }
+a.gwait__main:hover { background: var(--surface-cream); }
+a.gwait__main:focus-visible { outline: 3px solid var(--brand-lime); outline-offset: -3px; }
+.gwait--first .gwait__main, .gwait--first a.gwait__main:hover { background: var(--surface-peach); }
+.gwait__top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.gwait__name { font: 600 15px/1.3 var(--font-ui); color: var(--text-primary); min-width: 0; }
+.gwait__when { flex: none; font: 500 14px/1.3 var(--font-ui); color: var(--text-orange-deep); }
+.gwait__sub { font: 400 14px/1.3 var(--font-ui); color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.gwho.card { border: 1.5px solid var(--line-peach); }
+.gwho .gcard__head { margin-bottom: 8px; }
+.gwho__lede { margin: 0 0 14px; font-size: 14px; color: var(--text-secondary); }
+.gwho__box { padding: 14px 14px 16px; border-radius: 12px; background: var(--surface-white); border: 1px solid var(--line-peach); }
+.gwho__name { margin: 0; font: 600 15px/1.3 var(--font-ui); color: var(--text-primary); overflow-wrap: anywhere; }
+.gwho__email { font-weight: 600; }
+.gwho__meet { margin: 6px 0 0; font-size: 14px; color: var(--text-secondary); }
+.gwho__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 24px; margin-top: 16px; }
+.gwho__link { position: relative; display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; min-height: 44px; margin-top: 4px; font-size: 14px; color: var(--text-secondary); }
+.gwho__link select { appearance: none; min-height: 44px; padding: 0 22px 0 0; border: 0; background: none; font: 600 14px/1 var(--font-ui); color: var(--text-primary); cursor: pointer; max-width: 220px; text-overflow: ellipsis; }
+.gwho__link select:focus-visible { outline: 3px solid var(--brand-lime); outline-offset: 2px; border-radius: 6px; }
+.gwho__link svg { position: absolute; right: 0; pointer-events: none; color: var(--text-primary); }
+
 /* ---------- How a conversation moves ---------- */
 .convo.card { padding: 22px 24px 24px; }
 .convo__head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin: 2px 0 22px; }
@@ -165,9 +224,14 @@
   .move__track { margin-top: 16px; }
 }
 /* Four KPIs: four across, else two by two (never three and a lone one). */
+@media (max-width: 1100px) {
+  .today__google { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .today__google > .gwho { grid-column: 1 / -1; }
+}
 @media (max-width: 960px) {
   .today__kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .today__lists { grid-template-columns: minmax(0, 1fr); }
+  .today__google, .today__google--two { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* ---------- Phones (iphone-17-pro-max/raise-today.png) ---------- */
@@ -221,6 +285,9 @@
   .today__kpis .kpi-card__value { font-size: 32px; }
   .today__kpis .kpi-card__note { font-size: 13px; }
   .today__lists { order: 3; gap: 18px; }
+  .today__google { order: 2; gap: 18px; }
+  .gcard.card { padding: 20px 16px 14px; }
+  .gcard__title.today__h2 { font-size: 20px; }
   .convo { order: 5; }
 
   .list-panel.card { padding: 20px 10px 14px; }

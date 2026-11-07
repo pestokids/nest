@@ -29,9 +29,15 @@ export type InvestorFields = {
   email?: string
   /** Set only while parked: the day they come back to Due today. */
   parkedUntil?: string
+  /** PST-263: more addresses for this investor, and their firm's domains (Calendar and Gmail matching). */
+  emails?: string[]
+  domains?: string[]
 }
 
-export type Investor = InvestorFields & { _id: string; maxStage: PipelineStage; slug?: string; updatedAt?: number; _creationTime?: number }
+/** PST-263, derived (never saved): the IST day of the latest email touch and of the latest past meeting. */
+export type Contact = { email?: string; meeting?: string }
+
+export type Investor = InvestorFields & { _id: string; maxStage: PipelineStage; slug?: string; updatedAt?: number; _creationTime?: number; contact?: Contact }
 
 export type Activity = {
   _id: string
@@ -40,6 +46,8 @@ export type Activity = {
   stage?: Stage
   note?: string
   touch?: TouchKind
+  /** PST-263: written by Calendar or Gmail sync rather than by hand. */
+  source?: 'calendar' | 'gmail'
   date: string
   by?: string
   _creationTime?: number
@@ -58,7 +66,7 @@ export const NEW_INVESTOR: InvestorFields = {
 export const fieldsOf = (i: InvestorFields): InvestorFields => ({
   name: i.name, firm: i.firm, type: i.type, geo: i.geo, warmth: i.warmth, path: i.path, tier: i.tier, wave: i.wave, stage: i.stage,
   lead: i.lead, expected: i.expected, committed: i.committed, nextStep: i.nextStep, nextDate: i.nextDate, lastTouch: i.lastTouch,
-  notes: i.notes, source: i.source, email: i.email, parkedUntil: i.parkedUntil,
+  notes: i.notes, source: i.source, email: i.email, parkedUntil: i.parkedUntil, emails: i.emails, domains: i.domains,
 })
 
 type Inv = Pick<InvestorFields, 'stage' | 'expected' | 'committed'> & { maxStage?: string }
@@ -117,11 +125,35 @@ export const dueList = <T extends Investor>(inv: T[], today: string) =>
     })
     .sort((a, b) => dueDate(a)!.localeCompare(dueDate(b)!) || a.name.localeCompare(b.name))
 
-/** Live, uncommitted conversations with no touch in `quietDays`+ days. */
+/**
+ * The day of the last contact: the latest of Last touch, the latest email touch
+ * and the latest past meeting (the last two come from Calendar and Gmail).
+ */
+export function lastContact(i: Pick<Investor, 'lastTouch' | 'contact'>): string | undefined {
+  let d = i.lastTouch
+  for (const x of [i.contact?.email, i.contact?.meeting]) if (x && (!d || x > d)) d = x
+  return d
+}
+
+/**
+ * The "Gone quiet" rule, used by Today, Pipeline, Investors, the palette and the
+ * drawer: a live, uncommitted conversation with no contact (see `lastContact`)
+ * in `quietDays`+ days. Returns how many days quiet (Infinity when never
+ * touched), or null when it isn't quiet.
+ */
+export function quietFor(i: Pick<Investor, 'stage' | 'lastTouch' | 'contact'>, today: string, quietDays: number): number | null {
+  if (!ACTIVE.has(i.stage) || COMMIT.has(i.stage)) return null
+  const last = lastContact(i)
+  if (!last) return Infinity
+  const d = dayDiff(today, last)
+  return d >= quietDays ? d : null
+}
+
+/** Live, uncommitted conversations with no contact in `quietDays`+ days, longest quiet first. */
 export const quietList = <T extends Investor>(inv: T[], today: string, quietDays: number) =>
   inv
-    .filter((i) => ACTIVE.has(i.stage) && !COMMIT.has(i.stage) && (!i.lastTouch || dayDiff(today, i.lastTouch) >= quietDays))
-    .sort((a, b) => (a.lastTouch || '').localeCompare(b.lastTouch || ''))
+    .filter((i) => quietFor(i, today, quietDays) !== null)
+    .sort((a, b) => (lastContact(a) || '').localeCompare(lastContact(b) || ''))
 
 /** Top 10 not contacted / intro asked, by score then wave. */
 export const nextList = <T extends Investor>(inv: T[]) =>

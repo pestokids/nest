@@ -172,7 +172,7 @@ function RaiseLayout() {
             <Icon name="plus" size={26} strokeWidth={2.2} />
           </button>
         )}
-        {drawer ? <Drawer key={drawer.id ?? `new-${drawer.opts.stage ?? ''}-${drawer.opts.name ?? ''}`} id={drawer.id} start={drawer.start} forceSheet={preview?.sheet} onClose={close} /> : null}
+        {drawer ? <Drawer key={drawer.id ?? `new-${drawer.opts.stage ?? ''}-${drawer.opts.name ?? ''}-${drawer.opts.email ?? ''}`} id={drawer.id} start={drawer.start} forceSheet={preview?.sheet} onClose={close} /> : null}
       </UIContext.Provider>
     </RaiseContext.Provider>
   )

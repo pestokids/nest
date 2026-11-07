@@ -1,6 +1,7 @@
 import { createContext, useContext } from 'react'
 import type { MoveRecord } from '../lib/board'
 import type { Activity, Investor, InvestorFields, TouchOptions } from '../lib/pipeline'
+import type { GoogleData, MeetingAnswer } from '../lib/google'
 import type { Round, RoundChange } from '../lib/round'
 import type { Stage } from '../lib/stages'
 
@@ -35,6 +36,20 @@ export type RaiseData = {
   setPrepTick: (phaseKey: string, item: number, done: boolean) => Promise<unknown>
   /** Who can get in (the access list), you first. */
   useMembers: () => Member[] | undefined
+  /** PST-263: Calendar and Gmail (your connection, the team's meetings and threads). Never holds a token. */
+  google: GoogleData
+  googleDo: GoogleActions
+}
+
+export type GoogleActions = {
+  /** The Google consent URL to send the browser to. */
+  connect: () => Promise<string>
+  disconnect: () => Promise<unknown>
+  syncNow: () => Promise<unknown>
+  /** "How did it go?" answered (the stage move itself goes through `move`). */
+  answer: (eventId: string, answer: MeetingAnswer) => Promise<unknown>
+  /** "Not about the round" on Who's this?. */
+  dismiss: (email: string) => Promise<unknown>
 }
 
 export type Member = { email: string; name: string; me: boolean }

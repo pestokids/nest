@@ -1,9 +1,10 @@
-import { useMutation, useQuery } from 'convex/react'
+import { useAction, useMutation, useQuery } from 'convex/react'
 import { useMemo, type ReactNode } from 'react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { applyMove, applyUndo } from '../lib/board'
 import { todayIST } from '../lib/dates'
+import { NO_GOOGLE, withContact, type GoogleData } from '../lib/google'
 import { DEFAULT_ROUND } from '../lib/round'
 import { RaiseContext, type RaiseData } from './data'
 import { useSession } from './session'
@@ -43,11 +44,30 @@ export function ConvexData({ children }: { children: ReactNode }) {
   const importMany = useMutation(api.investors.importMany)
   const updateRound = useMutation(api.settings.update)
   const setTick = useMutation(api.prep.set)
+  const g = useQuery(api.google.data)
+  const gConnect = useAction(api.google.connect)
+  const gDisconnect = useMutation(api.google.disconnect)
+  const gSync = useMutation(api.google.syncNow)
+  const gAnswer = useMutation(api.google.answerMeeting)
+  const gDismiss = useMutation(api.google.dismissPerson)
+  const google = useMemo<GoogleData>(() => (g ? { loaded: true, ...g } : { ...NO_GOOGLE, loaded: false }), [g])
+  // Gone quiet reads email and meeting dates too (`lastContact`): attach them to each investor.
+  const withSignals = useMemo(() => withContact(investors ?? [], google, Date.now()), [investors, google])
+  const googleDo = useMemo(
+    () => ({
+      connect: () => gConnect({}),
+      disconnect: () => gDisconnect({}),
+      syncNow: () => gSync({}),
+      answer: (eventId: string, answer: 'm1' | 'm2' | 'passed') => gAnswer({ eventId, answer }),
+      dismiss: (email: string) => gDismiss({ email }),
+    }),
+    [gConnect, gDisconnect, gSync, gAnswer, gDismiss],
+  )
 
   const value = useMemo<RaiseData>(
     () => ({
       loaded: !!investors && !!acts && !!settings,
-      investors: investors ?? [],
+      investors: withSignals,
       acts: acts ?? [],
       round: settings?.round ?? DEFAULT_ROUND,
       roundExists: settings?.exists ?? false,
@@ -69,8 +89,10 @@ export function ConvexData({ children }: { children: ReactNode }) {
       usePrepTicks,
       setPrepTick: (phaseKey, item, done) => setTick({ phaseKey, item, done }),
       useMembers,
+      google,
+      googleDo,
     }),
-    [investors, acts, settings, me, upsert, advance, move, undoMove, logNote, remove, importMany, updateRound, setTick],
+    [investors, withSignals, acts, settings, me, upsert, advance, move, undoMove, logNote, remove, importMany, updateRound, setTick, google, googleDo],
   )
   return <RaiseContext.Provider value={value}>{children}</RaiseContext.Provider>
 }

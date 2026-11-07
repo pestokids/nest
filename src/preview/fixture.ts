@@ -4,6 +4,7 @@ import { dayDiff } from '../lib/dates'
 import type { Activity, Investor } from '../lib/pipeline'
 import { DEFAULT_ODDS, type Round } from '../lib/round'
 import { STAGES } from '../lib/stages'
+import { FIXTURE_ADDRESSES } from './googleFixture'
 
 const add = (iso: string, days: number) => new Date(Date.parse(iso + 'T00:00:00Z') + days * 864e5).toISOString().slice(0, 10)
 
@@ -41,7 +42,7 @@ export function fixtureInvestors(today: string): Investor[] {
     { name: 'Lantern Ventures', firm: 'Lantern Ventures', type: 'Micro-VC', warmth: 'intro', path: 'Ankur', stage: 'intro', expected: 75000, nextStep: 'Book a first call', nextDate: d(12), lastTouch: d(-1), wave: 1 },
     { name: 'Fernhill Fund', firm: 'Fernhill', type: 'Seed fund', warmth: 'intro', path: 'Mira', stage: 'ask', expected: 150000, nextStep: 'Awaiting a partner intro', lastTouch: d(-6), wave: 1 },
     {
-      name: 'Kite Angels', firm: 'Kite Angels', email: 'hello@kite.example', type: 'Angel', warmth: 'warm', path: 'Ankur (ex-colleague)', stage: 'booked', expected: 25000,
+      name: 'Kite Angels', firm: 'Kite Angels', type: 'Angel', warmth: 'warm', path: 'Ankur (ex-colleague)', stage: 'booked', expected: 25000,
       nextStep: 'Send the deck and the 60-second clip', nextDate: d(0), lastTouch: d(-2), wave: 1,
       notes: 'Likes consumer and kids. Asked about week-4 retention and whether parents pay. Send the beta numbers with the deck.',
     },
@@ -62,6 +63,7 @@ export function fixtureInvestors(today: string): Investor[] {
     firm: '', type: 'Angel', geo: 'India', warmth: 'intro', path: '', tier: 'B', wave: 2, lead: false, notes: '', source: 'Preview fixture',
     maxStage: r.stage === 'passed' || r.stage === 'parked' ? 'ask' : (r.stage as Investor['maxStage']),
     _creationTime: Date.parse(d(-9) + 'T06:00:00Z'),
+    ...FIXTURE_ADDRESSES[r.name],
     ...r,
   })) as Investor[]
 }
