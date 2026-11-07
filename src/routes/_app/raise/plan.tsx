@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import type { CSSProperties } from 'react'
 import { useRaise } from '../../../components/data'
+import { Insights } from '../../../components/plan/Insights'
 import { useHitShine } from '../../../components/plan/targetHits'
 import { buttonClass, Chip } from '../../../components/ui'
 import { todayIST } from '../../../lib/dates'
@@ -43,6 +44,7 @@ function Plan() {
 
   return (
     <section className="plan">
+      <Insights />
       <div className="plan-strip m-rise">
         <Cell label="Target" value={money(round.target)} />
         <Cell label="Room to" value={money(round.stretch)} />

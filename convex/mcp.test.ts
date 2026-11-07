@@ -185,7 +185,7 @@ describe('tools', () => {
   it('read tools answer with structured content', async () => {
     const s = await setup()
     const found = await s.call(s.read.key, 'search_investors', { query: 'kite' })
-    expect(found.body.result.structuredContent).toMatchObject({ count: 1, investors: [{ id: s.kite, name: 'Kite Angels', stage: expect.any(String) }] })
+    expect(found.body.result.structuredContent).toMatchObject({ count: 1, investors: [{ id: s.kite, name: 'Kite Angels', stage: expect.any(String), priority: expect.any(Number) }] })
     const one = await s.call(s.read.key, 'get_investor', { id: s.kite })
     expect(one.body.result.structuredContent.investor).toMatchObject({ name: 'Kite Angels', email: 'sam@kite.example.com' })
     expect((await s.call(s.read.key, 'todays_moves', {})).body.result.isError).toBe(false)

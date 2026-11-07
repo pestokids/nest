@@ -13,6 +13,8 @@ import { cleanDomains, cleanEmails, withContact, type GoogleData } from '../lib/
 import { fixtureGoogle, type PreviewGoogle } from '../preview/googleFixture'
 import { ACTIVE } from '../lib/stages'
 import { useAIPreview, type PreviewAI } from '../preview/aiFixture'
+import { fitsByInvestor } from '../lib/priority'
+import { fixtureInsights } from '../preview/insightsFixture'
 import { acceptsTogether, reconcile, ruleSuggestions, sortSuggestions, type CheckInput, type Suggestion, type SuggestionDraft } from '../lib/suggestions'
 import {
   fixtureAgentSuggestion, fixtureExtraSuggestions, fixtureSuggestionInvestors, fixtureSuggestionMeetings, type PreviewSuggestions,
@@ -27,7 +29,7 @@ import { modelFor } from '../lib/models'
 type Seed = { round?: Partial<Round>; investors: (Omit<Investor, '_id'> & { slug: string })[] }
 export type PreviewHome = 'default' | 'firstrun' | 'prepdone'
 /** T5 options: `loading` never finishes loading; `mid` is the mid-round fixture; `fail` makes every write fail (save-failed + Retry). */
-export type PreviewExtra = { loading?: boolean; mid?: boolean; fail?: boolean }
+export type PreviewExtra = { loading?: boolean; mid?: boolean; fail?: boolean; /** PST-284 `&insights=default|behind`: a month of made-up history for Plan › Insights. */ insights?: 'default' | 'behind' }
 
 /** What the rule checks read in preview: the fixture, its made-up meetings and the Google fixture. */
 const checkInput = (investors: Investor[], acts: Activity[], g: GoogleData, now: number): CheckInput => ({
@@ -103,6 +105,13 @@ export function PreviewData({
   useEffect(() => {
     const t = todayIST()
     const load = (inv: Investor[], r: Round) => {
+      if (extra.insights) {
+        const m = fixtureInsights(t, extra.insights)
+        setInvestors(m.investors)
+        setRound(m.round)
+        setActs(m.acts)
+        return
+      }
       if (extra.mid) {
         const m = fixtureMid(t)
         setInvestors(m.investors)
@@ -146,7 +155,7 @@ export function PreviewData({
           mergeRound(s.round),
         )
       })
-  }, [source, home, board, todayState, extra.mid, suggestionsState, close])
+  }, [source, home, board, todayState, extra.mid, extra.insights, suggestionsState, close])
 
   const latest = useRef(investors)
   const latestActs = useRef(acts)
@@ -155,7 +164,7 @@ export function PreviewData({
     latestActs.current = acts
   }, [investors, acts])
 
-  const value = useMemo<Omit<RaiseData, 'ai' | 'aiDo' | 'useInvestorAI' | 'agents' | 'agentsDo' | 'useAgentActivity' | 'ask' | 'useAskRun' | 'brief' | 'setBriefDismissed'>>(() => {
+  const value = useMemo<Omit<RaiseData, 'ai' | 'aiDo' | 'useInvestorAI' | 'useFits' | 'agents' | 'agentsDo' | 'useAgentActivity' | 'ask' | 'useAskRun' | 'brief' | 'setBriefDismissed'>>(() => {
     const t = todayIST()
     let n = 0
     const act = (a: Omit<Activity, '_id' | 'date' | 'by'> & { date?: string }) => {
@@ -386,7 +395,8 @@ export function PreviewData({
   }, [investors, acts, round, roundExists, log, ticks, extra.fail, extra.loading, google, suggestions, emptyList])
 
   // `&ai=…`: made-up enrichment; Keep writes through the preview's own save.
-  const enrich = useAIPreview(aiState, investors, value.save, !!extra.fail)
+  const { keptFacts, ...enrich } = useAIPreview(aiState, investors, value.save, !!extra.fail)
+  const fits = useMemo(() => fitsByInvestor(keptFacts, round), [keptFacts, round])
   // `&agents=…`: made-up agent keys and calls (Settings › Agents).
   const agents = useAgentsPreview(agentsState, !!extra.fail)
   // `&ask=…` and `&brief=…`: pretend Ask Nest runs and a made-up morning brief.
@@ -395,7 +405,7 @@ export function PreviewData({
     askModel: modelFor(enrich.ai.models, 'ask'),
   })
   return (
-    <RaiseContext.Provider value={{ ...value, ...enrich, ...agents, ...asking }}>
+    <RaiseContext.Provider value={{ ...value, ...enrich, useFits: () => fits, ...agents, ...asking }}>
       <PreviewQanda fail={!!extra.fail}>{children}</PreviewQanda>
     </RaiseContext.Provider>
   )

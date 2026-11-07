@@ -10,6 +10,9 @@
 //   &sheet                   the drawer as the phone bottom sheet at any width
 //   &investors=filtered|empty|bulk|enrich|exported|import1|import2|import3  (enrich: pair with &ai=bulk)
 //   &plan=mid                mid-round: targets hit and missed
+//   &insights=default|behind|empty  Plan › Insights (PST-284): a month of history on track or behind; empty is the
+//                            plain fixture (too little history to project). See preview/insightsFixture.ts
+//   &sort=priority           Investors sorted by Priority (PST-284; any Investors sort key works the same way)
 //   &settings=errors         validation errors
 //   &system=cmdk|cmdk-empty|cmdk-none|offline|savefailed|loading
 //   &suggestions=all|tidy|none|agent  Suggested fixes: the list open, cleared ("All tidy."), none (no card), an agent's row arriving
@@ -77,7 +80,8 @@ export function Preview() {
   const ask = (PREVIEW_ASK as readonly string[]).includes(q.get('ask') ?? '') ? (q.get('ask') as PreviewAsk) : null
   const brief = (PREVIEW_BRIEF as readonly string[]).includes(q.get('brief') ?? '') ? (q.get('brief') as PreviewBrief) : null
   const state = { today, drawer, sheet: q.has('sheet'), investors: q.get('investors'), plan: q.get('plan'), settings: q.get('settings'), system: q.get('system'), suggestions, qanda: q.get('qanda'), materials, agents, notes: q.get('notes'), drafts, ask }
-  const extra = { loading: state.system === 'loading', mid: state.plan === 'mid', fail: q.has('fail') }
+  const insights = q.get('insights')
+  const extra = { loading: state.system === 'loading', mid: state.plan === 'mid', fail: q.has('fail'), insights: insights === 'default' || insights === 'behind' ? (insights as 'default' | 'behind') : undefined }
   const google: PreviewGoogle = (PREVIEW_GOOGLE as readonly string[]).includes(q.get('google') ?? '') ? (q.get('google') as PreviewGoogle) : drawer === 'emails' || q.get('qanda') === 'prep' || ask === 'prep' ? 'connected' : 'none'
   const ai: PreviewAI = (PREVIEW_AI as readonly string[]).includes(q.get('ai') ?? '') ? (q.get('ai') as PreviewAI) : 'default'
   return (

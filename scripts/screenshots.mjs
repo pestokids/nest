@@ -40,6 +40,9 @@ const SCREENS = [
   ['investors-import-3', '/raise/investors?preview&investors=import3'],
   ['plan-default', '/raise/plan?preview'],
   ['plan-mid', '/raise/plan?preview&plan=mid'],
+  // PST-284: Plan › Insights and Investors › Sort: Priority
+  ...['default', 'behind', 'empty'].map((s) => [`plan-insights-${s}`, `/raise/plan?preview&insights=${s}`]),
+  ['investors-priority', '/raise/investors?preview&sort=priority'],
   ['settings-default', '/raise/settings?preview'],
   ['settings-errors', '/raise/settings?preview&settings=errors'],
   ['system-cmdk-empty', '/raise/today?preview&system=cmdk-empty'],

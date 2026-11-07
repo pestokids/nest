@@ -447,5 +447,6 @@ export function useAIPreview(state: PreviewAI, investors: Investor[] | null, sav
       people: db.people.filter((p) => p.investorId === id).sort((a, b) => Number(b.primary) - Number(a.primary)),
     }
   }
-  return { ai, aiDo: actions, useInvestorAI }
+  const keptFacts = useMemo(() => db?.facts.filter((f) => f.investorId && f.status === 'kept') ?? [], [db])
+  return { ai, aiDo: actions, useInvestorAI, keptFacts }
 }

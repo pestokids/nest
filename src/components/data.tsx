@@ -2,7 +2,7 @@ import { createContext, useContext } from 'react'
 import type { MoveRecord } from '../lib/board'
 import type { Activity, Investor, InvestorFields, TouchOptions } from '../lib/pipeline'
 import type { GoogleData, MeetingAnswer } from '../lib/google'
-import type { AIData, AISettings, InvestorAI } from '../lib/enrich'
+import type { AIData, AISettings, Fit, InvestorAI } from '../lib/enrich'
 import type { Round, RoundChange } from '../lib/round'
 import type { Stage } from '../lib/stages'
 import type { Suggestion } from '../lib/suggestions'
@@ -53,6 +53,8 @@ export type RaiseData = {
   aiDo: AIActions
   /** One investor's latest run, facts and people (the drawer). A hook. */
   useInvestorAI: (investorId: string | null) => InvestorAI | undefined
+  /** PST-284: each investor's Fit from their kept fund facts, by id (Investors › Sort: Priority). A hook. */
+  useFits: () => Record<string, Fit>
   /** PST-276: agents' keys (never the keys themselves) and the server URL they connect to. */
   agents: AgentsData
   agentsDo: AgentActions
