@@ -83,7 +83,7 @@ export const data = query({
             email: mine.googleEmail,
             lastSyncAt: mine.lastSyncAt,
             running: (mine.lockUntil ?? 0) > now,
-            scan: mine.scan ? { done: mine.scan.done, oldest: mine.scan.oldest, startedAt: mine.scan.startedAt } : undefined,
+            scan: mine.scan ? { done: mine.scan.done, oldest: mine.scan.oldest, startedAt: mine.scan.startedAt, skipped: mine.scan.skipped } : undefined,
             lastError: mine.lastError,
           }
         : null,
@@ -265,7 +265,12 @@ export const saveCursors = internalMutation({
     connectionId: v.id('googleConnections'),
     calendarSyncToken: v.optional(v.union(v.string(), v.null())),
     gmailHistoryId: v.optional(v.string()),
-    scan: v.optional(v.union(v.object({ pageToken: v.optional(v.string()), done: v.number(), oldest: v.optional(v.number()), startedAt: v.number(), historyId: v.string() }), v.null())),
+    scan: v.optional(
+      v.union(
+        v.object({ pageToken: v.optional(v.string()), done: v.number(), oldest: v.optional(v.number()), skipped: v.optional(v.number()), startedAt: v.number(), historyId: v.string() }),
+        v.null(),
+      ),
+    ),
     rescan: v.optional(v.boolean()),
   },
   handler: async (ctx, { connectionId, calendarSyncToken, gmailHistoryId, scan, rescan }) => {

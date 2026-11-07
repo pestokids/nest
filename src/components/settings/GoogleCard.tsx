@@ -79,6 +79,9 @@ export function GoogleCard() {
       },
     })
 
+  /** Why the last run stopped short (it retries on the next one). */
+  const lastTry = me?.lastError ? <p className="set-google__error">Last try didn’t finish: {me.lastError.replace(/\.?$/, '.')} Trying again in 10 minutes.</p> : null
+
   const others = google.team.filter((t) => !t.mine && t.status !== 'reconnect').map((t) => t.name)
   const team = others.length ? <p className="set-google__team">{others.join(' and ')} {others.length === 1 ? 'is' : 'are'} connected too. Everyone sees investor meetings and threads from both.</p> : null
 
@@ -117,6 +120,7 @@ export function GoogleCard() {
 
   if (me.status === 'syncing') {
     const p = scanProgress(me.scan ?? { done: 0, startedAt: now }, now)
+    const skipped = me.scan?.skipped ?? 0
     return (
       <section className="set-card set-google" aria-labelledby="set-google-title">
         <div className="set-card__head">
@@ -128,13 +132,15 @@ export function GoogleCard() {
           <div>
             <p className="set-google__strong">Reading your inbox for investor emails…</p>
             <p className="set-google__muted" aria-live="polite">
-              {me.scan ? `${p.done} of ${p.total} emails · ${p.left}.` : 'Starting with your calendar.'} You can leave this page.
+              {me.scan ? `${p.done} of ${p.total} emails · ${p.left}.` : 'Starting with your calendar.'}
+              {skipped ? ` ${skipped} ${skipped === 1 ? 'thread' : 'threads'} skipped.` : ''} You can leave this page.
             </p>
           </div>
         </div>
         <div className="set-google__track" role="progressbar" aria-label="Reading your inbox" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(p.pct * 100)}>
           <div className="set-google__fill" style={{ width: `${Math.max(4, p.pct * 100)}%` }} />
         </div>
+        {lastTry}
         <p className="set-google__found eyebrow-mono">Found so far</p>
         <ul className="set-google__counts">
           <li>
@@ -171,7 +177,7 @@ export function GoogleCard() {
           </span>
         </div>
       </div>
-      {!reconnect && me.lastError ? <p className="set-google__error">Last try didn’t finish: {me.lastError} Trying again in 10 minutes.</p> : null}
+      {!reconnect ? lastTry : null}
       <p className="set-google__note">Read-only. Nest keeps meeting titles, subjects, dates and addresses. Never email bodies.</p>
       {confirm ? (
         <div className="set-google__confirm" role="group" aria-label="Disconnect Google">

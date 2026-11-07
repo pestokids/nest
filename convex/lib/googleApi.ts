@@ -12,15 +12,30 @@ export class Revoked extends Error {
     super(`Google access revoked: ${why}`)
   }
 }
-/** Any other failure (rate limit, outage). Retried on the next run. */
+/** Any other failure (rate limit, outage). Retried on the next run. `reason` is Google's, e.g. `userRateLimitExceeded`. */
 export class GoogleError extends Error {
   constructor(
     public status: number,
     what: string,
+    public reason = '',
   ) {
-    super(`Google ${what} failed (${status})`)
+    super(`Google ${what} failed (${status}${reason ? ` ${reason}` : ''})`)
+  }
+  /** Google is asking us to slow down: retried with backoff in `get`, and never treated as "skip this one". */
+  get rateLimited() {
+    return isRateLimit(this.status, this.reason)
   }
 }
+
+const RATE_LIMIT_REASONS = /^(rateLimitExceeded|userRateLimitExceeded|RATE_LIMIT_EXCEEDED|RESOURCE_EXHAUSTED)$/
+const isRateLimit = (status: number, reason: string) => status === 429 || (status === 403 && RATE_LIMIT_REASONS.test(reason))
+
+/**
+ * How `get` backs off when Google rate-limits: `tries` attempts in all, waiting
+ * about baseMs, 2×, 4×… (plus jitter, capped at maxMs) between them. Tests set baseMs to 0.
+ */
+export const RETRY = { tries: 5, baseMs: 1000, maxMs: 16_000 }
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
 export const redirectUri = () => `${process.env.CONVEX_SITE_URL}${CALLBACK_PATH}`
 
@@ -87,18 +102,32 @@ export async function revoke(token: string) {
   }).catch(() => undefined)
 }
 
+type GoogleErrorBody = { error?: { status?: string; errors?: { reason?: string }[]; details?: { reason?: string }[] } }
+
+/** Google's reason for a failure (`rateLimitExceeded`, `forbidden`, `failedPrecondition`…), from the error body. Never the message. */
+async function errorReason(res: Response) {
+  const j = (await res.json().catch(() => ({}))) as GoogleErrorBody
+  const e = j.error
+  const reason = e?.errors?.find((x) => x.reason)?.reason ?? e?.details?.find((x) => x.reason)?.reason ?? e?.status ?? ''
+  // Shown on Settings and in logs: keep it a short identifier.
+  return reason.replace(/[^\w.-]/g, '').slice(0, 60)
+}
+
 async function get<T>(url: string, token: string, what: string): Promise<T> {
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } })
-  if (res.status === 401) throw new Revoked(`${what} 401`)
-  if (res.status === 403) {
-    const j = (await res.json().catch(() => ({}))) as { error?: { errors?: { reason?: string }[] } }
-    const reason = j.error?.errors?.[0]?.reason ?? ''
-    // A scope was unticked or taken away: only reconnecting fixes that. Rate limits retry next run.
-    if (/insufficientPermissions|ACCESS_TOKEN_SCOPE_INSUFFICIENT/i.test(reason)) throw new Revoked(`${what} ${reason}`)
-    throw new GoogleError(403, reason === 'accessNotConfigured' ? `${what} (the API isn't turned on in Google Cloud)` : what)
+  for (let attempt = 1; ; attempt++) {
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } })
+    if (res.ok) return (await res.json()) as T
+    if (res.status === 401) throw new Revoked(`${what} 401`)
+    const reason = await errorReason(res)
+    // A scope was unticked or taken away: only reconnecting fixes that.
+    if (res.status === 403 && /insufficientPermissions|ACCESS_TOKEN_SCOPE_INSUFFICIENT/i.test(reason)) throw new Revoked(`${what} ${reason}`)
+    if (isRateLimit(res.status, reason) && attempt < RETRY.tries) {
+      const wait = Math.min(RETRY.maxMs, RETRY.baseMs * 2 ** (attempt - 1))
+      await sleep(wait + Math.random() * RETRY.baseMs)
+      continue
+    }
+    throw new GoogleError(res.status, reason === 'accessNotConfigured' ? `${what} (the API isn't turned on in Google Cloud)` : what, reason)
   }
-  if (!res.ok) throw new GoogleError(res.status, what)
-  return (await res.json()) as T
 }
 
 /* ---------- Calendar ---------- */

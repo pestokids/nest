@@ -221,8 +221,8 @@ export type MyConnection = {
   lastSyncAt?: number
   /** A sync is running right now. */
   running: boolean
-  /** The first read of the inbox: threads read so far, and the oldest one reached. */
-  scan?: { done: number; oldest?: number; startedAt: number }
+  /** The first read of the inbox: threads read so far, the oldest one reached, and how many Google refused (skipped). */
+  scan?: { done: number; oldest?: number; startedAt: number; skipped?: number }
   lastError?: string
 }
 export type GoogleData = {
