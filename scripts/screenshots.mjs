@@ -84,6 +84,9 @@ const SCREENS = [
   // PST-283: Close
   ...['default', 'record', 'status', 'remind', 'modeller', 'captable', 'nocaptable', 'closed', 'empty'].map((s) => [`close-${s}`, `/raise/close?preview&close=${s}`]),
   ['close-settings-cap-table', '/raise/settings?preview&close#cap-table'],
+  // PST-278: Drafts
+  ...['followup', 'intro', 'blurb', 'nudge', 'thanks', 'dataroom', 'writing', 'nokey', 'noemail', 'copied', 'failed'].map((s) => [`drafts-${s}`, `/raise/today?preview&drafts=${s}`]),
+  ['drafts-history', '/raise/investors?preview&drafts=history'],
 ]
 
 /** Sideways scroll, and (phones) visible controls smaller than 44 × 44. */
@@ -125,7 +128,7 @@ for (const size of SIZES) {
     await page.waitForTimeout(name.endsWith('-win') ? 1000 : 900)
     // Full-page capture resizes the viewport, which re-snaps the phone moves carousel: keep the win at viewport size there.
     // Overlays (sheets, toasts, the palette, the bulk bar) are fixed to the viewport: shoot the viewport.
-    const full = !/^(sign-in|drawer-|google-drawer-|system-cmdk|google-cmdk|system-save|investors-(import|bulk|exported)|suggestions-(all|agent|tidy)|materials-(versions|views|share|sent|upload|drawer)|viewer-)/.test(name) && !(size.mobile && name.endsWith('-win'))
+    const full = !/^(sign-in|drawer-|google-drawer-|system-cmdk|google-cmdk|system-save|investors-(import|bulk|exported)|suggestions-(all|agent|tidy)|materials-(versions|views|share|sent|upload|drawer)|viewer-|drafts-)/.test(name) && !(size.mobile && name.endsWith('-win'))
     await page.screenshot({ path: `${out}/${name}--${size.name}.png`, fullPage: full })
     const a = await page.evaluate(audit, size.mobile)
     if (a.sideways || a.small.length) report[`${name}--${size.name}`] = a

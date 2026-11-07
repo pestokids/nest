@@ -15,6 +15,7 @@ import { dayLabel } from '../lib/investorView'
 import { useRaise } from './data'
 import { WhoLookups } from './enrich/WhoLookups'
 import { PrepButton } from './qanda/PrepBrief'
+import { openDraft } from './drafts/data'
 import { openOnKey, useUI } from './raise-ui'
 import { useSaveAction } from './system/useSaveAction'
 import { Badge, Button, Card, Icon } from './ui'
@@ -89,6 +90,11 @@ function Meetings({ today, now }: { today: string; now: number }) {
             <span className="gmeet__sub">{sub}</span>
           </div>
           <PrepButton meeting={m} now={now} />
+          {m.end <= now ? (
+            <button type="button" className="qa-prep" onClick={() => openDraft({ investorId: i._id, type: 'followup' })}>
+              Follow up
+            </button>
+          ) : null}
         </li>
       )
     }

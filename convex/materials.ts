@@ -243,7 +243,8 @@ export const seen = mutation({
 /* ---------- Send by email (only when RESEND_API_KEY is set) ---------- */
 
 const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-const siteOrigin = () => (process.env.SITE_URL ?? SHARE_ORIGIN).replace(/\/$/, '')
+/** Where share links point: SITE_URL, else nest.pestokids.com. */
+export const siteOrigin = () => (process.env.SITE_URL ?? SHARE_ORIGIN).replace(/\/$/, '')
 
 /** The emails to send: live links whose investor has an email. Checks the caller's access. */
 export const emailDrafts = internalQuery({
