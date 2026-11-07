@@ -21,15 +21,16 @@ import {
 import { addDays, celebrates, stageChange } from '../lib/today'
 import { useRaise } from './data'
 import { InvestorEnrich } from './enrich/InvestorEnrich'
+import { DrawerMaterials } from './materials/DrawerMaterials'
 import { Egg, EggCracking, EggHatching } from './illustrations'
 import { NotesTab } from './qanda/NotesTab'
 import { useUI } from './raise-ui'
 import { Button, buttonClass, Checkbox, Chip, Icon, Input, Segmented, Select, SubTabButtons, Textarea, Toggle, type ChipTone } from './ui'
 import { Link } from '@tanstack/react-router'
 
-export type DrawerStart = 'view' | 'edit' | 'advance' | 'touch' | 'history' | 'emails' | 'notes' | 'delete'
+export type DrawerStart = 'view' | 'edit' | 'advance' | 'touch' | 'history' | 'emails' | 'materials' | 'notes' | 'delete'
 type Mode = 'view' | 'edit' | 'advance' | 'touch' | 'park' | 'delete'
-type Tab = 'details' | 'history' | 'emails' | 'notes'
+type Tab = 'details' | 'history' | 'emails' | 'materials' | 'notes'
 
 const PROGRESS = STAGES.slice(1) // Asked … Money in
 const WARM_SHORT: Record<Investor['warmth'], [string, ChipTone]> = {
@@ -141,8 +142,9 @@ export function Drawer({ id, start = 'view', forceSheet, onClose }: { id: string
   const sheet = !!forceSheet || phone
   const inv = id ? d.investors.find((i) => i._id === id) : undefined
   const isNew = !id
-  const [mode, setMode] = useState<Mode>(isNew ? 'edit' : start === 'history' || start === 'emails' || start === 'notes' ? 'view' : start)
-  const [tab, setTab] = useState<Tab>(start === 'history' || start === 'emails' || start === 'notes' ? start : 'details')
+  const startTab: Tab = ui.opening.tab ?? (start === 'history' || start === 'emails' || start === 'materials' || start === 'notes' ? start : 'details')
+  const [mode, setMode] = useState<Mode>(isNew ? 'edit' : startTab !== 'details' ? 'view' : (start as Mode))
+  const [tab, setTab] = useState<Tab>(startTab)
   const [closing, setClosing] = useState(false)
   /** A touch was just logged: History slides its newest entry in. */
   const [fresh, setFresh] = useState(false)
@@ -292,6 +294,7 @@ export function Drawer({ id, start = 'view', forceSheet, onClose }: { id: string
               ...(d.google.team.length || emailCount
                 ? [{ value: 'emails' as const, label: emailCount ? <>Emails <span className="tab-count">{emailCount}</span></> : 'Emails' }]
                 : []),
+              { value: 'materials', label: 'Materials' },
               { value: 'notes', label: 'Notes' },
             ]}
           />
@@ -311,6 +314,8 @@ export function Drawer({ id, start = 'view', forceSheet, onClose }: { id: string
             <History inv={inv} log={log} fresh={fresh} />
           ) : tab === 'emails' ? (
             <Emails inv={inv} onEdit={() => setMode('edit')} />
+          ) : tab === 'materials' ? (
+            <DrawerMaterials inv={inv} />
           ) : tab === 'notes' ? (
             <NotesTab inv={inv} />
           ) : (

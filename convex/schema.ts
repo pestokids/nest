@@ -2,6 +2,7 @@ import { defineSchema, defineTable } from 'convex/server'
 import { authTables } from '@convex-dev/auth/server'
 import { v } from 'convex/values'
 import { aiSettingsFields, enrichTables } from './enrichSchema'
+import { materialsTables } from './materialsSchema'
 import { roundFields, vGeo, vMeetingAnswer, vPipelineStage, vStage, vSyncSource, vTier, vTouch, vType, vWarmth, vWave } from './validators'
 import { vSuggestionKind, vSuggestionPatch, vSuggestionSource, vSuggestionStatus, vSuggestionUndo } from './validators'
 import { vAnswerVersion, vAskSource, vQuestionMerge } from './validators'
@@ -229,4 +230,7 @@ export default defineSchema({
   }).index('by_investor', ['investorId']),
 
   /* ---------- end PST-281 ---------- */
+
+  // ---------- PST-282: Materials (materials, materialVersions, shareLinks, views, viewerHits) ----------
+  ...materialsTables,
 })

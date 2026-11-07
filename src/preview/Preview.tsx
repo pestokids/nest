@@ -17,6 +17,7 @@
 //                            (default: Kite Angels enriched; with &google=connected Today shows Who's this? lookups)
 //   &qanda=empty|answer|edit|new|same|prep  Q&A: an empty bank, the Answer panel (new question, edit with earlier answers, add),
 //                            Same as another, Today's prep brief (implies &google=connected). &drawer=notes for the Notes tab
+//   &materials=<state>       Materials (PST-282): empty, versions, views, share, sent, upload, noemail, opened (a first open arrives)
 //   &fail                    every write fails (save-failed toast with Retry)
 //   any unknown path         the 404, e.g. /nowhere?preview
 import { useEffect } from 'react'
@@ -29,6 +30,8 @@ import { PREVIEW_DRAWER, PREVIEW_TODAY, PreviewStateContext, type PreviewDrawer,
 import { PREVIEW_AI, type PreviewAI } from './aiFixture'
 import { PREVIEW_GOOGLE, type PreviewGoogle } from './googleFixture'
 import { PREVIEW_SUGGESTIONS, type PreviewSuggestions } from './suggestionsFixture'
+import { PREVIEW_MATERIALS, PreviewMaterials, type PreviewMaterials as MaterialsState } from './materialsFixture'
+import { OpenToasts } from '../components/materials/Opens'
 
 const session = { me: { firstName: 'Dev', name: 'Dev Preview', email: 'dev@example.com' }, signOut: () => {} }
 
@@ -49,7 +52,8 @@ export function Preview() {
   const today = (PREVIEW_TODAY as readonly string[]).includes(q.get('today') ?? '') ? (q.get('today') as PreviewToday) : 'default'
   const drawer = (PREVIEW_DRAWER as readonly string[]).includes(q.get('drawer') ?? '') ? (q.get('drawer') as PreviewDrawer) : undefined
   const suggestions = (PREVIEW_SUGGESTIONS as readonly string[]).includes(q.get('suggestions') ?? '') ? (q.get('suggestions') as PreviewSuggestions) : 'default'
-  const state = { today, drawer, sheet: q.has('sheet'), investors: q.get('investors'), plan: q.get('plan'), settings: q.get('settings'), system: q.get('system'), suggestions, qanda: q.get('qanda') }
+  const materials = (PREVIEW_MATERIALS as readonly string[]).includes(q.get('materials') ?? '') ? (q.get('materials') as MaterialsState) : 'default'
+  const state = { today, drawer, sheet: q.has('sheet'), investors: q.get('investors'), plan: q.get('plan'), settings: q.get('settings'), system: q.get('system'), suggestions, qanda: q.get('qanda'), materials }
   const extra = { loading: state.system === 'loading', mid: state.plan === 'mid', fail: q.has('fail') }
   const google: PreviewGoogle = (PREVIEW_GOOGLE as readonly string[]).includes(q.get('google') ?? '') ? (q.get('google') as PreviewGoogle) : drawer === 'emails' || q.get('qanda') === 'prep' ? 'connected' : 'none'
   const ai: PreviewAI = (PREVIEW_AI as readonly string[]).includes(q.get('ai') ?? '') ? (q.get('ai') as PreviewAI) : 'default'
@@ -67,7 +71,12 @@ export function Preview() {
             suggestions={suggestions}
             ai={ai}
           >
-            <AppShell>{state.system === 'savefailed' ? <FailOnce /> : null}</AppShell>
+            <PreviewMaterials state={materials}>
+              <AppShell>
+                {state.system === 'savefailed' ? <FailOnce /> : null}
+                <OpenToasts />
+              </AppShell>
+            </PreviewMaterials>
           </PreviewData>
         </PreviewStateContext.Provider>
       </SessionContext.Provider>
