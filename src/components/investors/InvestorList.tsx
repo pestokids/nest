@@ -1,4 +1,5 @@
-import { forwardRef, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { forwardRef, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { enrichedCell, type InvestorRun } from '../../lib/enrich'
 import { agoLabel, isQuiet, nextLabel, subLine } from '../../lib/investorView'
 import { money } from '../../lib/money'
 import type { Investor } from '../../lib/pipeline'
@@ -12,13 +13,14 @@ import { Chip, Icon, type ChipTone } from '../ui'
 
 export type SortKey = 'name' | 'type' | 'stage' | 'wave' | 'path' | 'lastTouch' | 'nextStep' | 'expected'
 
-const COLS: { k: SortKey; label: string; className?: string }[] = [
+const COLS: { k: SortKey | 'enriched'; label: string; className?: string }[] = [
   { k: 'name', label: 'Investor', className: 'c-name' },
   { k: 'type', label: 'Type', className: 'c-type' },
   { k: 'stage', label: 'Stage', className: 'c-stage' },
   { k: 'wave', label: 'Wave', className: 'c-wave' },
   { k: 'path', label: 'Warm path', className: 'c-path' },
   { k: 'lastTouch', label: 'Last touch', className: 'c-touch' },
+  { k: 'enriched', label: 'Enriched', className: 'c-enriched' },
   { k: 'nextStep', label: 'Next step', className: 'c-next' },
   { k: 'expected', label: 'Amount', className: 'c-amt' },
 ]
@@ -61,6 +63,9 @@ export function InvestorList({ rows, today, quietDays, selected, setSelected, al
     if (head.current) head.current.indeterminate = some
   }, [some])
 
+  const { ai } = useRaise()
+  const runs = useMemo(() => new Map(ai.runs.flatMap((r) => (r.investorId ? [[r.investorId, r] as const] : []))), [ai.runs])
+
   const more = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const el = more.current
@@ -82,20 +87,26 @@ export function InvestorList({ rows, today, quietDays, selected, setSelected, al
               onChange={() => setSelected(all ? new Set() : new Set(allIds))}
             />
           </span>
-          {COLS.map((c) => (
-            <span key={c.k} className={c.className} role="columnheader" aria-sort={sort === c.k ? (dir === 'asc' ? 'ascending' : 'descending') : undefined}>
-              <button type="button" className={`inv-sort${sort === c.k ? ' is-on' : ''}`} onClick={() => onSort(c.k)}>
-                {c.label}
-                {sort === c.k || c.k === 'name' ? <Icon name="sort" size={13} strokeWidth={2.2} className={`inv-sort__icon${sort === c.k ? ` is-${dir}` : ''}`} /> : null}
-              </button>
-            </span>
-          ))}
+          {COLS.map(({ k, label, className }) =>
+            k === 'enriched' ? (
+              <span key={k} className={className + ' inv-head-label'} role="columnheader">
+                {label}
+              </span>
+            ) : (
+              <span key={k} className={className} role="columnheader" aria-sort={sort === k ? (dir === 'asc' ? 'ascending' : 'descending') : undefined}>
+                <button type="button" className={`inv-sort${sort === k ? ' is-on' : ''}`} onClick={() => onSort(k)}>
+                  {label}
+                  {sort === k || k === 'name' ? <Icon name="sort" size={13} strokeWidth={2.2} className={`inv-sort__icon${sort === k ? ` is-${dir}` : ''}`} /> : null}
+                </button>
+              </span>
+            ),
+          )}
           <span className="c-more" role="columnheader">
             <span className="sr-only">Actions</span>
           </span>
         </div>
         {rows.map((i) => (
-          <Row key={i._id} i={i} today={today} quiet={isQuiet(i, today, quietDays)} checked={selected.has(i._id)} onCheck={() => toggle(i._id)} onOpen={() => onOpen(i._id)} />
+          <Row key={i._id} i={i} run={runs.get(i._id)} today={today} quiet={isQuiet(i, today, quietDays)} checked={selected.has(i._id)} onCheck={() => toggle(i._id)} onOpen={() => onOpen(i._id)} />
         ))}
       </div>
       <ul className="inv-cards" aria-label="Investors">
@@ -113,8 +124,9 @@ type RowProps = { i: Investor; today: string; quiet: boolean; checked: boolean; 
 const rowClass = (base: string, i: Investor, quiet: boolean, checked: boolean) =>
   [base, quiet && 'is-quiet', (i.stage === 'passed' || i.stage === 'parked') && 'is-closed', checked && 'is-selected'].filter(Boolean).join(' ')
 
-function Row({ i, today, quiet, checked, onCheck, onOpen }: RowProps) {
+function Row({ i, run, today, quiet, checked, onCheck, onOpen }: RowProps & { run?: InvestorRun }) {
   const chip = stageChip(i, quiet)
+  const enriched = enrichedCell(run)
   return (
     <div className={rowClass('inv-row', i, quiet, checked)} role="row" tabIndex={0} onClick={onOpen} onKeyDown={openOnKey(onOpen)} aria-label={`${i.name}, ${STAGE_TILE[i.stage]}`}>
       <span className="c-check" role="cell" onClick={(e) => e.stopPropagation()}>
@@ -142,6 +154,9 @@ function Row({ i, today, quiet, checked, onCheck, onOpen }: RowProps) {
       </span>
       <span className={`c-touch${quiet ? ' is-quiet' : ''}`} role="cell">
         {agoLabel(i.lastTouch, today)}
+      </span>
+      <span className={'c-enriched is-' + enriched.tone} role="cell">
+        {enriched.text}
       </span>
       <span className="c-next" role="cell">
         {nextLabel(i, today)}

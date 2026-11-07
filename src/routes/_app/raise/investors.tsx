@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRaise } from '../../../components/data'
 import { BulkBar } from '../../../components/investors/BulkBar'
+import { EnrichProgress } from '../../../components/investors/EnrichProgress'
 import { FilterBar, FilterChips, type InvestorFilters } from '../../../components/investors/Filters'
 import { ImportDialog, type ImportStart } from '../../../components/investors/ImportDialog'
 import { InvestorList, type SortKey } from '../../../components/investors/InvestorList'
@@ -59,8 +60,11 @@ function Investors() {
   const [only, setOnly] = useState<Set<string> | null>(null)
   const [limit, setLimit] = useState(PAGE)
   const [importStart, setImportStart] = useState<ImportStart | undefined>()
+  /** The investors a bulk Enrich started, for its progress toast. */
+  const [batch, setBatch] = useState<string[] | null>(null)
+  const closeBatch = useCallback(() => setBatch(null), [])
 
-  // ?preview&investors=filtered|empty|bulk|exported|import1|import2|import3
+  // ?preview&investors=filtered|empty|bulk|enrich|exported|import1|import2|import3 (enrich: with &ai=bulk, four enriching)
   const previewDone = useRef(false)
   useEffect(() => {
     const p = flags?.investors
@@ -68,7 +72,11 @@ function Investors() {
     previewDone.current = true
     if (p === 'filtered') setSearch({ stage: 'ask' })
     else if (p === 'empty') setSearch({ q: 'nightjar' })
-    else if (p === 'bulk') setSelected(new Set(inv.filter((i) => i.stage === 'intro' || i.stage === 'ask').slice(0, 2).map((i) => i._id)))
+    else if (p === 'enrich') {
+      const four = ['Kite Angels', 'Orchard Capital', 'Lantern Ventures', 'Juniper Seed'].flatMap((n) => inv.filter((i) => i.name === n).map((i) => i._id))
+      setSelected(new Set(four))
+      setBatch(four)
+    } else if (p === 'bulk') setSelected(new Set(inv.filter((i) => i.stage === 'intro' || i.stage === 'ask').slice(0, 2).map((i) => i._id)))
     else if (p === 'exported') exportInvestors(inv, toast, { download: false })
     else if (p.startsWith('import'))
       void import('../../../preview/fixture').then(async ({ fixtureCsv }) => {
@@ -181,7 +189,8 @@ function Investors() {
           <NoResults q={(s.q ?? '').trim()} filtered={filtered} onAdd={() => open(null, s.q?.trim() ? { name: titleCase(s.q) } : undefined)} onClearSearch={() => setSearch({ q: undefined })} onClearAll={clearAll} empty={!inv.length} />
         )}
       </div>
-      {selected.size ? <BulkBar ids={selected} onClear={() => setSelected(new Set())} /> : null}
+      {selected.size ? <BulkBar ids={selected} onClear={() => setSelected(new Set())} onEnriching={setBatch} /> : null}
+      {batch ? <EnrichProgress key={batch.join()} ids={batch} onClose={closeBatch} /> : null}
       {s.import ? (
         <ImportDialog
           key={importStart ? importStart.step : 0}

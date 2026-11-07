@@ -2,6 +2,7 @@ import { createContext, useContext } from 'react'
 import type { MoveRecord } from '../lib/board'
 import type { Activity, Investor, InvestorFields, TouchOptions } from '../lib/pipeline'
 import type { GoogleData, MeetingAnswer } from '../lib/google'
+import type { AIData, AISettings, InvestorAI } from '../lib/enrich'
 import type { Round, RoundChange } from '../lib/round'
 import type { Stage } from '../lib/stages'
 import type { Suggestion } from '../lib/suggestions'
@@ -43,6 +44,11 @@ export type RaiseData = {
   /** PST-275: open suggested fixes, best first, and what you can do with them. */
   suggestions: Suggestion[]
   suggest: SuggestionActions
+  /** PST-274: enrichment (Claude with web search): spend, toggles, runs, looked-up senders. */
+  ai: AIData
+  aiDo: AIActions
+  /** One investor's latest run, facts and people (the drawer). A hook. */
+  useInvestorAI: (investorId: string | null) => InvestorAI | undefined
 }
 
 export type SuggestionActions = {
@@ -55,6 +61,24 @@ export type SuggestionActions = {
   undo: (ids: string[]) => Promise<unknown>
   /** Run the rule checks now. */
   check: () => Promise<unknown>
+}
+
+export type AIActions = {
+  enrich: (investorId: string) => Promise<unknown>
+  enrichMany: (ids: string[]) => Promise<unknown>
+  lookup: (email: string) => Promise<unknown>
+  stop: (runId: string) => Promise<unknown>
+  /** Resolves with the clash note when keeping it changed nothing. */
+  keep: (factId: string) => Promise<string | null>
+  dismiss: (factId: string) => Promise<unknown>
+  undoDismiss: (factId: string) => Promise<unknown>
+  keepAll: (runId: string) => Promise<number>
+  dismissAll: (runId: string) => Promise<number>
+  setAuto: (patch: Partial<Pick<AISettings, 'lookups' | 'enrichNew'>>) => Promise<unknown>
+  /** Who's this?: a new investor (no id), or this person joins an existing one. Resolves with the investor's id. */
+  addSender: (email: string, investorId?: string) => Promise<string>
+  addPerson: (investorId: string, p: { name: string; title?: string; email?: string }) => Promise<unknown>
+  setPrimary: (personId: string) => Promise<unknown>
 }
 
 export type GoogleActions = {

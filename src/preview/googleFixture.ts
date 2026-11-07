@@ -35,6 +35,8 @@ export function fixtureGoogle(state: PreviewGoogle, investors: Investor[], now: 
     m({ eventId: 'fx-lantern', title: 'Lantern Ventures first call', start: at(1, '10:00'), people: [{ email: 'lee@lantern.example.com', name: 'Lee Park' }], investorIds: ids('Lantern Ventures'), by: 'Sam', mine: false }),
     m({ eventId: 'fx-juniper', title: 'Juniper partner chat', start: at(-1, '15:00'), people: [{ email: 'ana@juniper.example.com', name: 'Ana Ruiz' }], investorIds: ids('Juniper Seed') }),
     m({ eventId: 'fx-fieldnote', title: 'Coffee', start: at(-3, '09:30'), people: [{ email: 'mina@fieldnote.example.com', name: 'Mina Okafor' }] }),
+    m({ eventId: 'fx-harbor', title: 'Pesto × Harbor Light', start: at(-2, '12:00'), people: [{ email: 'dara@harborlight.example.com', name: 'Dara Cole' }] }),
+    m({ eventId: 'fx-northbridge', title: 'Quick question', start: at(-1, '18:00'), people: [{ email: 'm.tan@northbridge.example.com' }] }),
   ]
   const t = (o: Partial<SyncedThread> & Pick<SyncedThread, 'threadId' | 'subject' | 'lastAt' | 'lastFrom' | 'lastFromEmail' | 'investorIds'>): SyncedThread => ({
     _id: o.threadId, participants: ['dev@example.com', o.lastFromEmail], link: 'https://mail.google.com/', count: 3, by: 'Dev', mine: true, ...o,

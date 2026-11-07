@@ -6,6 +6,7 @@ import { applyMove, applyUndo } from '../lib/board'
 import { todayIST } from '../lib/dates'
 import { NO_GOOGLE, withContact, type GoogleData } from '../lib/google'
 import { DEFAULT_ROUND } from '../lib/round'
+import { NO_AI, type AIData } from '../lib/enrich'
 import type { Suggestion } from '../lib/suggestions'
 import { RaiseContext, type RaiseData } from './data'
 
@@ -16,6 +17,7 @@ const useLog = (investorId: string | null) =>
   useQuery(api.activities.forInvestor, investorId ? { investorId: investorId as Id<'investors'> } : 'skip')
 const useSettingsLog = () => useQuery(api.settings.log)
 const useMembers = () => useQuery(api.access.members)
+const useInvestorAI = (investorId: string | null) => useQuery(api.enrich.forInvestor, investorId ? { investorId: investorId as Id<'investors'> } : 'skip')
 const usePrepTicks = (phaseKey: string | null) => {
   const rows = useQuery(api.prep.list, phaseKey ? { phaseKey } : 'skip')
   return useMemo(() => rows?.map((r) => r.item), [rows])
@@ -70,6 +72,39 @@ export function ConvexData({ children }: { children: ReactNode }) {
     [sAccept, sDismiss, sAcceptSafe, sUndo, sRun],
   )
   const google = useMemo<GoogleData>(() => (g ? { loaded: true, ...g } : { ...NO_GOOGLE, loaded: false }), [g])
+  const a = useQuery(api.enrich.data)
+  const ai = useMemo<AIData>(() => (a ? { loaded: true, ...a } : NO_AI), [a])
+  const aiEnrich = useMutation(api.enrich.enrich)
+  const aiEnrichMany = useMutation(api.enrich.enrichMany)
+  const aiLookup = useMutation(api.enrich.lookupSender)
+  const aiStop = useMutation(api.enrich.stop)
+  const aiKeep = useMutation(api.enrich.keepFact)
+  const aiDismiss = useMutation(api.enrich.dismissFact)
+  const aiUndo = useMutation(api.enrich.undoDismiss)
+  const aiKeepAll = useMutation(api.enrich.keepAll)
+  const aiDismissAll = useMutation(api.enrich.dismissAll)
+  const aiSetAuto = useMutation(api.enrich.setAuto)
+  const aiAddSender = useMutation(api.enrich.addSender)
+  const aiAddPerson = useMutation(api.enrich.addPerson)
+  const aiSetPrimary = useMutation(api.enrich.setPrimary)
+  const aiDo = useMemo(
+    () => ({
+      enrich: (id: string) => aiEnrich({ investorId: id as Id<'investors'> }),
+      enrichMany: (ids: string[]) => aiEnrichMany({ ids: ids as Id<'investors'>[] }),
+      lookup: (email: string) => aiLookup({ email }),
+      stop: (runId: string) => aiStop({ runId: runId as Id<'enrichRuns'> }),
+      keep: (factId: string) => aiKeep({ factId: factId as Id<'facts'> }),
+      dismiss: (factId: string) => aiDismiss({ factId: factId as Id<'facts'> }),
+      undoDismiss: (factId: string) => aiUndo({ factId: factId as Id<'facts'> }),
+      keepAll: (runId: string) => aiKeepAll({ runId: runId as Id<'enrichRuns'> }),
+      dismissAll: (runId: string) => aiDismissAll({ runId: runId as Id<'enrichRuns'> }),
+      setAuto: (patch: { lookups?: boolean; enrichNew?: boolean }) => aiSetAuto(patch),
+      addSender: (email: string, investorId?: string) => aiAddSender({ email, investorId: investorId as Id<'investors'> | undefined }),
+      addPerson: (investorId: string, p: { name: string; title?: string; email?: string }) => aiAddPerson({ investorId: investorId as Id<'investors'>, ...p }),
+      setPrimary: (personId: string) => aiSetPrimary({ personId: personId as Id<'people'> }),
+    }),
+    [aiEnrich, aiEnrichMany, aiLookup, aiStop, aiKeep, aiDismiss, aiUndo, aiKeepAll, aiDismissAll, aiSetAuto, aiAddSender, aiAddPerson, aiSetPrimary],
+  )
   // Gone quiet reads email and meeting dates too (`lastContact`): attach them to each investor.
   const withSignals = useMemo(() => withContact(investors ?? [], google, Date.now()), [investors, google])
   const googleDo = useMemo(
@@ -112,8 +147,11 @@ export function ConvexData({ children }: { children: ReactNode }) {
       googleDo,
       suggestions: suggestionRows ?? NO_SUGGESTIONS,
       suggest,
+      ai,
+      aiDo,
+      useInvestorAI,
     }),
-    [investors, withSignals, acts, settings, me, upsert, advance, move, undoMove, logNote, remove, importMany, updateRound, setTick, google, googleDo, suggestionRows, suggest],
+    [investors, withSignals, acts, settings, me, upsert, advance, move, undoMove, logNote, remove, importMany, updateRound, setTick, google, googleDo, suggestionRows, suggest, ai, aiDo],
   )
   return <RaiseContext.Provider value={value}>{children}</RaiseContext.Provider>
 }

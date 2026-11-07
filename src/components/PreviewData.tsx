@@ -12,6 +12,7 @@ import { addDays } from '../lib/today'
 import { cleanDomains, cleanEmails, withContact, type GoogleData } from '../lib/google'
 import { fixtureGoogle, type PreviewGoogle } from '../preview/googleFixture'
 import { ACTIVE } from '../lib/stages'
+import { useAIPreview, type PreviewAI } from '../preview/aiFixture'
 import { acceptsTogether, reconcile, ruleSuggestions, sortSuggestions, type CheckInput, type Suggestion, type SuggestionDraft } from '../lib/suggestions'
 import {
   fixtureAgentSuggestion, fixtureExtraSuggestions, fixtureSuggestionInvestors, fixtureSuggestionMeetings, type PreviewSuggestions,
@@ -31,7 +32,7 @@ const stamp = (now: number) => (d: SuggestionDraft, k: number): Suggestion => ({
 
 /** `board`: add the Pipeline board's extra fake cards (`&pipeline=…`). `today`: the Raise · Today preview state. `extra`: the Investors, Plan and system states. */
 export function PreviewData({
-  source, home = 'default', board = false, today: todayState = 'default', extra = {}, google: googleState = 'none', suggestions: suggestionsState = 'default', children,
+  source, home = 'default', board = false, today: todayState = 'default', extra = {}, google: googleState = 'none', suggestions: suggestionsState = 'default', ai: aiState = 'default', children,
 }: {
   source: 'fixture' | 'seed'
   home?: PreviewHome
@@ -41,6 +42,8 @@ export function PreviewData({
   google?: PreviewGoogle
   /** PST-275 `&suggestions=…` */
   suggestions?: PreviewSuggestions
+  /** PST-274 `&ai=…` */
+  ai?: PreviewAI
   children: ReactNode
 }) {
   const [investors, setInvestors] = useState<Investor[] | null>(null)
@@ -140,7 +143,7 @@ export function PreviewData({
     latestActs.current = acts
   }, [investors, acts])
 
-  const value = useMemo<RaiseData>(() => {
+  const value = useMemo<Omit<RaiseData, 'ai' | 'aiDo' | 'useInvestorAI'>>(() => {
     const t = todayIST()
     let n = 0
     const act = (a: Omit<Activity, '_id' | 'date' | 'by'> & { date?: string }) => {
@@ -355,5 +358,7 @@ export function PreviewData({
     }
   }, [investors, acts, round, roundExists, log, ticks, extra.fail, extra.loading, google, suggestions, emptyList])
 
-  return <RaiseContext.Provider value={value}>{children}</RaiseContext.Provider>
+  // `&ai=…`: made-up enrichment; Keep writes through the preview's own save.
+  const enrich = useAIPreview(aiState, investors, value.save, !!extra.fail)
+  return <RaiseContext.Provider value={{ ...value, ...enrich }}>{children}</RaiseContext.Provider>
 }

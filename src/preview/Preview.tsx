@@ -8,11 +8,13 @@
 //   &drawer=<state>          the investor drawer: view, edit, new, advance, touch, history, emails, delete
 //   &google=<state>          Calendar and Gmail: none (default), connected, syncing, reconnect (&drawer=emails implies connected)
 //   &sheet                   the drawer as the phone bottom sheet at any width
-//   &investors=filtered|empty|bulk|exported|import1|import2|import3
+//   &investors=filtered|empty|bulk|enrich|exported|import1|import2|import3  (enrich: pair with &ai=bulk)
 //   &plan=mid                mid-round: targets hit and missed
 //   &settings=errors         validation errors
 //   &system=cmdk|cmdk-empty|cmdk-none|offline|savefailed|loading
 //   &suggestions=all|tidy|none|agent  Suggested fixes: the list open, cleared ("All tidy."), none (no card), an agent's row arriving
+//   &ai=enriching|review|nokey|bulk  investor enrichment: a run in progress, facts to review, AI not set up, four enriching
+//                            (default: Kite Angels enriched; with &google=connected Today shows Who's this? lookups)
 //   &fail                    every write fails (save-failed toast with Retry)
 //   any unknown path         the 404, e.g. /nowhere?preview
 import { useEffect } from 'react'
@@ -22,6 +24,7 @@ import { PreviewData, type PreviewHome } from '../components/PreviewData'
 import { LocalSounds, SessionContext } from '../components/session'
 import { SignIn, SIGN_IN_STATES, type SignInState } from '../components/SignIn'
 import { PREVIEW_DRAWER, PREVIEW_TODAY, PreviewStateContext, type PreviewDrawer, type PreviewToday } from '../components/preview-state'
+import { PREVIEW_AI, type PreviewAI } from './aiFixture'
 import { PREVIEW_GOOGLE, type PreviewGoogle } from './googleFixture'
 import { PREVIEW_SUGGESTIONS, type PreviewSuggestions } from './suggestionsFixture'
 
@@ -47,6 +50,7 @@ export function Preview() {
   const state = { today, drawer, sheet: q.has('sheet'), investors: q.get('investors'), plan: q.get('plan'), settings: q.get('settings'), system: q.get('system'), suggestions }
   const extra = { loading: state.system === 'loading', mid: state.plan === 'mid', fail: q.has('fail') }
   const google: PreviewGoogle = (PREVIEW_GOOGLE as readonly string[]).includes(q.get('google') ?? '') ? (q.get('google') as PreviewGoogle) : drawer === 'emails' ? 'connected' : 'none'
+  const ai: PreviewAI = (PREVIEW_AI as readonly string[]).includes(q.get('ai') ?? '') ? (q.get('ai') as PreviewAI) : 'default'
   return (
     <LocalSounds>
       <SessionContext.Provider value={session}>
@@ -59,6 +63,7 @@ export function Preview() {
             extra={extra}
             google={google}
             suggestions={suggestions}
+            ai={ai}
           >
             <AppShell>{state.system === 'savefailed' ? <FailOnce /> : null}</AppShell>
           </PreviewData>
