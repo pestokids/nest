@@ -144,6 +144,8 @@
 .set-google__btn { height: 48px; gap: 12px; box-shadow: 0 3px 0 var(--brand-forest); }
 .set-google__btn:disabled { opacity: 0.55; box-shadow: none; }
 /* Connected, syncing and needs reconnecting (google-connected.png, google-syncing.png). */
+.set-google .set-card__head { flex-wrap: wrap; row-gap: 8px; }
+.set-google .set-card__head h2 { white-space: nowrap; }
 .set-google__account { display: flex; align-items: center; gap: 14px; margin-top: 16px; padding: 12px 16px; border-radius: 12px; background: var(--surface-cream); }
 .set-google__account > svg { flex: none; }
 .set-google__account--warn { background: var(--surface-peach); border: 1px solid var(--line-peach); }
