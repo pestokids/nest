@@ -5,6 +5,7 @@ import { aiSettingsFields, enrichTables } from './enrichSchema'
 import { materialsTables } from './materialsSchema'
 import { closeTables, roundCapTableField } from './closeSchema'
 import { agentTables } from './agentsSchema'
+import { notesReadTables, vNoteSource } from './notesSchema'
 import { roundFields, vGeo, vMeetingAnswer, vPipelineStage, vStage, vSyncSource, vTier, vTouch, vType, vWarmth, vWave } from './validators'
 import { vSuggestionKind, vSuggestionPatch, vSuggestionSource, vSuggestionStatus, vSuggestionUndo } from './validators'
 import { vAnswerVersion, vAskSource, vQuestionMerge } from './validators'
@@ -220,7 +221,7 @@ export default defineSchema({
     .index('by_investor', ['investorId'])
     .index('by_note', ['noteId']),
 
-  // Meeting notes per investor (pasted for now; Wispr Flow import is PST-277).
+  // Meeting notes per investor: pasted, or in through MCP (Wispr Flow, an agent; PST-277).
   notes: defineTable({
     investorId: v.id('investors'),
     meetingId: v.optional(v.id('meetings')),
@@ -228,8 +229,11 @@ export default defineSchema({
     text: v.string(),
     /** Which meeting, e.g. "1st meeting". */
     title: v.optional(v.string()),
-    createdBy: v.id('users'),
+    // PST-277 (optional, additive): absent on notes that came in through MCP, where nobody pasted them.
+    createdBy: v.optional(v.id('users')),
     removedAt: v.optional(v.number()),
+    // PST-277 (optional, additive): where the notes came from; absent means pasted.
+    source: v.optional(vNoteSource),
   }).index('by_investor', ['investorId']),
 
   /* ---------- end PST-281 ---------- */
@@ -243,4 +247,8 @@ export default defineSchema({
   /* ---------- PST-276: Nest MCP server (agentKeys, agentCalls; convex/agentsSchema.ts) ---------- */
   ...agentTables,
   /* ---------- end PST-276 ---------- */
+
+  /* ---------- PST-277: meeting notes become updates (noteReads, unmatchedNotes; see notesSchema.ts) ---------- */
+  ...notesReadTables,
+  /* ---------- end PST-277 ---------- */
 })

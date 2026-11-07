@@ -5,6 +5,7 @@
 // Settings. Pure functions (unit-tested).
 import { isEmail } from './csv'
 import { isISODate } from './dates'
+import { LIMITS } from './qanda'
 import { LABEL, STAGE_KEYS, STAGE_RULE, STAGE_TILE, TOUCH_PICK, type PipelineStage } from './stages'
 
 export const AGENT_SCOPES = ['read', 'suggest'] as const
@@ -157,6 +158,26 @@ export const AGENT_TOOLS: readonly AgentTool[] = [
       additionalProperties: false,
     },
   },
+  {
+    name: 'add_meeting_notes',
+    title: 'Add meeting notes',
+    scope: 'suggest',
+    description:
+      'Save notes from a meeting with an investor (from Wispr Flow, or written up by you). Give investorId if you know it; otherwise Nest matches the notes by the investor’s email or the meeting title, and notes it can’t match wait in “Unmatched notes” for Dev. The notes are saved as they are. Nest then reads them, and every update it proposes waits in Suggestions for Dev.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        investorId: ID,
+        email: { type: 'string', format: 'email', maxLength: 254, description: 'The investor’s email address, if you have it and not the id.' },
+        meetingTitle: { type: 'string', minLength: 1, maxLength: 200, description: 'The meeting’s title, as on the calendar, e.g. “Pesto × Kite Angels”.' },
+        date: { type: 'string', format: 'date', description: 'The day of the meeting, YYYY-MM-DD in India time. Today or earlier.' },
+        text: { type: 'string', minLength: 1, maxLength: LIMITS.note, description: 'The notes, as written or dictated. Don’t summarise them.' },
+        source: { type: 'string', enum: ['wispr', 'agent'], description: 'wispr for notes dictated in Wispr Flow; agent (the default) for notes you wrote.' },
+      },
+      required: ['meetingTitle', 'date', 'text'],
+      additionalProperties: false,
+    },
+  },
 ]
 
 /** The tools a key can see and call: read keys get the read tools only. */
@@ -225,6 +246,7 @@ const CALL_LABEL: Record<string, string> = {
   add_investor: 'Suggested an investor',
   suggest_change: 'Suggested a change',
   enrich: 'Started a lookup',
+  add_meeting_notes: 'Added meeting notes',
 }
 /** What a logged call did, in words. An empty tool is a call that never finished. */
 export const callLabel = (tool: string) => CALL_LABEL[tool] ?? (tool ? 'Sent something Nest didn’t understand' : 'Didn’t finish')
@@ -267,7 +289,7 @@ export function keyMeta(k: Pick<AgentKeyRow, 'lastUsedAt' | 'calls7d'>, now: num
 }
 
 /** The side card's "Agents can" list, and the one thing they never can. */
-export const AGENTS_CAN = ['Read investors, history, meetings and the Q&A bank', 'Log a touch and add an investor', 'Suggest stage moves, next steps and fixes'] as const
+export const AGENTS_CAN = ['Read investors, history, meetings and the Q&A bank', 'Log a touch, add an investor and add meeting notes', 'Suggest stage moves, next steps and fixes'] as const
 export const AGENTS_NEVER = 'Never send an email, move a stage or delete anything'
 
 /* ---------- the Nest skill ---------- */
@@ -281,7 +303,7 @@ export function nestSkill(serverUrl: string = PROD_MCP_URL): string {
 Nest is Pesto's tracker for its pre-seed raise: every investor with their stage, next step and date, every touch, meetings and email subjects, and a Q&A bank of the questions investors ask with Dev's best answers. You reach it through the Nest MCP server at ${serverUrl}.
 
 - Read: \`search_investors\`, \`get_investor\`, \`todays_moves\`, \`list_questions\`.
-- Suggest (keys that can suggest changes): \`log_touch\`, \`add_investor\`, \`suggest_change\`, \`enrich\`.
+- Suggest (keys that can suggest changes): \`log_touch\`, \`add_investor\`, \`suggest_change\`, \`enrich\`, \`add_meeting_notes\`.
 - For "who should I follow up with today?", start with \`todays_moves\`.
 
 ## Always suggest, never claim
@@ -290,6 +312,7 @@ Nothing you do changes Nest directly. Every write becomes a row in Dev's Suggest
 
 - Say "I suggested…" or "it's waiting in Suggestions". Never say you updated, moved, logged or added something.
 - \`enrich\` starts a lookup; what it finds also waits for Dev's review.
+- \`add_meeting_notes\` saves the notes themselves on the investor; what Nest proposes from them waits in Suggestions.
 - You can't send email, move a stage or delete anything.
 
 ## Stage rules

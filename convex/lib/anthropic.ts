@@ -1,9 +1,13 @@
 // PST-274: a small client for the Anthropic Messages API over fetch (no SDK), for
-// research with the web search and web fetch server tools. It streams, so a run
+// research with the web search and web fetch server tools, and (PST-277) plain
+// turns with no tools for reading meeting notes and drafting answers. It streams, so a run
 // can report progress while Claude works, and prices every run from its usage.
 // The key is ANTHROPIC_API_KEY in the Convex env; nothing here logs it or puts it in an error.
 
 export const MODEL = 'claude-sonnet-5-5'
+/** PST-277: the cheap model, for drafting an answer from the Q&A bank. */
+export const HAIKU = 'claude-haiku-5-5'
+export type Model = typeof MODEL | typeof HAIKU
 const API = 'https://api.anthropic.com/v1/messages'
 /** The current API version (docs.claude.com/en/api/versioning). Server tools need no beta header on it. */
 const VERSION = '2026-10-21'
@@ -16,12 +20,14 @@ export const TOOLS = [
 
 /**
  * Dollars per million tokens, and per web search. From
- * https://docs.claude.com/en/docs/about-claude/pricing (Claude Sonnet 5.5) and
+ * https://docs.claude.com/en/docs/about-claude/pricing (Claude Sonnet 5.5, and Claude
+ * Haiku 5.5 for prompts up to 100,000 tokens, which is all Nest sends it) and
  * https://docs.claude.com/en/docs/agents-and-tools/tool-use/web-search-tool#usage-and-pricing
  * ($10 per 1,000 searches). Web fetch costs nothing beyond its tokens. Checked 7 Nov 2026.
  */
 export const PRICES = {
   [MODEL]: { input: 2, output: 10, cacheWrite5m: 2.5, cacheWrite1h: 4, cacheRead: 0.1 },
+  [HAIKU]: { input: 0.1, output: 0.5, cacheWrite5m: 0.125, cacheWrite1h: 0.2, cacheRead: 0.01 },
   webSearch: 0.01,
 } as const
 
@@ -55,8 +61,8 @@ export type Usage = {
 }
 
 /** What a run cost, in dollars: tokens at the model's prices plus web search requests. */
-export function costOf(u: Usage): number {
-  const p = PRICES[MODEL]
+export function costOf(u: Usage, model: Model = MODEL): number {
+  const p = PRICES[model]
   const w1h = u.cache_creation?.ephemeral_1h_input_tokens ?? 0
   const w5m = u.cache_creation?.ephemeral_5m_input_tokens ?? Math.max(0, (u.cache_creation_input_tokens ?? 0) - w1h)
   const tokens =
@@ -128,6 +134,26 @@ export async function research(o: { system: string; prompt: string; maxTokens?: 
     if (round >= MAX_CONTINUATIONS) throw new AIError(200, 'kept pausing without an answer')
     messages.push({ role: 'assistant', content: r.blocks })
   }
+}
+
+/**
+ * PST-277: one plain turn, no tools and no streaming (reading meeting notes,
+ * drafting an answer). Returns Claude's text and the usage with its cost.
+ */
+export async function complete(o: { model: Model; system: string; prompt: string; maxTokens?: number }): Promise<{ text: string; usage: Usage; costUsd: number }> {
+  const key = process.env.ANTHROPIC_API_KEY?.trim()
+  if (!key) throw new NoAIKey()
+  const res = await fetch(API, {
+    method: 'POST',
+    headers: { 'x-api-key': key, 'anthropic-version': VERSION, 'content-type': 'application/json' },
+    body: JSON.stringify({ model: o.model, max_tokens: o.maxTokens ?? 4000, system: o.system, messages: [{ role: 'user', content: o.prompt }] }),
+  })
+  const j = (await res.json().catch(() => ({}))) as { content?: Block[]; usage?: Usage; stop_reason?: string; error?: { type?: string } }
+  if (!res.ok) throw new AIError(res.status, j.error?.type ? 'refused the request: ' + j.error.type : 'request failed')
+  if (j.stop_reason === 'max_tokens') throw new AIError(200, 'ran out of room before answering')
+  const usage = j.usage ?? {}
+  const text = (j.content ?? []).filter((b) => b.type === 'text').map((b) => b.text ?? '').join('')
+  return { text, usage, costUsd: costOf(usage, o.model) }
 }
 
 /** Read one streamed response (server-sent events) into content blocks, its stop reason and usage. */

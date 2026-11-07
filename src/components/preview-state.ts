@@ -26,6 +26,8 @@ export type PreviewState = {
   materials?: string | null
   /** PST-276 `&agents=empty|create|created|activity|revoke` */
   agents?: string | null
+  /** PST-277 `&notes=none|reading|applied|failed|unmatched` */
+  notes?: string | null
 }
 
 export const PreviewStateContext = createContext<PreviewState | null>(null)

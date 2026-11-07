@@ -102,7 +102,7 @@ export function ConvexData({ children }: { children: ReactNode }) {
       undoDismiss: (factId: string) => aiUndo({ factId: factId as Id<'facts'> }),
       keepAll: (runId: string) => aiKeepAll({ runId: runId as Id<'enrichRuns'> }),
       dismissAll: (runId: string) => aiDismissAll({ runId: runId as Id<'enrichRuns'> }),
-      setAuto: (patch: { lookups?: boolean; enrichNew?: boolean }) => aiSetAuto(patch),
+      setAuto: (patch: { lookups?: boolean; enrichNew?: boolean; meetingNotes?: boolean }) => aiSetAuto(patch),
       addSender: (email: string, investorId?: string) => aiAddSender({ email, investorId: investorId as Id<'investors'> | undefined }),
       addPerson: (investorId: string, p: { name: string; title?: string; email?: string }) => aiAddPerson({ investorId: investorId as Id<'investors'>, ...p }),
       setPrimary: (personId: string) => aiSetPrimary({ personId: personId as Id<'people'> }),

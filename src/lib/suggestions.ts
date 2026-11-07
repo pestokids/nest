@@ -10,7 +10,8 @@ import { ACTIVE, COMMIT, IDX, STAGE_TILE, STAGES, type PipelineStage, type Stage
 import { addDays } from './today'
 
 // PST-276 adds new_investor (an agent's add_investor; accepting creates the investor).
-export const SUGGESTION_KINDS = ['stage', 'expected', 'missing_info', 'duplicate', 'next_step', 'enrichment', 'touch', 'new_investor'] as const
+// PST-277 adds question and warm_path (from meeting notes).
+export const SUGGESTION_KINDS = ['stage', 'expected', 'missing_info', 'duplicate', 'next_step', 'question', 'warm_path', 'enrichment', 'touch', 'new_investor'] as const
 export type SuggestionKind = (typeof SUGGESTION_KINDS)[number]
 export const SUGGESTION_SOURCES = ['rule', 'calendar', 'gmail', 'notes', 'enrich', 'agent'] as const
 export type SuggestionSource = (typeof SUGGESTION_SOURCES)[number]
@@ -27,6 +28,9 @@ export type SuggestionPatch =
   | { op: 'new_investor'; name: string; firm: string; email?: string; note?: string }
   | { op: 'merge' }
   | { op: 'review' }
+  // PST-277: questions from a meeting note into the Q&A bank, and a warm path onto the investor's notes.
+  | { op: 'questions'; noteId: string; items: { text: string; questionId?: string; answer?: string; quote: string }[] }
+  | { op: 'warm_path'; text: string }
 
 export type SuggestionDraft = {
   kind: SuggestionKind
@@ -53,7 +57,7 @@ export const CHECK_PREFIX = 'check:'
 /* ---------- how the queue reads ---------- */
 
 export const KIND_LABEL: Record<SuggestionKind, string> = {
-  stage: 'Stage', expected: 'Expected', missing_info: 'Missing info', duplicate: 'Duplicate', next_step: 'Next step', enrichment: 'Enrichment', touch: 'Touch',
+  stage: 'Stage', expected: 'Expected', missing_info: 'Missing info', duplicate: 'Duplicate', next_step: 'Next step', question: 'Q&A', warm_path: 'Warm path', enrichment: 'Enrichment', touch: 'Touch',
   new_investor: 'New investor',
 }
 const SOURCE_LABEL: Record<Exclude<SuggestionSource, 'agent'>, string> = { rule: 'Nest', calendar: 'Calendar', gmail: 'Gmail', notes: 'Meeting notes', enrich: 'Enrich' }
@@ -63,7 +67,7 @@ export const sourceLabel = (s: Pick<Suggestion, 'source' | 'agentName'>) => (s.s
 /** Filter chips: one per kind, and agents on their own ("From agents"), whatever kind they suggest. */
 export type SuggestionFilter = 'all' | SuggestionKind | 'agents'
 const FILTER_LABEL: Record<Exclude<SuggestionFilter, 'all'>, string> = {
-  stage: 'Stage', expected: 'Expected', missing_info: 'Missing info', duplicate: 'Duplicates', next_step: 'Next steps', enrichment: 'Enrichment', touch: 'Touches', new_investor: 'New investors',
+  stage: 'Stage', expected: 'Expected', missing_info: 'Missing info', duplicate: 'Duplicates', next_step: 'Next steps', question: 'Q&A', warm_path: 'Warm paths', enrichment: 'Enrichment', touch: 'Touches', new_investor: 'New investors',
   agents: 'From agents',
 }
 export const filterOf = (s: Pick<Suggestion, 'kind' | 'source'>): Exclude<SuggestionFilter, 'all'> => (s.source === 'agent' ? 'agents' : s.kind)

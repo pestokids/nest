@@ -39,6 +39,8 @@ export const data = query({
     const monthStart = Date.parse(todayIST(now).slice(0, 8) + '01T00:00:00+05:30')
     const runs = await ctx.db.query('enrichRuns').withIndex('by_started').order('desc').take(2000)
     const month = runs.filter((r) => r.startedAt >= monthStart)
+    // PST-277: reading meeting notes counts toward this month's spend.
+    const reads = await ctx.db.query('noteReads').withIndex('by_started', (q) => q.gte('startedAt', monthStart)).collect()
     const pending = new Map<string, number>()
     for (const f of await ctx.db.query('facts').withIndex('by_status', (q) => q.eq('status', 'pending')).collect())
       if (f.investorId) pending.set(f.investorId, (pending.get(f.investorId) ?? 0) + 1)
@@ -62,7 +64,8 @@ export const data = query({
       connected: hasAIKey(),
       settings: await aiSettings(ctx),
       month: {
-        usd: month.reduce((s, r) => s + r.costUsd, 0),
+        usd: month.reduce((s, r) => s + r.costUsd, 0) + reads.reduce((s, r) => s + r.costUsd, 0),
+        noteReads: reads.filter((r) => r.status !== 'reading').length,
         lookups: month.filter((r) => !r.investorId && !r.cached).length,
         enrichments: month.filter((r) => r.investorId && !r.cached).length,
       },
@@ -330,7 +333,7 @@ export const setPrimary = mutation({
 
 /** The Settings toggles. */
 export const setAuto = mutation({
-  args: { lookups: v.optional(v.boolean()), enrichNew: v.optional(v.boolean()) },
+  args: { lookups: v.optional(v.boolean()), enrichNew: v.optional(v.boolean()), meetingNotes: v.optional(v.boolean()) },
   handler: async (ctx, patch) => {
     await requireUser(ctx)
     const row = await ctx.db.query('settings').withIndex('by_key', (q) => q.eq('key', 'ai')).unique()

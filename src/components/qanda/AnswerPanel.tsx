@@ -3,16 +3,18 @@
 // asked, merge it into the same question in other words, and go back to an
 // earlier answer. Also "Add a question" (no question yet).
 //
-// TODO(PST-274): "Draft from past answers" goes above Best answer, on enrichment's
-// Anthropic client (convex/lib/anthropic.ts): it fills the box with a draft from this question's
-// similar ones and their answers (convex/qanda.ts has the plan). Nothing saves until Save.
+// PST-277: "Draft from past answers" sits above Best answer: Claude (the cheap model)
+// drafts from this question's earlier answers, similar questions' answers and the
+// notes where it was asked (convex/noteReads.ts draftAnswer). The draft fills the
+// box to edit; nothing saves until Save.
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { todayIST } from '../../lib/dates'
 import { dayMonth } from '../../lib/home'
 import {
   allThemes, askerIds, askKind, cleanTheme, earlierAnswers, guessTheme, LIMITS, needsAnswer, similarQuestions, slideRefs, type Question,
 } from '../../lib/qanda'
-import { shake } from '../../lib/motion'
+import { cents } from '../../lib/enrich'
+import { shake, shine } from '../../lib/motion'
 import { play } from '../../lib/sound'
 import { addDays } from '../../lib/today'
 import { useRaise } from '../data'
@@ -52,7 +54,10 @@ export function AnswerPanel({ req, level, onClose }: { req: Extract<PanelRequest
   const [who, setWho] = useState('')
   const [when, setWhen] = useState(today)
   const [busy, setBusy] = useState(false)
+  const [drafting, setDrafting] = useState(false)
+  const [drafted, setDrafted] = useState<string | null>(null)
   const textRef = useRef<HTMLInputElement>(null)
+  const answerRef = useRef<HTMLTextAreaElement>(null)
   if (req.kind === 'answer' && !q) return null
 
   const themes = allThemes(questions)
@@ -101,6 +106,22 @@ export function AnswerPanel({ req, level, onClose }: { req: Extract<PanelRequest
     play('rule-check')
     ui.toast(!q ? 'Added to the bank.' : answer.trim() && answer.trim() !== q.bestAnswer.trim() ? 'Answer saved. The earlier one is kept.' : 'Saved.')
     c.close()
+  }
+
+  async function draft() {
+    if (!q) return
+    setDrafting(true)
+    try {
+      const r = await act.draftAnswer(q._id)
+      setAnswer(r.text)
+      setDrafted(`Drafted from ${r.from === 1 ? '1 past answer or note' : r.from + ' past answers and notes'} · ${cents(r.costUsd)}. Edit it, then save.`)
+      shine(answerRef.current?.closest('.field'))
+      answerRef.current?.focus()
+    } catch (e) {
+      ui.fail(e)
+    } finally {
+      setDrafting(false)
+    }
   }
 
   const linkWho = (investorId: string) => {
@@ -229,7 +250,16 @@ export function AnswerPanel({ req, level, onClose }: { req: Extract<PanelRequest
             </section>
           ) : null}
 
+          {q && d.ai.connected ? (
+            <div className="qa-draft">
+              <Button type="button" variant="secondary" size="sm" icon="spark" loading={drafting} loadingLabel="Drafting…" onClick={() => void draft()}>
+                Draft from past answers
+              </Button>
+              {drafted ? <p className="qa-draft__note">{drafted}</p> : null}
+            </div>
+          ) : null}
           <Textarea
+            ref={answerRef}
             label="Best answer"
             className="qa-answer__best"
             rows={6}

@@ -1,6 +1,7 @@
 // DEV ONLY: a made-up Q&A bank for ?preview (PST-281). Invented investors from
 // the preview fixture, invented questions, answers and meeting notes; nothing real.
 import type { Investor } from '../lib/pipeline'
+import { expectedClash, type NoteRead, type UnmatchedNote } from '../lib/meetingNotes'
 import { NEXT_DECK, type AnswerVersion, type AskSource, type Note, type Question } from '../lib/qanda'
 import { addDays } from '../lib/today'
 
@@ -13,9 +14,13 @@ export type QRow = Omit<Question, 'asks' | 'askedCount'> & {
 }
 export type AskRow = { _id: string; questionId: string; investorId: string; date: string; source: AskSource; noteId?: string; noteLine?: number }
 export type NoteRow = Note & { removed?: boolean }
-export type QandaStore = { questions: QRow[]; asks: AskRow[]; notes: NoteRow[] }
+export type QandaStore = { questions: QRow[]; asks: AskRow[]; notes: NoteRow[]; reads: NoteRead[]; unmatched: (UnmatchedNote & { dropped?: boolean })[] }
 
-export const EMPTY_QANDA: QandaStore = { questions: [], asks: [], notes: [] }
+export const EMPTY_QANDA: QandaStore = { questions: [], asks: [], notes: [], reads: [], unmatched: [] }
+
+/** PST-277 &notes=…: Nest's read of Kite Angels' 1st meeting notes (default: waiting on you), or no reads, one reading, applied, failed; unmatched adds Unmatched notes on Today. */
+export const PREVIEW_NOTES = ['default', 'none', 'reading', 'applied', 'failed', 'unmatched'] as const
+export type PreviewNotes = (typeof PREVIEW_NOTES)[number]
 
 type Spec = {
   text: string
@@ -40,6 +45,7 @@ const NOTES: Record<string, { who: string; title: string; daysAgo: number; lines
       'Who else is in the round?',
       'Worried the free tier eats the paid plan.',
       'Next: send week-8 retention in two weeks.',
+      'Sam offered an intro to Orchard Capital.',
     ],
   },
   kite0: { who: 'Kite Angels', title: 'Intro call', daysAgo: 5, lines: ['Asked about the team and the market size.', 'Why is this team the one to build it?', 'Booked the 1st meeting.'] },
@@ -104,7 +110,7 @@ const SPECS: Spec[] = [
 ]
 
 /** The bank, the notes and who asked what, built on the preview investors (rows for missing names are skipped). */
-export function fixtureQanda(investors: readonly Investor[], today: string, now = Date.now()): QandaStore {
+export function fixtureQanda(investors: readonly Investor[], today: string, now = Date.now(), notesState: PreviewNotes = 'default', ai = true): QandaStore {
   const id = (name: string) => investors.find((i) => i.name === name)?._id
   const D = 864e5
   const notes: NoteRow[] = []
@@ -113,7 +119,7 @@ export function fixtureQanda(investors: readonly Investor[], today: string, now 
     const investorId = id(n.who)
     if (!investorId) continue
     noteIds[key] = `pn-${key}`
-    notes.push({ _id: noteIds[key], investorId, date: addDays(today, -n.daysAgo), text: n.lines.join('\n'), title: n.title, by: 'Dev', _creationTime: now - n.daysAgo * D })
+    notes.push({ _id: noteIds[key], investorId, date: addDays(today, -n.daysAgo), text: n.lines.join('\n'), title: n.title, by: key === 'kite1' ? 'Wispr Flow' : 'Dev', ...(key === 'kite1' ? { source: 'wispr' as const } : {}), _creationTime: now - n.daysAgo * D })
   }
   const questions: QRow[] = []
   const asks: AskRow[] = []
@@ -135,5 +141,48 @@ export function fixtureQanda(investors: readonly Investor[], today: string, now 
       asks.push({ _id: `pa-${k}-${j}`, questionId: qid, investorId, date: addDays(today, -daysAgo), source: noteId ? 'notes' : 'meeting', noteId, noteLine: noteId ? from![1] : undefined })
     })
   })
-  return { questions, asks, notes }
+  const kite = investors.find((i) => i.name === 'Kite Angels')
+  const reads = ai && kite && noteIds.kite1 && notesState !== 'none' ? fixtureReads(kite, noteIds, today, now, notesState) : []
+  const unmatched: UnmatchedNote[] =
+    notesState === 'unmatched'
+      ? [
+          { _id: 'pu-0', email: 'rowan@larkspur.example.com', meetingTitle: 'Coffee with Rowan', date: addDays(today, -1), source: 'wispr', createdAt: now - D, text: 'Rowan runs a small angel group.\nAsked how we price the family plan.\nWants the deck.' },
+          { _id: 'pu-1', meetingTitle: 'Catch-up call', date: today, source: 'agent', createdAt: now - 36e5, text: 'Talked about the market for kids’ audio.\nNo amount yet.' },
+        ]
+      : []
+  return { questions, asks, notes, reads, unmatched }
+}
+
+/** Nest's reads (PST-277): the 1st meeting notes as in drawer-notes-read-by-nest.png, and the intro call's, applied. */
+function fixtureReads(kite: Investor, noteIds: Record<string, string>, today: string, now: number, state: PreviewNotes): NoteRead[] {
+  const status = state === 'reading' ? 'reading' : state === 'applied' ? 'applied' : state === 'failed' ? 'failed' : 'ready'
+  const done = status === 'applied'
+  const st = done ? ('applied' as const) : ('open' as const)
+  const first: NoteRead = {
+    _id: 'pr-kite1', noteId: noteIds.kite1, investorId: kite._id, status, costUsd: status === 'reading' ? 0 : 0.018, startedAt: now - 6e4, finishedAt: status === 'reading' ? undefined : now - 5e4,
+    ...(status === 'failed' ? { error: 'Claude answered without readable JSON (200)' } : {}),
+    summary: status === 'ready' || done ? ['Liked the retention story and the week-1 paid conversion.', 'Wants week-8 numbers before deciding; asked about safety and who else is in.', 'Said “maybe $50K” if a lead is in.'] : [],
+    proposals:
+      status === 'ready' || done
+        ? [
+            { id: 'next_step', kind: 'next_step', step: 'Send week-8 retention', date: addDays(today, 13), quote: 'send week-8 retention in two weeks', state: st },
+            ...(kite.stage === 'booked' ? [{ id: 'stage', kind: 'stage' as const, from: 'booked' as const, to: 'm1' as const, quote: 'Loved the founding-families story', state: st }] : []),
+            { id: 'expected', kind: 'expected', amount: 50000, quote: 'maybe $50K if a lead is in', ...expectedClash(kite.expected), state: kite.expected ? ('open' as const) : st },
+            {
+              id: 'questions', kind: 'questions', state: st,
+              items: [
+                { text: 'How do you keep the stories safe for a 4-year-old?', questionId: 'pq-11', quote: 'How do you keep the stories safe for a 4-year-old?' },
+                { text: 'Who else is in the round?', questionId: 'pq-13', quote: 'Who else is in the round?' },
+              ],
+            },
+            { id: 'warm_path:0', kind: 'warm_path', text: 'Sam offered an intro to Orchard Capital', quote: 'Sam offered an intro to Orchard Capital', state: done ? 'dropped' : 'open' },
+          ]
+        : [],
+  }
+  const intro: NoteRead = {
+    _id: 'pr-kite0', noteId: noteIds.kite0, investorId: kite._id, status: 'applied', costUsd: 0.012, startedAt: now - 5 * 864e5, finishedAt: now - 5 * 864e5,
+    summary: ['Asked about the team and the market size.', 'Booked the 1st meeting.', 'No amount yet.'],
+    proposals: [{ id: 'next_step', kind: 'next_step', step: 'Prepare for the 1st meeting', quote: 'Booked the 1st meeting', state: 'applied' }],
+  }
+  return noteIds.kite0 ? [first, intro] : [first]
 }

@@ -2,6 +2,7 @@
 // Backed by Convex (ConvexQanda) or an in-memory store in preview (src/preview/PreviewQanda.tsx).
 import { createContext, useContext } from 'react'
 import { nextDeck, type AskSource, type Note, type Question } from '../../lib/qanda'
+import type { Draft, NoteRead, UnmatchedNote } from '../../lib/meetingNotes'
 import { useMaterials } from '../materials/data'
 
 /** One ask, as `link` takes it (and `unlink` hands it back for Undo). */
@@ -28,6 +29,20 @@ export type QandaActions = {
   /** Pick a note line as a question. */
   markLine: (noteId: string, line: number) => Promise<{ questionId: string; askId: string; created: boolean }>
   unmarkLine: (noteId: string, line: number) => Promise<unknown>
+  /* PST-277: Nest reads the notes (convex/noteReads.ts). */
+  /** "Read with Nest" or Try again. */
+  readNote: (noteId: string) => Promise<unknown>
+  /** Apply the ticked proposals (by id); the rest are dropped. */
+  applyRead: (readId: string, ids: string[]) => Promise<{ applied: number }>
+  dismissRead: (readId: string) => Promise<unknown>
+  /** Undo Apply or Dismiss. */
+  undoRead: (readId: string) => Promise<unknown>
+  /** "Draft from past answers": nothing is saved. */
+  draftAnswer: (questionId: string) => Promise<Draft>
+  /** "Unmatched notes" on Today: whose notes they are, or not about the round (Undo: restoreUnmatched). */
+  matchUnmatched: (id: string, investorId: string) => Promise<unknown>
+  dropUnmatched: (id: string) => Promise<unknown>
+  restoreUnmatched: (id: string) => Promise<unknown>
 }
 
 export type QandaData = {
@@ -37,6 +52,10 @@ export type QandaData = {
   noteCount: number
   /** One investor's notes, newest first (a hook, stable per provider). */
   useNotes: (investorId: string | null) => Note[] | undefined
+  /** PST-277: the latest read of each of an investor's notes (a hook). */
+  useReads: (investorId: string | null) => NoteRead[] | undefined
+  /** PST-277: notes nobody could be matched to. */
+  unmatched: UnmatchedNote[]
   act: QandaActions
 }
 

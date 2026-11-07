@@ -10,6 +10,7 @@ import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from
 import type { Id } from './_generated/dataModel'
 import { vAgentScope } from './agentsSchema'
 import { insertSuggestion } from './suggestions'
+import { addMeetingNotes } from './noteReads'
 import { sha256Hex } from './lib/agentKey'
 import { hasAIKey } from './lib/anthropic'
 import { CACHE_DAYS, capLeft, queue } from './lib/enrichQueue'
@@ -28,6 +29,8 @@ import { nextMoves } from '../src/lib/today'
 
 type Out = { ok: true; data: Record<string, unknown> } | { ok: false; error: string }
 type Args = Record<string, unknown>
+/** What an agent can suggest (meeting notes' question and warm path rows come only from Nest's own read). */
+type AgentPatch = Exclude<SuggestionPatch, { op: 'questions' | 'warm_path' }>
 const done = (data: Record<string, unknown>): Out => ({ ok: true, data })
 const nope = (error: string): Out => ({ ok: false, error })
 const NO_INVESTOR = 'There’s no investor with that id. Use search_investors to find the right one.'
@@ -203,7 +206,7 @@ function about(i: { name: string; firm: string }, text: string) {
  * Queue one suggestion from an agent. Its key is a hash of what it suggests, so
  * the same suggestion is never queued twice and one Dev dismissed never comes back.
  */
-async function suggest(ctx: MutationCtx, agent: Agent, s: { kind: SuggestionKind; investorId?: Id<'investors'>; title: string; fix: string; patch: SuggestionPatch }): Promise<Out> {
+async function suggest(ctx: MutationCtx, agent: Agent, s: { kind: SuggestionKind; investorId?: Id<'investors'>; title: string; fix: string; patch: AgentPatch }): Promise<Out> {
   const key = 'agent:' + (await sha256Hex(JSON.stringify([s.kind, s.investorId ?? '', s.patch]))).slice(0, 32)
   const id = await insertSuggestion(ctx, { ...s, source: 'agent', agentName: agent.name, safe: false, key })
   if (!id) return done({ suggested: false, message: 'That suggestion is already in Dev’s queue, or Dev dismissed it before. Nothing new was added.' })
@@ -295,6 +298,27 @@ async function enrich(ctx: MutationCtx, a: Args): Promise<Out> {
   return done({ started: true, message: 'Started looking them up. What Nest finds shows in Who’s this? for Dev to review.' })
 }
 
+/** Notes from Wispr Flow or an agent (PST-277): saved on the investor, or kept in Unmatched notes; Nest's read only suggests. */
+async function addNotes(ctx: MutationCtx, a: Args): Promise<Out> {
+  const given = a.investorId === undefined ? null : await investorById(ctx, a.investorId)
+  if (a.investorId !== undefined && !given) return nope(NO_INVESTOR)
+  const today = todayIST()
+  const date = a.date as string
+  if (date > today) return nope(`date can’t be in the future (today is ${today} in India).`)
+  const r = await addMeetingNotes(ctx, {
+    ...(given ? { investorId: given._id } : {}),
+    ...(typeof a.email === 'string' ? { email: a.email } : {}),
+    meetingTitle: a.meetingTitle as string,
+    date,
+    text: a.text as string,
+    source: a.source === 'wispr' ? 'wispr' : 'agent',
+  })
+  if ('unmatchedId' in r) return done({ saved: true, matched: false, message: 'Nest couldn’t tell which investor these notes are about, so they wait in Unmatched notes on Today until Dev picks one.' })
+  const i = await ctx.db.get(r.investorId)
+  const read = r.readId ? 'Nest is reading them; anything it proposes waits in Suggestions for Dev.' : 'Nest won’t read them automatically here, so nothing else changes.'
+  return done({ saved: true, matched: true, investorId: r.investorId, noteId: r.noteId, message: `Saved on ${i?.name ?? 'the investor'}. ${read}` })
+}
+
 export const write = internalMutation({
   args: { tool: v.string(), args: v.any(), agent: v.object({ keyId: v.id('agentKeys'), name: v.string(), scope: vAgentScope }) },
   handler: async (ctx, { tool, args, agent }): Promise<Out> => {
@@ -303,6 +327,7 @@ export const write = internalMutation({
     if (tool === 'add_investor') return await addInvestor(ctx, agent, args)
     if (tool === 'suggest_change') return await suggestChange(ctx, agent, args)
     if (tool === 'enrich') return await enrich(ctx, args)
+    if (tool === 'add_meeting_notes') return await addNotes(ctx, args)
     return nope(`${tool} isn’t a write tool.`)
   },
 })

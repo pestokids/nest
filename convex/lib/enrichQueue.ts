@@ -17,7 +17,7 @@ export const CACHE_DAYS = 30
 /** A run still "running" after this long died without saying so. */
 export const STALE_MS = 10 * 6e4
 
-export const AI_DEFAULTS = { lookups: true, enrichNew: true, meetingNotes: false }
+export const AI_DEFAULTS = { lookups: true, enrichNew: true, meetingNotes: true }
 
 export async function aiSettings(ctx: QueryCtx) {
   const row = await ctx.db.query('settings').withIndex('by_key', (q) => q.eq('key', 'ai')).unique()
