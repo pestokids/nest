@@ -2,24 +2,26 @@
 // signing only: each step is ticked by hand, and the signed and wired ticks
 // move the pipeline stage by the board's rules (src/lib/close.ts stageMove).
 import { ConvexError, v } from 'convex/values'
-import { mutation, query, type MutationCtx } from './_generated/server'
+import { action, internalMutation, internalQuery, mutation, query, type MutationCtx } from './_generated/server'
+import { internal } from './_generated/api'
 import type { Id } from './_generated/dataModel'
 import { requireUser } from './lib/access'
+import { emailReady, sendEmail } from './lib/email'
 import { getRoundRow } from './lib/round'
 import { closingTermFields, vCapTable, vStepKey } from './closeSchema'
 import { applyMove } from '../src/lib/board'
 import { todayIST } from '../src/lib/dates'
-import { capTableSummary, checkTick, cleanCapTable, cleanTerms, planTick, setStep, validateCapTable, validateTerms } from '../src/lib/close'
+import { capTableSummary, checkTick, cleanCapTable, cleanTerms, planTick, reminderKind, setStep, validateCapTable, validateTerms } from '../src/lib/close'
 import { COMMIT } from '../src/lib/stages'
 
-/** Every closing record, and the cap table inputs (null until someone enters them). */
+/** Every closing record, the cap table inputs (null until someone enters them), and whether reminders can go by email. */
 export const data = query({
   args: {},
   handler: async (ctx) => {
     await requireUser(ctx)
     const closings = await ctx.db.query('closings').collect()
     const row = await getRoundRow(ctx)
-    return { closings, capTable: row?.capTable ?? null }
+    return { closings, capTable: row?.capTable ?? null, emailReady: emailReady() }
   },
 })
 
@@ -112,6 +114,51 @@ export const setCapTable = mutation({
     await ctx.db.patch(row._id, { capTable: next ?? undefined })
     await ctx.db.insert('settingsLog', { userId, at: Date.now(), field: 'capTable', from, to })
     return 1
+  },
+})
+
+const MAX_SUBJECT = 200
+const MAX_REMINDER = 4000
+
+/** Who a reminder goes to: the signer's email on the record. Checks the caller's access. */
+export const reminderTo = internalQuery({
+  args: { id: v.id('closings') },
+  handler: async (ctx, { id }) => {
+    await requireUser(ctx)
+    const c = await ctx.db.get(id)
+    if (!c) throw new ConvexError('That closing record was removed')
+    const to = c.signerEmail?.trim().toLowerCase()
+    if (!to) throw new ConvexError('Add the signer’s email on the SAFE first.')
+    return { to, investorId: c.investorId, kind: reminderKind(c) ?? 'sign' }
+  },
+})
+
+/** An emailed reminder is a touch (Email), like logging one by hand. */
+export const logReminder = internalMutation({
+  args: { investorId: v.id('investors'), note: v.string() },
+  handler: async (ctx, { investorId, note }) => {
+    const { userId } = await requireUser(ctx)
+    const i = await ctx.db.get(investorId)
+    if (!i) return
+    const today = todayIST()
+    await ctx.db.insert('activities', { investorId, kind: 'note', note, touch: 'email', date: today, userId })
+    if (!i.lastTouch || i.lastTouch < today) await ctx.db.patch(investorId, { lastTouch: today, updatedAt: Date.now(), updatedBy: userId })
+  },
+})
+
+/** "Send by email": the reminder to the signer, through Resend (convex/lib/email.ts). Only offered when RESEND_API_KEY is set. */
+export const emailReminder = action({
+  args: { id: v.id('closings'), subject: v.string(), text: v.string() },
+  handler: async (ctx, { id, subject, text }): Promise<{ to: string }> => {
+    const s = subject.trim().slice(0, MAX_SUBJECT)
+    const body = text.trim().slice(0, MAX_REMINDER)
+    if (!s || !body) throw new ConvexError('Write the reminder first.')
+    const r = await ctx.runQuery(internal.closings.reminderTo, { id })
+    if (!emailReady()) throw new ConvexError('Email isn’t set up here. Copy the text instead.')
+    const sent = await sendEmail({ to: r.to, subject: s, text: body })
+    if (!sent.sent) throw new ConvexError(sent.reason === 'no-key' ? 'Email isn’t set up here. Copy the text instead.' : `Couldn’t send it: ${sent.message ?? 'the email service refused it'}.`)
+    await ctx.runMutation(internal.closings.logReminder, { investorId: r.investorId, note: r.kind === 'sign' ? 'Emailed a reminder to sign the SAFE' : 'Emailed a reminder about the wire' })
+    return { to: r.to }
   },
 })
 

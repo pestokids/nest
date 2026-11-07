@@ -16,6 +16,7 @@ beforeEach(() => {
 })
 afterEach(() => {
   vi.unstubAllEnvs()
+  vi.unstubAllGlobals()
 })
 
 const base = { firm: '', type: 'Angel' as const, geo: 'India' as const, warmth: 'warm' as const, path: '', tier: 'B' as const, wave: 1 as const, lead: false, nextStep: '', notes: '', source: '', updatedAt: 0 }
@@ -126,5 +127,48 @@ describe('cap table', () => {
     expect(round).not.toHaveProperty('capTable')
     await as.mutation(api.settings.update, { round: { ...round, quietDays: 5 } })
     expect((await as.query(api.closings.data, {})).capTable?.optionPool).toBe(1_000_000)
+  })
+})
+
+describe('Send by email', () => {
+  const sendable = async (s: Awaited<ReturnType<typeof setup>>, signerEmail?: string) =>
+    s.as.mutation(api.closings.save, { investorId: s.marigold, terms: { ...terms, signerEmail }, sentAt: addDays(s.today, -3) })
+
+  it('is off without RESEND_API_KEY, and nothing is sent', async () => {
+    const s = await setup()
+    vi.stubEnv('RESEND_API_KEY', '')
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+    const id = await sendable(s, terms.signerEmail)
+    expect((await s.as.query(api.closings.data, {})).emailReady).toBe(false)
+    await expect(s.as.action(api.closings.emailReminder, { id, subject: 'The SAFE', text: 'Hi Ria' })).rejects.toThrow(/isn’t set up/)
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('emails the signer and logs an Email touch', async () => {
+    const s = await setup()
+    vi.stubEnv('RESEND_API_KEY', 're_test_made_up')
+    const fetch = vi.fn(async () => new Response(JSON.stringify({ id: 'em_1' }), { status: 200 }))
+    vi.stubGlobal('fetch', fetch)
+    const id = await sendable(s, ' Ria@Marigold.example.com ')
+    expect((await s.as.query(api.closings.data, {})).emailReady).toBe(true)
+    expect(await s.as.action(api.closings.emailReminder, { id, subject: ' Our SAFE ', text: ' Hi Ria, a gentle nudge. ' })).toEqual({ to: 'ria@marigold.example.com' })
+    const [, init] = fetch.mock.calls[0] as unknown as [string, RequestInit]
+    expect(JSON.parse(String(init.body))).toMatchObject({ to: ['ria@marigold.example.com'], subject: 'Our SAFE', text: 'Hi Ria, a gentle nudge.' })
+    const acts = await s.t.run((ctx) => ctx.db.query('activities').withIndex('by_investor', (q) => q.eq('investorId', s.marigold)).collect())
+    expect(acts.map((a) => [a.note, a.touch])).toEqual([['Emailed a reminder to sign the SAFE', 'email']])
+    expect((await s.get(s.marigold))!.lastTouch).toBe(s.today)
+  })
+
+  it('needs a signer email, and a refused send logs nothing', async () => {
+    const s = await setup()
+    vi.stubEnv('RESEND_API_KEY', 're_test_made_up')
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ message: 'Domain not verified' }), { status: 403 })))
+    const id = await sendable(s)
+    await expect(s.as.action(api.closings.emailReminder, { id, subject: 'The SAFE', text: 'Hi' })).rejects.toThrow(/signer’s email/)
+    await sendable(s, terms.signerEmail)
+    await expect(s.as.action(api.closings.emailReminder, { id, subject: 'The SAFE', text: 'Hi' })).rejects.toThrow(/Domain not verified/)
+    const acts = await s.t.run((ctx) => ctx.db.query('activities').withIndex('by_investor', (q) => q.eq('investorId', s.marigold)).collect())
+    expect(acts).toHaveLength(0)
   })
 })

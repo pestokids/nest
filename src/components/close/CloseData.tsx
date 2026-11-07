@@ -1,11 +1,11 @@
 // PST-283: what the Close tab and the Settings cap table card read and write.
 // Its own provider, so the shared Raise data layer stays as it is: Convex when
 // signed in, an in-memory store over the preview fixture under ?preview.
-import { useMutation, useQuery } from 'convex/react'
+import { useAction, useMutation, useQuery } from 'convex/react'
 import { createContext, useContext, useMemo, useSyncExternalStore, type ReactNode } from 'react'
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
-import { cleanCapTable, cleanTerms, planTick, setStep, checkTick, validateCapTable, validateTerms, type CapTable, type Closing, type ClosingTerms, type StepKey } from '../../lib/close'
+import { cleanCapTable, cleanTerms, planTick, reminderKind, setStep, checkTick, validateCapTable, validateTerms, type CapTable, type Closing, type ClosingTerms, type StepKey } from '../../lib/close'
 import { todayIST } from '../../lib/dates'
 import { fieldsOf } from '../../lib/pipeline'
 import { COMMIT, type Stage } from '../../lib/stages'
@@ -27,6 +27,10 @@ export type CloseData = {
   remove: (id: string) => Promise<unknown>
   /** Resolves with 1 when it changed, 0 when nothing had. */
   setCapTable: (c: CapTable | null) => Promise<number>
+  /** RESEND_API_KEY is set, so reminders can go by email. */
+  emailReady: boolean
+  /** Email a reminder to the record's signer and log an Email touch. Resolves with the address. */
+  emailReminder: (id: string, subject: string, text: string) => Promise<{ to: string }>
 }
 
 const CloseContext = createContext<CloseData | null>(null)
@@ -48,6 +52,7 @@ function ConvexClose({ children }: { children: ReactNode }) {
   const tick = useMutation(api.closings.tick)
   const remove = useMutation(api.closings.remove)
   const setCapTable = useMutation(api.closings.setCapTable)
+  const emailReminder = useAction(api.closings.emailReminder)
   const value = useMemo<CloseData>(
     () => ({
       loaded: !!data,
@@ -57,8 +62,10 @@ function ConvexClose({ children }: { children: ReactNode }) {
       tick: (id, key, at) => tick({ id: id as Id<'closings'>, key, at }),
       remove: (id) => remove({ id: id as Id<'closings'> }),
       setCapTable: (capTable) => setCapTable({ capTable }),
+      emailReady: data?.emailReady ?? false,
+      emailReminder: (id, subject, text) => emailReminder({ id: id as Id<'closings'>, subject, text }),
     }),
-    [data, save, tick, remove, setCapTable],
+    [data, save, tick, remove, setCapTable, emailReminder],
   )
   return <CloseContext.Provider value={value}>{children}</CloseContext.Provider>
 }
@@ -132,6 +139,14 @@ function PreviewClose({ children }: { children: ReactNode }) {
         const changed = JSON.stringify(read().capTable) !== JSON.stringify(next)
         write((s) => ({ ...s, capTable: next }))
         return changed ? 1 : 0
+      },
+      emailReady: true,
+      emailReminder: async (id) => {
+        const c = read().closings.find((x) => x._id === id)
+        const to = c?.signerEmail?.trim().toLowerCase()
+        if (!c || !to) throw { data: 'Add the signer’s email on the SAFE first.' }
+        await d.logNote(c.investorId, reminderKind(c) === 'wire' ? 'Emailed a reminder about the wire' : 'Emailed a reminder to sign the SAFE', { touch: 'email' })
+        return { to }
       },
     }
   }, [snap, d])

@@ -1,7 +1,8 @@
 // PST-281: what the Q&A bank, the Notes tab and the prep brief read and write.
 // Backed by Convex (ConvexQanda) or an in-memory store in preview (src/preview/PreviewQanda.tsx).
 import { createContext, useContext } from 'react'
-import type { AskSource, Note, Question } from '../../lib/qanda'
+import { nextDeck, type AskSource, type Note, type Question } from '../../lib/qanda'
+import { useMaterials } from '../materials/data'
 
 /** One ask, as `link` takes it (and `unlink` hands it back for Undo). */
 export type AskInput = { questionId: string; investorId: string; date: string; source?: AskSource; noteId?: string; noteLine?: number }
@@ -18,8 +19,8 @@ export type QandaActions = {
   unmerge: (id: string) => Promise<unknown>
   remove: (id: string) => Promise<unknown>
   restore: (id: string) => Promise<unknown>
-  /** Onto the deck-gaps list; resolves with the deck version. */
-  addToDeck: (id: string) => Promise<number>
+  /** Onto the deck-gaps list; resolves with the deck version. `deck` is the one the button showed: Convex works it out again itself, the preview store uses it. */
+  addToDeck: (id: string, deck: number) => Promise<number>
   removeFromDeck: (id: string) => Promise<unknown>
   addNote: (a: { investorId: string; text: string; date?: string; title?: string; meetingId?: string }) => Promise<string>
   removeNote: (id: string) => Promise<unknown>
@@ -45,4 +46,10 @@ export function useQanda(): QandaData {
   const v = useContext(QandaContext)
   if (!v) throw new Error('useQanda outside QandaContext')
   return v
+}
+
+/** "Add to deck vN": the version after the current pitch deck in Materials (NEXT_DECK while there is none). */
+export function useNextDeck(): number {
+  const m = useMaterials()
+  return nextDeck(m.materials, m.versions)
 }

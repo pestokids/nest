@@ -7,18 +7,26 @@ import { weekday } from './investorView'
 import { money } from './money'
 import { matchScore } from './palette'
 import type { Activity, Investor } from './pipeline'
+import type { Material, MaterialVersion } from './materials'
 import { STAGE_TILE, TOUCH_LABEL, type Stage } from './stages'
 
 export const THEMES = ['Traction', 'Business model', 'Market', 'Product', 'Team', 'Round', 'Competition'] as const
 export const ASK_SOURCES = ['notes', 'manual', 'meeting'] as const
 export type AskSource = (typeof ASK_SOURCES)[number]
 
-/**
- * The deck the slide references point at. "Add to deck vN" puts a question on
- * the gaps list for the next one. Read it from Materials once deck versions live there.
- */
+/** The deck version to assume while Materials has no pitch deck. */
 export const DECK_VERSION = 4
 export const NEXT_DECK = DECK_VERSION + 1
+
+/**
+ * "Add to deck vN": the version after the pitch deck's current one in Materials
+ * (the newest material of kind "deck"), or NEXT_DECK while there is no deck.
+ */
+export function nextDeck(materials: Pick<Material, 'kind' | 'currentVersionId' | 'createdAt'>[], versions: Pick<MaterialVersion, '_id' | 'n'>[]): number {
+  const deck = materials.filter((m) => m.kind === 'deck' && m.currentVersionId).sort((a, b) => b.createdAt - a.createdAt)[0]
+  const n = deck ? versions.find((x) => x._id === deck.currentVersionId)?.n : undefined
+  return n === undefined ? NEXT_DECK : n + 1
+}
 
 export const LIMITS = { question: 300, answer: 4000, theme: 40, slide: 60, note: 20000, title: 60 } as const
 

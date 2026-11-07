@@ -84,6 +84,21 @@ describe('questions and answers', () => {
     expect((await s.find(id))!.deckGap).toBeUndefined()
     await expect(s.as.mutation(api.qanda.addToDeck, { id })).rejects.toThrow(/already on a slide/)
   })
+
+  it('Add to deck targets the version after the current pitch deck in Materials', async () => {
+    const s = await setup()
+    await s.t.run(async (ctx) => {
+      const deck = await ctx.db.insert('materials', { kind: 'deck', title: 'Pitch deck', createdAt: 1, createdBy: s.dev })
+      const version = (n: number) => ctx.db.insert('materialVersions', { materialId: deck, n, url: `https://slides.example.com/v${n}`, note: '', createdAt: n, createdBy: s.dev })
+      await version(5)
+      await ctx.db.patch(deck, { currentVersionId: await version(6) })
+      const memo = await ctx.db.insert('materials', { kind: 'memo', title: 'Investment memo', createdAt: 2, createdBy: s.dev })
+      await ctx.db.patch(memo, { currentVersionId: await ctx.db.insert('materialVersions', { materialId: memo, n: 9, url: 'https://docs.example.com/memo', note: '', createdAt: 3, createdBy: s.dev }) })
+    })
+    const { id } = await s.as.mutation(api.qanda.create, { text: 'How do you reach parents?' })
+    expect(await s.as.mutation(api.qanda.addToDeck, { id })).toBe(7)
+    expect((await s.find(id))!.deckGap).toMatchObject({ deck: 7 })
+  })
 })
 
 describe('merging the same question', () => {

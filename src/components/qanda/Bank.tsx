@@ -5,13 +5,13 @@
 import { useMemo, useState } from 'react'
 import { todayIST } from '../../lib/dates'
 import { pop, usePop } from '../../lib/motion'
-import { askedMost, askerIds, askLine, facts, NEXT_DECK, themeChips, unanswered, type Question } from '../../lib/qanda'
+import { askedMost, askerIds, askLine, facts, themeChips, unanswered, type Question } from '../../lib/qanda'
 import { useRaise } from '../data'
 import { NestEmpty } from '../illustrations'
 import { useUI } from '../raise-ui'
 import { ViewSkeleton } from '../system/Skeleton'
 import { Button, Card, Chip } from '../ui'
-import { useQanda } from './data'
+import { useNextDeck, useQanda } from './data'
 import { openPanel } from './panels'
 import { useQandaActions } from './useQandaActions'
 
@@ -159,6 +159,7 @@ function QuestionCard({ q, i }: { q: Question; i: number }) {
   const { investors } = useRaise()
   const ui = useUI()
   const acts = useQandaActions()
+  const next = useNextDeck()
   const who = askerIds(q)
     .map((id) => investors.find((x) => x._id === id))
     .filter((x): x is NonNullable<typeof x> => !!x)
@@ -206,7 +207,7 @@ function QuestionCard({ q, i }: { q: Question; i: number }) {
             </button>
           ) : (
             <Button variant="secondary" size="sm" className="qa-card__deck" onClick={() => void acts.addToDeck(q)}>
-              Add to deck v{NEXT_DECK}
+              Add to deck v{next}
             </Button>
           )}
           <button type="button" className="qa-textbtn qa-card__edit" onClick={edit}>
@@ -220,7 +221,8 @@ function QuestionCard({ q, i }: { q: Question; i: number }) {
 
 function DeckGaps({ list }: { list: Question[] }) {
   const acts = useQandaActions()
-  const deck = list[0]?.deckGap?.deck ?? NEXT_DECK
+  const next = useNextDeck()
+  const deck = list[0]?.deckGap?.deck ?? next
   return (
     <Card riseIndex={3} tone="paper" className="qa-gaps" aria-labelledby="qa-gaps-title">
       <header className="qa-gaps__head">

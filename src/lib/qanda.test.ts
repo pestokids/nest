@@ -1,7 +1,7 @@
 // PST-281: the Q&A bank's rules. Made-up investors and questions only.
 import { describe, expect, it } from 'vitest'
 import {
-  askedMost, cleanQuestion, facts, guessTheme, lastTouches, noteLines, prepQuestions, searchQuestions, similarQuestions, themeChips, unanswered, whoTheyAre,
+  askedMost, cleanQuestion, facts, guessTheme, lastTouches, NEXT_DECK, nextDeck, noteLines, prepQuestions, searchQuestions, similarQuestions, themeChips, unanswered, whoTheyAre,
   type Ask, type Question,
 } from './qanda'
 
@@ -113,5 +113,18 @@ describe('the bank', () => {
     expect(searchQuestions(all, 'parents').map((r) => r.q)).toEqual([pay])
     expect(searchQuestions(all, 'two filters')).toEqual([{ q: wrong, quote: 'Every story passes two filters before a child hears it.' }])
     expect(searchQuestions(all, 'x')).toEqual([])
+  })
+})
+
+describe('nextDeck', () => {
+  const deck = (id: string, currentVersionId: string | undefined, createdAt: number) => ({ kind: 'deck' as const, currentVersionId, createdAt, _id: id })
+  it('is the version after the newest pitch deck’s current one', () => {
+    const versions = [{ _id: 'v3', n: 3 }, { _id: 'v4', n: 4 }, { _id: 'v8', n: 8 }, { _id: 'm9', n: 9 }]
+    expect(nextDeck([deck('a', 'v3', 1), { kind: 'memo', currentVersionId: 'm9', createdAt: 5 }], versions)).toBe(4)
+    expect(nextDeck([deck('a', 'v3', 1), deck('b', 'v8', 2)], versions)).toBe(9)
+  })
+  it('falls back to the constant without a deck', () => {
+    expect(nextDeck([], [])).toBe(NEXT_DECK)
+    expect(nextDeck([deck('a', undefined, 1)], [])).toBe(NEXT_DECK)
   })
 })
