@@ -1,0 +1,147 @@
+/* PST-279: Ask Nest in ⌘K (screens/raise-ai/ask-nest.png) and the morning brief on Today (today-morning-brief.png). */
+
+/* ---------- ⌘K: Search / Ask ---------- */
+.sys-modal__panel.cmdk.cmdk--ask { width: min(760px, 100%); max-height: min(720px, calc(100dvh - 120px)); }
+.cmdk--ask .cmdk-search { margin: 20px 20px 0; height: 56px; padding: 0 18px; border: 1px solid var(--line-default); border-radius: var(--radius-small); background: var(--surface-paper); }
+.cmdk--ask .cmdk-input { font-weight: 600; }
+.cmdk-ask-tag { font: 600 12px/1 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--brand-leaf); }
+.cmdk-modes { display: flex; gap: 8px; padding: 14px 24px 0; flex: none; }
+.cmdk--ask .cmdk-modes { padding: 14px 20px 0; }
+.cmdk-mode {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-chip);
+  background: var(--surface-white);
+  font: 500 14px/1 var(--font-ui);
+  color: var(--text-primary);
+}
+.cmdk-mode[aria-pressed='true'] { background: var(--brand-forest); border-color: var(--brand-forest); color: var(--text-on-dark); font-weight: 600; }
+.cmdk-mode:focus-visible { outline: 2px solid var(--brand-leaf); outline-offset: 2px; }
+.cmdk-list--ask { padding: 16px 20px 20px; }
+
+.ask { display: flex; flex-direction: column; gap: 20px; }
+.ask-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px 24px 18px;
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-card);
+  background: var(--surface-white);
+  color: var(--text-primary);
+  font: 400 15px/1.5 var(--font-ui);
+  animation: m-fade 200ms ease-out both;
+}
+.ask-card--failed { flex-direction: row; align-items: center; justify-content: space-between; gap: 16px; background: var(--surface-peach); border-color: var(--line-peach); color: var(--text-orange-deep); font-weight: 500; }
+.ask-card--working { position: relative; overflow: hidden; padding: 20px 24px; }
+.ask-working { font: 500 14px/1.4 var(--font-ui); color: var(--text-muted); }
+/* The shimmer while Claude reads (no sound: background work is silent). */
+.ask-working__bar { position: absolute; inset: 0; background: linear-gradient(105deg, transparent 35%, rgb(169 236 25 / 0.22) 50%, transparent 65%); background-size: 200% 100%; animation: sk-sweep 1.4s ease-in-out infinite; pointer-events: none; }
+.ask-answer { display: flex; flex-direction: column; gap: 12px; }
+.ask-answer p { margin: 0; }
+.ask-answer > p:first-child { font-weight: 600; }
+.ask-list { display: flex; flex-direction: column; gap: 14px; margin: 4px 0 0; padding: 0; list-style: none; }
+.ask-list li { display: grid; grid-template-columns: 28px minmax(0, 1fr); column-gap: 12px; align-items: start; }
+.ask-list__n { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--brand-forest); color: var(--brand-lime); font: 600 14px/1 var(--font-ui); }
+.ask-list__body { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding-top: 1px; }
+.ask-list__text { color: var(--text-secondary); }
+.ask-bullets { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.ask-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  margin: 0 2px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-chip);
+  background: var(--brand-lime);
+  color: var(--brand-forest);
+  font: 600 14px/1 var(--font-ui);
+  vertical-align: baseline;
+  cursor: pointer;
+}
+.ask-list__who .ask-chip { margin: 0; }
+.ask-chip:hover { background: var(--brand-lime-hover); }
+.ask-chip:focus-visible { outline: 2px solid var(--brand-forest); outline-offset: 2px; }
+.ask-chip__dot { width: 8px; height: 6px; border-radius: 3px; background: var(--brand-forest); }
+.ask-card__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.ask-card__foot { margin: 0; padding-top: 14px; border-top: 1px solid var(--line-default); font: 400 13px/1.3 var(--font-ui); color: var(--text-muted); }
+.ask-try__title { margin: 0 0 10px; font: 600 12px/1 var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-faint); }
+.ask-try__chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.ask-try__chip {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-chip);
+  background: var(--surface-white);
+  font: 500 14px/1 var(--font-ui);
+  color: var(--text-primary);
+}
+.ask-try__chip:hover:not(:disabled) { border-color: var(--brand-leaf); }
+.ask-try__chip:disabled { opacity: 0.55; cursor: default; }
+.ask-off { display: flex; align-items: flex-start; gap: 14px; padding: 8px 4px; }
+.ask-off__title { font: 600 15px/1.4 var(--font-ui); color: var(--text-primary); }
+.ask-off__sub { margin-top: 4px; font-size: 14px; line-height: 1.45; color: var(--text-muted); }
+
+/* ---------- the morning brief ---------- */
+.brief {
+  display: flex;
+  flex-direction: column;
+  padding: 28px 28px 36px;
+  border-radius: var(--radius-tile);
+  background: var(--surface-mint);
+  color: var(--text-primary);
+}
+.brief__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.brief__eyebrow { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--brand-leaf); }
+.brief__title { margin: 10px 0 0; font: 700 24px/1.15 var(--font-display); }
+.brief__x { display: grid; place-items: center; width: 40px; height: 40px; margin: -6px -8px 0 0; border: 0; border-radius: 12px; background: none; color: var(--text-primary); }
+.brief__x:hover { background: rgb(0 63 46 / 0.06); }
+.brief__stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; margin: 28px 0 0; padding: 0 0 26px; list-style: none; border-bottom: 1px solid var(--line-dashed); }
+.brief__stat { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 20px; row-gap: 14px; align-items: center; }
+.brief__n { font: 800 40px/1 var(--font-display); }
+.brief__label { font: 600 15px/1.2 var(--font-ui); }
+.brief__sub { grid-column: 1 / -1; font: 400 14px/1.35 var(--font-ui); color: var(--text-muted); }
+.brief__h3 { margin: 26px 0 16px; font: 600 16px/1.2 var(--font-ui); }
+.brief__moves { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; margin: 0; padding: 0; list-style: none; }
+.brief__move-in { display: flex; flex-direction: column; gap: 8px; height: 100%; min-height: 120px; padding: 20px 18px; border-radius: var(--radius-card); background: var(--surface-white); }
+.brief__move-in--open { cursor: pointer; }
+.brief__move-in--open:hover { box-shadow: 0 0 0 1px var(--brand-leaf); }
+.brief__move-in--open:focus-visible { outline: 2px solid var(--brand-leaf); outline-offset: 2px; }
+.brief__move-n { font: 600 12px/1 var(--font-mono); color: var(--brand-leaf); }
+.brief__move-title { margin-top: 4px; font: 600 16px/1.3 var(--font-ui); }
+.brief__move-why { font: 400 14px/1.4 var(--font-ui); color: var(--text-muted); }
+
+.brief-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 0 12px 0 20px;
+  border-radius: var(--radius-small);
+  background: var(--surface-mint);
+  color: var(--text-primary);
+}
+.brief-line__eyebrow { color: var(--brand-leaf); white-space: nowrap; }
+.brief-line__text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 14px/1.3 var(--font-ui); }
+.brief-line__show { min-height: 40px; padding: 0 10px; border: 0; border-radius: 10px; background: none; font: 600 14px/1 var(--font-ui); color: var(--brand-leaf); }
+.brief-line__show:hover { background: rgb(0 63 46 / 0.06); }
+
+@media (max-width: 1100px) {
+  .brief__stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .brief { padding: 22px 18px 24px; border-radius: var(--radius-card); }
+  .brief__moves { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .brief__move-in { min-height: 0; }
+  .brief__n { font-size: 32px; }
+  .brief-line__eyebrow { display: none; }
+  .cmdk--ask .cmdk-search { margin: 12px 12px 0; }
+  .cmdk--ask .cmdk-modes, .cmdk-list--ask { padding-left: 12px; padding-right: 12px; }
+  .ask-card { padding: 18px 16px 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ask-working__bar { animation: none; }
+}

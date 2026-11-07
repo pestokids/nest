@@ -91,6 +91,47 @@ export const AGENT_TOOLS: readonly AgentTool[] = [
       additionalProperties: false,
     },
   },
+  // PST-279: read helpers Ask Nest needed (and every agent gets).
+  {
+    name: 'round_totals',
+    title: 'Round totals',
+    scope: 'read',
+    description:
+      'The money in the round by how firm it is: soft circles (an Expected amount at 2nd meeting or diligence), verbal (said a number, SAFE not sent yet), SAFE sent, signed and wired, each with its investors and amounts. Also committed (verbal and later), the target and the stretch. “Verbal but not signed” is verbal plus SAFE sent.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    name: 'material_opens',
+    title: 'Who opened what',
+    scope: 'read',
+    description:
+      'Materials (pitch deck, memo, one-pager, model, data room) with their versions, and every link shared with an investor: which version, whether and when they opened it, how long they read and the page they read longest. Filter by words in the material, a version number or an investor. With a material, investorsWithoutLink lists investors in conversation who were never sent it. For “who hasn’t seen deck v4?”, read both the links not opened and investorsWithoutLink.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        material: { type: 'string', maxLength: 60, description: 'Words in the material’s title or kind, e.g. “deck” or “memo”.' },
+        version: { type: 'integer', description: 'Only links to this version: 4 for deck v4.' },
+        investorId: ID,
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'meetings_between',
+    title: 'Meetings in a time range',
+    scope: 'read',
+    description:
+      'Calendar meetings with investors from one day to another (India time), past and upcoming: the meeting id, title, day, start and end time, which investors (ids and names) and whether notes from it are saved. Leave out to for one day. At most 31 days.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        from: { type: 'string', format: 'date', description: 'The first day, YYYY-MM-DD in India time.' },
+        to: { type: 'string', format: 'date', description: 'The last day, YYYY-MM-DD. Leave out for one day.' },
+      },
+      required: ['from'],
+      additionalProperties: false,
+    },
+  },
   {
     name: 'log_touch',
     title: 'Log a touch',
@@ -242,6 +283,9 @@ const CALL_LABEL: Record<string, string> = {
   get_investor: 'Read an investor',
   todays_moves: 'Read today’s moves',
   list_questions: 'Read the Q&A bank',
+  round_totals: 'Read the round totals',
+  material_opens: 'Read who opened what',
+  meetings_between: 'Read meetings',
   log_touch: 'Suggested a touch',
   add_investor: 'Suggested an investor',
   suggest_change: 'Suggested a change',
@@ -302,7 +346,7 @@ export function nestSkill(serverUrl: string = PROD_MCP_URL): string {
 
 Nest is Pesto's tracker for its pre-seed raise: every investor with their stage, next step and date, every touch, meetings and email subjects, and a Q&A bank of the questions investors ask with Dev's best answers. You reach it through the Nest MCP server at ${serverUrl}.
 
-- Read: \`search_investors\`, \`get_investor\`, \`todays_moves\`, \`list_questions\`.
+- Read: \`search_investors\`, \`get_investor\`, \`todays_moves\`, \`list_questions\`, \`round_totals\`, \`material_opens\`, \`meetings_between\`.
 - Suggest (keys that can suggest changes): \`log_touch\`, \`add_investor\`, \`suggest_change\`, \`enrich\`, \`add_meeting_notes\`.
 - For "who should I follow up with today?", start with \`todays_moves\`.
 

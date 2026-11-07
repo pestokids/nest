@@ -1,6 +1,7 @@
 // PST-274: a small client for the Anthropic Messages API over fetch (no SDK), for
 // research with the web search and web fetch server tools, and (PST-277) plain
-// turns with no tools for reading meeting notes and drafting answers. It streams, so a run
+// turns with no tools for reading meeting notes and drafting answers, and (PST-279) turns
+// with Nest's own read tools for Ask Nest. It streams, so a run
 // can report progress while Claude works, and prices every run from its usage.
 // The key is ANTHROPIC_API_KEY in the Convex env; nothing here logs it or puts it in an error.
 
@@ -97,10 +98,27 @@ export type Hooks = {
   signal?: AbortSignal
 }
 
-type Block = Record<string, unknown> & { type: string; text?: string; _json?: string }
+export type Block = Record<string, unknown> & { type: string; text?: string; _json?: string }
 
 /** A turn paused by the API this many times is given up on. */
 const MAX_CONTINUATIONS = 3
+
+/** One streamed request: key check, POST, errors without the key or the request, then the events read into blocks. */
+async function streamed(body: Record<string, unknown>, hooks: Hooks) {
+  const key = process.env.ANTHROPIC_API_KEY?.trim()
+  if (!key) throw new NoAIKey()
+  const res = await fetch(API, {
+    method: 'POST',
+    headers: { 'x-api-key': key, 'anthropic-version': VERSION, 'content-type': 'application/json' },
+    body: JSON.stringify({ ...body, stream: true }),
+    signal: hooks.signal,
+  })
+  if (!res.ok || !res.body) {
+    const j = (await res.json().catch(() => ({}))) as { error?: { type?: string } }
+    throw new AIError(res.status, j.error?.type ? 'refused the request: ' + j.error.type : 'request failed')
+  }
+  return await readStream(res.body, hooks)
+}
 
 /**
  * One research turn: Claude with web search and web fetch, streamed. Pauses
@@ -108,23 +126,11 @@ const MAX_CONTINUATIONS = 3
  * summed usage with its cost.
  */
 export async function research(o: { system: string; prompt: string; maxTokens?: number; hooks?: Hooks }): Promise<{ text: string; usage: Usage; costUsd: number }> {
-  const key = process.env.ANTHROPIC_API_KEY?.trim()
-  if (!key) throw new NoAIKey()
-  const messages: { role: 'user' | 'assistant'; content: unknown }[] = [{ role: 'user', content: o.prompt }]
+  const messages: Message[] = [{ role: 'user', content: o.prompt }]
   let usage: Usage = {}
   let text = ''
   for (let round = 0; ; round++) {
-    const res = await fetch(API, {
-      method: 'POST',
-      headers: { 'x-api-key': key, 'anthropic-version': VERSION, 'content-type': 'application/json' },
-      body: JSON.stringify({ model: MODEL, max_tokens: o.maxTokens ?? 8000, stream: true, system: o.system, messages, tools: TOOLS }),
-      signal: o.hooks?.signal,
-    })
-    if (!res.ok || !res.body) {
-      const j = (await res.json().catch(() => ({}))) as { error?: { type?: string } }
-      throw new AIError(res.status, j.error?.type ? 'refused the request: ' + j.error.type : 'request failed')
-    }
-    const r = await readStream(res.body, o.hooks ?? {})
+    const r = await streamed({ model: MODEL, max_tokens: o.maxTokens ?? 8000, system: o.system, messages, tools: TOOLS }, o.hooks ?? {})
     usage = addUsage(usage, r.usage)
     text += r.blocks.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('')
     if (r.stop !== 'pause_turn') {
@@ -134,6 +140,22 @@ export async function research(o: { system: string; prompt: string; maxTokens?: 
     if (round >= MAX_CONTINUATIONS) throw new AIError(200, 'kept pausing without an answer')
     messages.push({ role: 'assistant', content: r.blocks })
   }
+}
+
+/** PST-279: one of Nest's own tools, as Claude is given it (name, description, JSON Schema). */
+export type ToolDef = { name: string; description: string; input_schema: unknown }
+export type Message = { role: 'user' | 'assistant'; content: unknown }
+
+/**
+ * PST-279: one streamed turn with Nest's own tools and no server tools (Ask Nest).
+ * The caller runs any tool_use blocks and goes on; `toolChoice: 'none'` makes
+ * Claude answer with what it has.
+ */
+export async function converse(o: { model: Model; system: string; messages: Message[]; tools: ToolDef[]; toolChoice?: 'auto' | 'none'; maxTokens?: number; hooks?: Hooks }) {
+  return await streamed(
+    { model: o.model, max_tokens: o.maxTokens ?? 2000, system: o.system, messages: o.messages, tools: o.tools, tool_choice: { type: o.toolChoice ?? 'auto' } },
+    o.hooks ?? {},
+  )
 }
 
 /**

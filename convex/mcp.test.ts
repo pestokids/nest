@@ -146,7 +146,7 @@ describe('protocol', () => {
   it('tools/list matches the key: read keys only see the read tools', async () => {
     const s = await setup()
     const names = async (key: string) => (await s.rpc(key, 'tools/list')).body.result.tools.map((t: { name: string }) => t.name)
-    expect(await names(s.read.key)).toEqual(['search_investors', 'get_investor', 'todays_moves', 'list_questions'])
+    expect(await names(s.read.key)).toEqual(['search_investors', 'get_investor', 'todays_moves', 'list_questions', 'round_totals', 'material_opens', 'meetings_between'])
     expect(await names(s.grok.key)).toEqual(AGENT_TOOLS.map((t) => t.name))
     const tools = (await s.modern(s.grok.key, 'tools/list')).body.result.tools
     expect(tools.every((t: { inputSchema: { type: string } }) => t.inputSchema.type === 'object')).toBe(true)

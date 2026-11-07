@@ -14,7 +14,7 @@ import { factsFrom, investorPrompt, parseStep, senderPrompt, SYSTEM, vResearch }
 import { aiSettings, CACHE_DAYS, capLeft, pump, queue, syncReview } from './lib/enrichQueue'
 import { saveInvestor } from './investors'
 import { vNewFact, vStep, vVerdict } from './enrichSchema'
-import { asRank, firmDomain, investorWrite, NO_AI_KEY } from '../src/lib/enrich'
+import { asRank, firmDomain, investorWrite, NO_AI_KEY, type RecentRun } from '../src/lib/enrich'
 import { todayIST } from '../src/lib/dates'
 import { DAY_MS, domainOf, GENERIC_DOMAINS, nameFromEmail, normEmail } from '../src/lib/google'
 import { fieldsOf, NEW_INVESTOR } from '../src/lib/pipeline'
@@ -34,7 +34,7 @@ const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().t
 export const data = query({
   args: {},
   handler: async (ctx) => {
-    await requireUser(ctx)
+    const { userId } = await requireUser(ctx)
     const now = Date.now()
     const monthStart = Date.parse(todayIST(now).slice(0, 8) + '01T00:00:00+05:30')
     const runs = await ctx.db.query('enrichRuns').withIndex('by_started').order('desc').take(2000)
@@ -55,16 +55,27 @@ export const data = query({
       const facts = (await ctx.db.query('facts').withIndex('by_run', (q) => q.eq('runId', run._id)).collect()).filter((f) => f.status !== 'dismissed' && !f.investorId)
       senders.push({ email, run, facts })
     }
-    const recent = []
+    // PST-279: Ask Nest and the morning brief count toward the spend and show in Recent runs. Only you see your own questions.
+    const asks = await ctx.db.query('askRuns').withIndex('by_started', (q) => q.gte('startedAt', monthStart)).collect()
+    const briefs = await ctx.db.query('briefs').withIndex('by_built', (q) => q.gte('builtAt', monthStart)).collect()
+    const recent: RecentRun[] = []
     for (const r of runs.slice(0, 8)) {
       const inv = r.investorId ? await ctx.db.get(r.investorId) : null
       recent.push({ _id: r._id, at: r.finishedAt ?? r.startedAt, investor: inv?.name, email: r.email, wasInvestor: !!r.investorId, facts: r.factCount ?? 0, costUsd: r.costUsd, status: r.status, cached: !!r.cached })
     }
+    for (const a of asks.slice(-8))
+      recent.push({
+        _id: a._id, at: a.finishedAt ?? a.startedAt, kind: 'ask', ...(a.userId === userId ? { question: a.question } : {}), tools: a.tools.length, wasInvestor: false, facts: 0, costUsd: a.costUsd,
+        status: a.status === 'done' || a.status === 'failed' ? a.status : 'running', cached: false,
+      })
+    for (const b of briefs.slice(-8)) recent.push({ _id: b._id, at: b.builtAt, kind: 'brief', moves: b.moves.length, wasInvestor: false, facts: 0, costUsd: b.costUsd, status: 'done', cached: false })
+    recent.sort((x, y) => y.at - x.at)
     return {
       connected: hasAIKey(),
       settings: await aiSettings(ctx),
       month: {
-        usd: month.reduce((s, r) => s + r.costUsd, 0) + reads.reduce((s, r) => s + r.costUsd, 0),
+        usd: [...month, ...reads, ...asks, ...briefs].reduce((s, r) => s + r.costUsd, 0),
+        asks: asks.length,
         noteReads: reads.filter((r) => r.status !== 'reading').length,
         lookups: month.filter((r) => !r.investorId && !r.cached).length,
         enrichments: month.filter((r) => r.investorId && !r.cached).length,
@@ -72,7 +83,7 @@ export const data = query({
       capLeft: await capLeft(ctx, now),
       runs: [...latest.values()].map((r) => ({ ...r, pending: pending.get(r.investorId!) ?? 0 })),
       senders,
-      recent,
+      recent: recent.slice(0, 8),
     }
   },
 })
@@ -333,7 +344,7 @@ export const setPrimary = mutation({
 
 /** The Settings toggles. */
 export const setAuto = mutation({
-  args: { lookups: v.optional(v.boolean()), enrichNew: v.optional(v.boolean()), meetingNotes: v.optional(v.boolean()) },
+  args: { lookups: v.optional(v.boolean()), enrichNew: v.optional(v.boolean()), meetingNotes: v.optional(v.boolean()), morningBrief: v.optional(v.boolean()) },
   handler: async (ctx, patch) => {
     await requireUser(ctx)
     const row = await ctx.db.query('settings').withIndex('by_key', (q) => q.eq('key', 'ai')).unique()

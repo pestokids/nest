@@ -8,7 +8,7 @@ const tool = (name: string) => toolNamed(name)!
 
 describe('toolsFor', () => {
   it('read keys get the four read tools; suggest keys get all of them', () => {
-    expect(toolsFor('read').map((t) => t.name)).toEqual(['search_investors', 'get_investor', 'todays_moves', 'list_questions'])
+    expect(toolsFor('read').map((t) => t.name)).toEqual(['search_investors', 'get_investor', 'todays_moves', 'list_questions', 'round_totals', 'material_opens', 'meetings_between'])
     expect(toolsFor('suggest')).toEqual(AGENT_TOOLS)
     expect(AGENT_TOOLS.filter((t) => t.scope === 'suggest').map((t) => t.name)).toEqual(['log_touch', 'add_investor', 'suggest_change', 'enrich', 'add_meeting_notes'])
   })

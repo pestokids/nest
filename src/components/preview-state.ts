@@ -30,6 +30,20 @@ export type PreviewState = {
   notes?: string | null
   /** PST-278 `&drafts=followup|intro|blurb|nudge|thanks|dataroom|writing|nokey|noemail|copied|failed|history` */
   drafts?: string | null
+  /** PST-279 `&ask=empty|thinking|streaming|answer|verbal|prep|deck|unknown|failed` (⌘K opens in Ask mode) */
+  ask?: string | null
+}
+
+/** PST-279 `&ask=…`: the question ⌘K asks as it opens in Ask mode (empty: just Ask mode). See src/preview/askFixture.ts. */
+export const PREVIEW_ASK_QUESTIONS: Record<string, string> = {
+  thinking: 'Who should I chase today?',
+  streaming: 'Who should I chase today?',
+  answer: 'Who should I chase today?',
+  verbal: 'How much is verbal but not signed?',
+  prep: 'Prep me for my 4pm',
+  deck: 'Who hasn’t seen deck v4?',
+  unknown: 'What’s our churn by cohort?',
+  failed: 'Who should I chase today?',
 }
 
 export const PreviewStateContext = createContext<PreviewState | null>(null)
