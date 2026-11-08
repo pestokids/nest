@@ -3,7 +3,7 @@
 // on a win, the save, and a toast with Undo. Uses the app-wide toast, so ⌘K can too.
 import { useCallback } from 'react'
 import { classifyMove, moveSounds, moveToast, type Move, type MoveRecord } from '../../lib/board'
-import { confetti } from '../../lib/motion'
+import { confetti, MOTION } from '../../lib/motion'
 import type { Investor } from '../../lib/pipeline'
 import { play } from '../../lib/sound'
 import type { Stage } from '../../lib/stages'
@@ -27,6 +27,7 @@ export function useMoveCard() {
         toast({ tone: 'error', message: errorMessage(e) })
       })
       const message = moveToast(inv.name, to, m)
+      let undone = false
       if (message)
         toast({
           tone: m.win ? 'win' : m.kind === 'skip' ? 'info' : 'success',
@@ -35,6 +36,7 @@ export function useMoveCard() {
           action: {
             label: 'Undo',
             onClick: () => {
+              undone = true
               play('undo')
               saved
                 .then((rec) => undoMove(rec))
@@ -45,8 +47,11 @@ export function useMoveCard() {
             },
           },
         })
-      // PST-291: a verbal yes gets the Close kit's written confirmation offered.
-      if (to === 'verbal' && m.kind !== 'back') toast({ tone: 'info', message: `Confirm ${inv.name} in writing today.`, action: confirmAction(inv._id) })
+      // PST-291: a verbal yes gets the Close kit's written confirmation offered, once the Undo toast has had its time.
+      if (to === 'verbal' && m.kind !== 'back')
+        setTimeout(() => {
+          if (!undone) toast({ tone: 'info', message: `Confirm ${inv.name} in writing today.`, action: confirmAction(inv._id) })
+        }, MOTION.toast.holdMs)
       return m
     },
     [move, undoMove, toast],
