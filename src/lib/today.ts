@@ -148,7 +148,7 @@ export const askedIds = (acts: Pick<Activity, 'investorId' | 'touch'>[]) => new 
  * meeting and a yes that hasn't been asked yet (biggest expected check, then
  * the soonest next step). `keep` keeps a just-asked investor in place.
  */
-export function askMove(inv: Investor[], acts: Pick<Activity, 'investorId' | 'touch'>[], phase: Phase | undefined, today: string, keep?: ReadonlySet<string>): Move | null {
+export function askMove(inv: Investor[], acts: Pick<Activity, 'investorId' | 'touch'>[], phase: Phase | undefined, today: string, keep?: ReadonlySet<string>, priority: PriorityOf = NO_PRIORITY): Move | null {
   const asked = askedIds(acts)
   const pick = inv
     .filter((i) => ASKABLE.has(i.stage) && (!asked.has(i._id) || keep?.has(i._id)))
@@ -156,6 +156,7 @@ export function askMove(inv: Investor[], acts: Pick<Activity, 'investorId' | 'to
       (a, b) =>
         Number(!!keep?.has(b._id)) - Number(!!keep?.has(a._id)) ||
         (IDX[b.stage] ?? 0) - (IDX[a.stage] ?? 0) ||
+        priority(b._id) - priority(a._id) ||
         (b.expected ?? 0) - (a.expected ?? 0) ||
         (a.nextDate ?? '9999').localeCompare(b.nextDate ?? '9999') ||
         a.name.localeCompare(b.name),
@@ -177,7 +178,7 @@ export function askMove(inv: Investor[], acts: Pick<Activity, 'investorId' | 'to
 }
 
 /** Fill-ins when the phase targets are met: what's due, who's quiet, who's next on the list. */
-function fillMoves(inv: Investor[], round: Round, today: string): Move[] {
+function fillMoves(inv: Investor[], round: Round, today: string, priority: PriorityOf): Move[] {
   const out: Move[] = []
   const due = dueList(inv, today)
   if (due.length)
@@ -195,7 +196,7 @@ function fillMoves(inv: Investor[], round: Round, today: string): Move[] {
       why: `No touch in ${round.quietDays}+ days. A short update or a question keeps them warm.`,
       label: 'See who', action: { kind: 'scroll', to: 'quiet' }, count: `${quiet.length} quiet`,
     })
-  const fresh = inv.filter((i) => i.stage === 'todo').sort((a, b) => (b.expected ?? 0) - (a.expected ?? 0) || a.wave - b.wave || a.name.localeCompare(b.name))[0]
+  const fresh = inv.filter((i) => i.stage === 'todo').sort((a, b) => priority(b._id) - priority(a._id) || (b.expected ?? 0) - (a.expected ?? 0) || a.wave - b.wave || a.name.localeCompare(b.name))[0]
   if (fresh)
     out.push({
       key: `reach:${fresh._id}`, tone: 'default',
@@ -207,20 +208,24 @@ function fillMoves(inv: Investor[], round: Round, today: string): Move[] {
   return out
 }
 
+/** Investor id → Priority score (PST-296's `priorities`), to pick who a move names. Without it, every score is 0. */
+export type PriorityOf = (investorId: string) => number
+const NO_PRIORITY: PriorityOf = () => 0
+
 /**
  * Your next 3 moves, in the order to do them: the current phase's unmet
  * targets (phase order), then the ask for a number in the last slot, then
  * fill-ins. Never more than three.
  */
 export function nextMoves(
-  { investors: inv, acts, round, today }: { investors: Investor[]; acts: Pick<Activity, 'investorId' | 'touch' | 'kind' | 'stage' | 'date'>[]; round: Round; today: string },
+  { investors: inv, acts, round, today, priority = NO_PRIORITY }: { investors: Investor[]; acts: Pick<Activity, 'investorId' | 'touch' | 'kind' | 'stage' | 'date'>[]; round: Round; today: string; priority?: PriorityOf },
   keep?: ReadonlySet<string>,
 ): Move[] {
   const phase = movesPhase(round, today)
   const targets = phase ? targetMoves(round, phase, inv, acts, today) : []
-  const ask = askMove(inv, acts, phase, today, keep)
+  const ask = askMove(inv, acts, phase, today, keep, priority)
   const moves = [...targets.slice(0, ask ? 2 : 3), ...(ask ? [ask] : [])]
-  for (const f of fillMoves(inv, round, today)) {
+  for (const f of fillMoves(inv, round, today, priority)) {
     if (moves.length >= 3) break
     moves.splice(ask ? moves.length - 1 : moves.length, 0, f)
   }

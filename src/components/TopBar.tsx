@@ -4,6 +4,7 @@ import { isPaletteShortcut, openCommandPalette } from '../lib/commandPalette'
 import { openFeedback } from '../lib/feedback'
 import { shownSections } from '../lib/nav'
 import { useSession, useSounds } from './session'
+import { useInbox } from './inbox/data' // PST-297
 import { Avatar, Icon, IconButton, Kbd, Tabs, Toggle, type TabItem } from './ui'
 import { Wordmark } from './Wordmark'
 
@@ -29,7 +30,8 @@ export function TopBar() {
           <Wordmark />
         </Link>
         <div className="topbar__tabs">
-          <Tabs items={SECTIONS} label="Sections" />
+          {/* PST-297: the Inbox count on Raise (the same rows as Today and Home) */}
+          <SectionTabs />
         </div>
         <span className="topbar__spacer" />
         <span className="topbar__search">
@@ -43,6 +45,13 @@ export function TopBar() {
     </header>
   )
 }
+
+/* ---------- PST-297 ---------- */
+function SectionTabs() {
+  const { count } = useInbox()
+  return <Tabs items={SECTIONS.map((s) => (s.to === '/raise' ? { ...s, count } : s))} label="Sections" />
+}
+/* ---------- end PST-297 ---------- */
 
 function AvatarMenu() {
   const { me, signOut } = useSession()

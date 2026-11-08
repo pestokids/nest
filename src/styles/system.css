@@ -365,10 +365,5 @@
 [data-density='compact'] .pb-card:not(.pb-card--phone) .pb-card__sub,
 [data-density='compact'] .pb-card:not(.pb-card--phone) .pb-card__chip { display: none; }
 [data-density='compact'] .pb-card:not(.pb-card--phone) .pb-card__foot { margin-top: 6px; }
-[data-density='compact'] .due-row__main { min-height: 44px; padding-top: 4px; padding-bottom: 4px; }
-[data-density='compact'] .quiet-row { min-height: 44px; }
-[data-density='compact'] :is(.due-row, .quiet-row) :is(.row__text, .quiet-row__main) { flex-direction: row; align-items: baseline; gap: 10px; }
-[data-density='compact'] :is(.due-row, .quiet-row) .row__name { flex: none; }
-[data-density='compact'] :is(.due-row, .quiet-row) .row__sub { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* /PST-290 */
 

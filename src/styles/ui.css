@@ -444,15 +444,6 @@ button.subtab:focus-visible { outline: 3px solid var(--brand-lime); outline-offs
 @media (pointer: coarse) { .segmented__opt { height: 44px; } }
 
 /* ---------- Phase bar (Home's Raise card and Today's summary) ---------- */
-.phasebar { display: flex; gap: 6px; list-style: none; margin: 30px 0 0; padding: 0; }
-.phasebar__seg { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
-.phasebar__bar { height: 12px; border-radius: 6px; background: var(--brand-forest-2); }
-.phasebar__seg--past .phasebar__bar { background: var(--brand-lime-deep); }
-.phasebar__seg--now .phasebar__bar { background: var(--brand-lime); }
-.phasebar__label { font: 400 14px/1.2 var(--font-ui); color: var(--text-on-dark-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.phasebar__seg--now .phasebar__label { color: var(--brand-lime); font-weight: 600; }
-.phasebar__detail { margin-top: -2px; font: 500 11px/1.2 var(--font-mono); letter-spacing: 0.02em; color: var(--text-on-dark); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.phasebar__seg--close .phasebar__detail { color: var(--brand-orange); }
 
 /* ---------- Card and KPI card ---------- */
 .card {

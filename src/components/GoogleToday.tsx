@@ -1,12 +1,13 @@
 // Raise · Today with Calendar and Gmail (PST-263, screens/raise-today/calendar-gmail-connected.png):
-// Meetings today (and tomorrow, and the morning-after "How did it go?"),
-// Waiting on you, and Who's this?. Shown once anyone on the team has connected Google.
+// Meetings today (and tomorrow, and the morning-after "How did it go?") and
+// Who's this?, in the Inbox's right column (PST-297; Waiting on you became the
+// Inbox's reply rows). Shown once anyone on the team has connected Google.
 import { useMemo, useState } from 'react'
 import { addDays } from '../lib/today'
 import { classifyMove, moveSounds, moveToast } from '../lib/board'
 import {
-  agoShort, calendarWeekLink, dayOf, domainOf, followUps, GENERIC_DOMAINS, meetingsOn, nameFromEmail, normEmail, timeOf, waitingOnYou, whoIsThis,
-  type MeetingAnswer, type Stranger, type SyncedMeeting, type SyncedThread,
+  calendarWeekLink, dayOf, domainOf, followUps, GENERIC_DOMAINS, meetingsOn, nameFromEmail, timeOf, whoIsThis,
+  type MeetingAnswer, type Stranger, type SyncedMeeting,
 } from '../lib/google'
 import { fieldsOf, type Investor } from '../lib/pipeline'
 import { play } from '../lib/sound'
@@ -23,18 +24,20 @@ import { Badge, Button, Card, Icon } from './ui'
 const first = (name: string) => name.trim().split(/\s+/)[0] || name
 const ANSWER_LABEL: Record<MeetingAnswer, string> = { m1: 'Move to 1st meeting', m2: '2nd meeting', passed: 'Passed' }
 
-export function GoogleToday({ today }: { today: string }) {
+/** Meetings today (and tomorrow, and the morning-after "How did it go?"): the Inbox's right column. Shown once anyone has connected Google. */
+export function TodayMeetings({ today }: { today: string }) {
+  const { google } = useRaise()
+  const [now] = useState(() => Date.now())
+  return google.team.length ? <Meetings today={today} now={now} /> : null
+}
+
+/** Who's this? (or, with AI set up, the lookups) for people from recent meetings who aren't in Raise yet. */
+export function TodayStrangers() {
   const { google, investors, ai } = useRaise()
-  const now = Date.now()
+  const [now] = useState(() => Date.now())
   const strangers = useMemo(() => whoIsThis(google.meetings.filter((m) => m.mine), investors, now), [google.meetings, investors, now])
-  if (!google.team.length) return null
-  return (
-    <div className={`today__google${strangers.length && !ai.connected ? '' : ' today__google--two'}`}>
-      <Meetings today={today} now={now} />
-      <Waiting now={now} />
-      {strangers.length ? ai.connected ? <WhoLookups people={strangers} /> : <WhoIsThis people={strangers} /> : null}
-    </div>
-  )
+  if (!google.team.length || !strangers.length) return null
+  return ai.connected ? <WhoLookups people={strangers} /> : <WhoIsThis people={strangers} />
 }
 
 /* ---------- Meetings today ---------- */
@@ -163,76 +166,6 @@ function Meetings({ today, now }: { today: string; now: number }) {
       <a className="gcard__link" href={calendarWeekLink(d.google.me?.email)} target="_blank" rel="noreferrer">
         Open the week <Icon name="arrow-right" size={16} />
       </a>
-    </Card>
-  )
-}
-
-/* ---------- Waiting on you ---------- */
-
-const MAX_ROWS = 3
-
-function Waiting({ now }: { now: number }) {
-  const { google, investors } = useRaise()
-  const byId = new Map(investors.map((i) => [i._id, i]))
-  const rows = waitingOnYou(google.threads, now)
-  const shown = rows.slice(0, MAX_ROWS)
-  const who = (t: SyncedThread) => {
-    const i = byId.get(t.investorIds[0])
-    const person = t.lastFromEmail === normEmail(i?.email) && i ? '' : nameFromEmail(t.lastFromEmail)
-    return [person, i?.name].filter(Boolean).join(' · ') || t.lastFromEmail
-  }
-  const top = shown.find((t) => t.mine)
-  return (
-    <Card riseIndex={7} className="gcard" aria-labelledby="gwait-title">
-      <header className="gcard__head">
-        <h2 id="gwait-title" className="today__h2 gcard__title">
-          <Icon name="mail" size={20} />
-          Waiting on you
-          {rows.length ? (
-            <Badge className="list-panel__badge" aria-label={`${rows.length} waiting`}>
-              {rows.length}
-            </Badge>
-          ) : null}
-        </h2>
-        <span className="gcard__from eyebrow-mono">From Gmail</span>
-      </header>
-      {shown.length ? (
-        <ul className="gwait__list">
-          {shown.map((t, k) => {
-            const inner = (
-              <>
-                <span className="gwait__top">
-                  <span className="gwait__name">{who(t)}</span>
-                  <span className="gwait__when">{agoShort(t.lastAt, now)}</span>
-                </span>
-                <span className="gwait__sub">
-                  {t.subject}
-                  {t.mine ? '' : ` · in ${t.by}’s inbox`}
-                </span>
-              </>
-            )
-            return (
-              <li key={t._id} className={`gwait${k === 0 ? ' gwait--first' : ''}`}>
-                {t.mine ? (
-                  <a className="gwait__main" href={t.link} target="_blank" rel="noreferrer" aria-label={`${who(t)}: ${t.subject}. Open in Gmail`}>
-                    {inner}
-                  </a>
-                ) : (
-                  <div className="gwait__main">{inner}</div>
-                )}
-              </li>
-            )
-          })}
-        </ul>
-      ) : (
-        <p className="gcard__empty">Nothing waiting on you. Every investor who wrote has an answer.</p>
-      )}
-      {rows.length > MAX_ROWS ? <p className="gcard__more">{rows.length - MAX_ROWS} more in the drawer’s Emails tab.</p> : null}
-      {top ? (
-        <a className="gcard__link" href={top.link} target="_blank" rel="noreferrer">
-          Reply in Gmail <Icon name="arrow-right" size={16} />
-        </a>
-      ) : null}
     </Card>
   )
 }

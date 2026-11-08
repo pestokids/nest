@@ -19,6 +19,7 @@ import { introducerTables } from './introducersSchema' // PST-294
 import { investorLeadFields, raceTables, roundLeadField } from './raceSchema' // PST-295
 // PST-296: Find more and Jev fit scores (findSettings, findRuns, findCandidates, jevScores; see findMoreSchema.ts).
 import { findMoreTables } from './findMoreSchema'
+import { inboxTables } from './inboxSchema' // PST-297
 import { roundFields, vGeo, vMeetingAnswer, vPipelineStage, vStage, vSyncSource, vTier, vTouch, vType, vWarmth, vWave } from './validators'
 import { vSuggestionKind, vSuggestionPatch, vSuggestionSource, vSuggestionStatus, vSuggestionUndo } from './validators'
 import { vAnswerVersion, vAskSource, vQuestionMerge } from './validators'
@@ -307,4 +308,7 @@ export default defineSchema({
   /* ---------- PST-296: Find more and Jev fit scores (see findMoreSchema.ts) ---------- */
   ...findMoreTables,
   /* ---------- end PST-296 ---------- */
+  /* ---------- PST-297: the Today Inbox (inboxMarks, inboxCleared; see inboxSchema.ts) ---------- */
+  ...inboxTables,
+  /* ---------- end PST-297 ---------- */
 })

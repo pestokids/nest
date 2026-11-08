@@ -1,6 +1,6 @@
-// Suggested fixes on Today (PST-275): the top three on a card
-// (screens/raise-ai/today-suggestions-card.png) and every one in a list with
-// filters and "Accept N safe ones" (suggestions-all.png). Motion and sound follow
+// Suggested fixes (PST-275): every one in a list with filters and "Accept N
+// safe ones" (suggestions-all.png), opened from the Inbox's fix rows and ⌘K's
+// "Review N suggestions" (PST-297: the Inbox replaced the card on Today). Motion and sound follow
 // interactions-ai.png: sounds only follow a click, one per action; the checks
 // running and an agent adding a row are silent.
 import { useNavigate, useRouterState } from '@tanstack/react-router'
@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { confetti, pop, usePop } from '../lib/motion'
 import { play } from '../lib/sound'
 import {
-  acceptsTogether, actionOf, filterChips, firstTidyToday, KIND_LABEL, safeLine, sourceLabel, thingsToFix, type Suggestion, type SuggestionFilter,
+  acceptsTogether, actionOf, filterChips, firstTidyToday, KIND_LABEL, sourceLabel, thingsToFix, type Suggestion, type SuggestionFilter,
 } from '../lib/suggestions'
 import { useRaise } from './data'
 import { NestSleeping } from './illustrations'
@@ -16,7 +16,7 @@ import { usePreviewState } from './preview-state'
 import { useUI } from './raise-ui'
 import { Modal, useTitleId } from './system/Modal'
 import { useSaveAction } from './system/useSaveAction'
-import { Button, Card, Chip, Icon, type ChipTone } from './ui'
+import { Button, Chip, Icon, type ChipTone } from './ui'
 
 declare module '@tanstack/react-router' {
   interface HistoryState {
@@ -35,7 +35,7 @@ type Leaving = { how: 'accept' | 'merge' | 'dismiss'; i: number }
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
 const chipTone = (s: Suggestion): ChipTone => (s.source === 'agent' ? 'waiting' : s.kind === 'duplicate' ? 'error' : 'neutral')
 
-/** Today's Suggestions: the card, and the full list when it's open. Hidden when there's nothing to fix. */
+/** The full list of suggestions, when it's open. */
 export function Suggestions({ today }: { today: string }) {
   const d = useRaise()
   const ui = useUI()
@@ -49,14 +49,12 @@ export function Suggestions({ today }: { today: string }) {
   const list = useMemo(() => d.suggestions.filter((s) => !gone.has(s._id)), [d.suggestions, gone])
   const names = useMemo(() => new Map(d.investors.map((i) => [i._id, i.name])), [d.investors])
 
-  // The list was emptied by a click here: show "All tidy." instead of hiding, and celebrate once a day.
+  // The list was emptied by a click here: "All tidy.", and celebrate once a day.
   const acted = useRef(false)
-  const [tidy, setTidy] = useState(false)
   const tidyAt = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (list.length || !acted.current) return
     acted.current = false
-    setTidy(true)
     if (!firstTidyToday(today)) return
     play('target-hit')
     requestAnimationFrame(() => confetti(tidyAt.current, { count: TIDY_CONFETTI }))
@@ -94,7 +92,6 @@ export function Suggestions({ today }: { today: string }) {
 
   const undo = (ids: string[]) => {
     play('undo')
-    setTidy(false)
     void save(() => d.suggest.undo(ids), { failMessage: 'Couldn’t undo that.' })
   }
 
@@ -140,7 +137,6 @@ export function Suggestions({ today }: { today: string }) {
   const rowProps = { leaving, onAccept: accept, onDismiss: dismiss, onReview: review }
   return (
     <>
-      {list.length || tidy ? <TodayCard list={list} tidyAt={tidyAt} onSeeAll={() => setOpen(true)} {...rowProps} /> : null}
       {open ? <AllDialog list={list} tidyAt={tidyAt} onClose={() => setOpen(false)} onAcceptSafe={acceptSafe} {...rowProps} /> : null}
     </>
   )
@@ -240,40 +236,6 @@ function Tidy({ at }: { at: React.RefObject<HTMLDivElement | null> }) {
         <p>Nothing to fix in your list. Nest looks again every morning and after each Google sync.</p>
       </div>
     </div>
-  )
-}
-
-/** The card on Today: the count, the safe line, the top three and "See all N". */
-function TodayCard({ list, tidyAt, onSeeAll, ...a }: RowActions & { list: Suggestion[]; tidyAt: React.RefObject<HTMLDivElement | null>; onSeeAll: () => void }) {
-  const n = list.length
-  const countRef = usePop<HTMLSpanElement>(n)
-  return (
-    <Card riseIndex={0} className="sg-card" aria-labelledby="sg-card-title">
-      <header className="sg-card__head">
-        <div className="sg-card__lead">
-          <Eyebrow />
-          <h2 id="sg-card-title" className="sg-card__title">
-            {n ? (
-              <>
-                <span ref={countRef} className="num">
-                  {n}
-                </span>{' '}
-                {thingsToFix(n).replace(/^\d+ /, '')} in your list
-              </>
-            ) : (
-              'Nothing to fix in your list'
-            )}
-          </h2>
-          {n ? <p className="sg-card__sub">{safeLine(list.filter(acceptsTogether).length)}</p> : null}
-        </div>
-        {n ? (
-          <Button variant="secondary" className="sg-card__all" onClick={onSeeAll}>
-            See all {n}
-          </Button>
-        ) : null}
-      </header>
-      {n ? <Rows list={list.slice(0, 3)} {...a} /> : <Tidy at={tidyAt} />}
-    </Card>
   )
 }
 

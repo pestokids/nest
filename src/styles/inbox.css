@@ -1,0 +1,150 @@
+/* PST-297: Today as one Inbox (round5/today-inbox.png, iphone-today-inbox.png). */
+.inbox-page { display: grid; grid-template-columns: minmax(0, 1fr) 416px; align-items: start; gap: 24px; padding-bottom: 44px; }
+.inbox-page__main { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.inbox-page__side { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+
+/* ---------- the list ---------- */
+.inbox.card { display: flex; flex-direction: column; min-width: 0; min-height: 240px; padding: 26px 0 0; }
+.inbox__head { padding: 0 28px; }
+.inbox__title { display: flex; align-items: center; gap: 12px; margin: 0; font: 700 26px/1.15 var(--font-display); color: var(--text-primary); }
+.inbox__count { min-width: 34px; height: 24px; font-size: 13px; }
+.inbox__lede { margin: 12px 0 0; font: 400 15px/1.4 var(--font-ui); color: var(--text-secondary); }
+.inbox__chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+.inbox__chip { gap: 6px; cursor: pointer; font-weight: 600; }
+.inbox__chip:focus-visible { outline: 3px solid var(--brand-lime); outline-offset: 2px; }
+.inbox__groups { padding: 4px 12px 14px; }
+.inbox-group__title { margin: 22px 16px 8px; color: var(--text-secondary); }
+.inbox-group--now .inbox-group__title { color: var(--brand-orange); }
+.inbox__rows { list-style: none; margin: 0; padding: 0; }
+
+.inbox-row { position: relative; border-radius: 16px; overflow: hidden; outline: none; transition: opacity 260ms ease, transform 260ms var(--ease-out); }
+.inbox-row.is-leaving { opacity: 0; transform: translateX(32px); }
+.inbox-row__in {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 26px 128px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 16px;
+  min-height: 76px;
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: var(--surface-white);
+  transform: translateX(var(--dx, 0));
+  transition: transform 220ms var(--ease-out), box-shadow 160ms ease;
+}
+.inbox-row:not(:first-child) .inbox-row__in::before { content: ''; position: absolute; top: 0; left: 16px; right: 16px; border-top: 1px solid var(--line-default); }
+.inbox-row.is-current .inbox-row__in { box-shadow: inset 0 0 0 1.5px var(--brand-leaf); }
+.inbox-row.is-current .inbox-row__in::before, .inbox-row.is-current + .inbox-row .inbox-row__in::before { border-top-color: transparent; }
+.inbox-row:focus-visible .inbox-row__in { box-shadow: inset 0 0 0 3px var(--brand-lime); }
+.inbox-row__tick .checkbox__mark { border-radius: 50%; }
+.inbox-row__type { min-width: 0; }
+.inbox-row__chip { max-width: 100%; }
+.inbox-row__text { display: flex; flex-direction: column; gap: 4px; min-width: 0; cursor: pointer; }
+.inbox-row__name { font: 600 16px/1.3 var(--font-ui); color: var(--text-primary); overflow-wrap: anywhere; }
+.inbox-row__text:hover .inbox-row__name { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line-dashed); }
+.inbox-row__detail { font: 400 14px/1.35 var(--font-ui); color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inbox-row__when { font: 500 14px/1.2 var(--font-ui); color: var(--text-secondary); white-space: nowrap; text-align: right; }
+.inbox-row__when.is-hot { color: var(--brand-orange); }
+.inbox-row__go { white-space: nowrap; }
+.inbox-row__link { display: inline-flex; align-items: center; gap: 4px; min-height: 40px; padding: 0; border: 0; background: none; font: 600 15px/1 var(--font-ui); color: var(--brand-leaf); justify-self: end; cursor: pointer; white-space: nowrap; }
+.inbox-row__link:focus-visible { outline: 3px solid var(--brand-lime); outline-offset: 2px; border-radius: 6px; }
+
+/* What a swipe shows underneath: done on the left, snooze on the right. */
+.inbox-row__under { position: absolute; inset: 0; display: flex; align-items: center; gap: 6px; padding: 0 22px; font: 600 15px/1 var(--font-ui); visibility: hidden; }
+.inbox-row__under--done { justify-content: flex-start; background: var(--state-success-bg); color: var(--state-success); }
+.inbox-row__under--snooze { justify-content: flex-end; background: var(--surface-peach); color: var(--text-orange-deep); }
+.inbox-row.is-swiping-done .inbox-row__under--done, .inbox-row.is-swiping-snooze .inbox-row__under--snooze { visibility: visible; }
+.inbox-row.is-swiping-done .inbox-row__in, .inbox-row.is-swiping-snooze .inbox-row__in { box-shadow: var(--shadow-card); }
+
+.inbox__more { display: block; width: 100%; min-height: 48px; margin-top: 4px; border: 0; background: none; font: 600 14px/1 var(--font-ui); color: var(--text-secondary); text-align: left; padding: 0 20px; cursor: pointer; }
+.inbox__keys { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; margin-top: auto; padding: 18px 28px; border-top: 1px solid var(--line-default); font: 400 14px/1 var(--font-ui); color: var(--text-secondary); }
+.inbox__key { display: inline-flex; align-items: center; gap: 6px; }
+
+.inbox-clear { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 40px 28px 52px; }
+.inbox-clear__nest { display: grid; place-items: center; }
+.inbox-clear__title { margin: 14px 0 0; font: 700 24px/1.2 var(--font-display); color: var(--text-primary); }
+.inbox-clear__text { max-width: 420px; margin: 8px 0 0; font: 400 15px/1.45 var(--font-ui); color: var(--text-secondary); }
+
+/* ---------- the right column ---------- */
+.inbox-race.card { padding: 26px 28px 24px; }
+.inbox-race__eyebrow { margin: 0; color: var(--brand-lime); }
+.inbox-race__title.inbox-race__title { margin: 12px 0 0; font: 700 24px/1.15 var(--font-display); color: var(--text-on-dark); }
+.inbox-race__text { margin: 14px 0 0; font: 400 15px/1.4 var(--font-ui); color: var(--text-on-dark-muted); }
+.inbox-race__lanes { list-style: none; margin: 22px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.inbox-race__lane { display: grid; grid-template-columns: 84px minmax(0, 1fr); align-items: center; gap: 12px; }
+.inbox-race__name { font: 400 14px/1.2 var(--font-ui); color: var(--text-on-dark); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inbox-race__track { height: 5px; border-radius: 3px; background: rgb(255 255 255 / 0.12); overflow: hidden; }
+.inbox-race__fill { display: block; width: var(--w); height: 100%; border-radius: 3px; background: var(--brand-lime); transition: width 600ms var(--ease-out); }
+.inbox-race__lane.is-ahead .inbox-race__fill { background: var(--brand-orange); }
+.inbox-race__foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 20px; }
+.inbox-race__lead { font: 600 14px/1.3 var(--font-ui); color: var(--brand-lime); }
+.inbox-race__link { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; font: 600 15px/1 var(--font-ui); color: var(--text-on-dark); text-decoration: none; white-space: nowrap; }
+.inbox-race__link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.inbox-race__link:focus-visible { outline: 3px solid var(--brand-lime); outline-offset: 2px; border-radius: 6px; }
+
+.inbox-round.card { padding: 24px 28px; }
+.inbox-round__top, .inbox-round__bottom { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0; }
+.inbox-round__money { font: 800 26px/1 var(--font-display); color: var(--text-primary); }
+.inbox-round__days { font: 800 26px/1 var(--font-display); color: var(--brand-orange); }
+.inbox-round__bottom { margin-top: 18px; font: 400 14px/1.3 var(--font-ui); color: var(--text-secondary); }
+
+.inbox-where.card { padding: 22px 28px 24px; }
+.inbox-where__title { margin: 0; color: var(--text-secondary); }
+.inbox-where__text { margin: 12px 0 0; font: 400 14px/1.45 var(--font-ui); color: var(--text-primary); }
+
+/* The phone's race card, over the list. */
+.inbox-banner { display: flex; flex-direction: column; gap: 6px; padding: 18px 20px 20px; border-radius: var(--radius-card); background: var(--brand-forest); color: var(--text-on-dark); text-decoration: none; }
+.inbox-banner__eyebrow { color: var(--brand-lime); }
+.inbox-banner__title { font: 700 18px/1.25 var(--font-ui); }
+.inbox-banner__sub { font: 400 14px/1.3 var(--font-ui); color: var(--text-on-dark-muted); }
+.inbox-banner:focus-visible { outline: 3px solid var(--brand-lime); outline-offset: 2px; }
+
+/* The count on Raise in the top bar. */
+.tab__count.badge { margin-left: 8px; }
+
+/* ---------- narrower desktops and tablets: the right column follows the list ---------- */
+@media (max-width: 1100px) {
+  .inbox-page { grid-template-columns: minmax(0, 1fr); }
+  .inbox-page__side { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  .inbox-row__in { grid-template-columns: 26px 116px minmax(0, 1fr) auto auto; gap: 12px; }
+}
+
+/* ---------- phones (iphone-today-inbox.png) ---------- */
+@media (max-width: 720px) {
+  .inbox-page { gap: 18px; padding-bottom: 8px; }
+  .inbox-page__side { display: flex; }
+  .inbox.card { padding-top: 22px; }
+  .inbox__head { padding: 0 20px; }
+  .inbox__title { font-size: 24px; }
+  .inbox__lede { margin-top: 8px; font-size: 14px; }
+  .inbox__groups { padding: 6px 0 4px; }
+  .inbox-group__title { margin: 14px 20px 2px; }
+  .inbox-group--later.is-folded { display: none; }
+  .inbox-row { border-radius: 0; touch-action: pan-y; }
+  .inbox-row.is-leaving { transform: none; }
+  .inbox-row__in {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'type when' 'name name' 'detail link';
+    gap: 4px 12px;
+    min-height: 0;
+    padding: 14px 20px 10px;
+    border-radius: 0;
+  }
+  .inbox-row:not(:first-child) .inbox-row__in::before { left: 20px; right: 20px; }
+  .inbox-row__type { grid-area: type; }
+  .inbox-row__when { grid-area: when; }
+  .inbox-row__text { display: contents; }
+  .inbox-row__name { grid-area: name; margin-top: 2px; font-size: 15px; }
+  .inbox-row__detail { grid-area: detail; align-self: center; font-size: 13px; }
+  .inbox-row__when { font-size: 13px; font-weight: 600; }
+  .inbox-row__link { grid-area: link; min-height: 32px; font-size: 13px; }
+  .inbox-row.is-current .inbox-row__in { box-shadow: none; }
+  .inbox-row:focus-visible .inbox-row__in { box-shadow: inset 0 0 0 3px var(--brand-lime); }
+  .inbox-row.is-swiping-done .inbox-row__in, .inbox-row.is-swiping-snooze .inbox-row__in { box-shadow: var(--shadow-card); }
+  .inbox-clear { padding: 28px 20px 36px; }
+  .inbox-round.card, .inbox-where.card { padding: 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .inbox-row, .inbox-row__in, .inbox-race__fill { transition: none; }
+}

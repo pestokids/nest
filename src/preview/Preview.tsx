@@ -4,7 +4,7 @@
 //   &signin=<state>          a sign-in state: default, hover, checking, noaccess, error, signedout
 //   &pipeline=hidden|shown|end  Pipeline board states (adds a few fake cards; see components/pipeline/preview.ts)
 //   &stage=<key>             with &pipeline on a phone: the stage chip that starts selected
-//   &today=nothingdue|win    Raise · Today states
+//   &today=nothingdue|win    Raise · Today states (PST-297 adds inbox, phone and clear below)
 //   &drawer=<state>          the investor drawer: view, edit, new, advance, touch, history, emails, notes, delete
 //   &google=<state>          Calendar and Gmail: none (default), connected, syncing, reconnect (&drawer=emails implies connected)
 //   &sheet                   the drawer as the phone bottom sheet at any width
@@ -71,6 +71,13 @@
 //   &investors=find-more      the Find more panel open, before a run (Search the web plays a pretend run)
 //   &find=running|results|empty  with &investors=find-more: a run searching, eight new investors, a run that found nobody new
 //   ---------- end PST-296 ----------
+//   ---------- PST-297: the Today Inbox (see preview/inboxFixture.ts) ----------
+//   &today=inbox             Today as one Inbox with a row of every type (made-up sources over the fixture; Google connected)
+//   &today=phone             the same, with the first row half-swiped to Done (screenshot at 440 wide)
+//   &today=clear             every row done: the sleeping nest and the once-a-day confetti
+//   &today=win               the ask logged from its Next move row (confetti and the Cheer toast)
+//   &system=list-focus       on Today: the J/K focus ring on the second row
+//   ---------- end PST-297 ----------
 //   &fail                    every write fails (save-failed toast with Retry)
 //   any unknown path         the 404, e.g. /nowhere?preview
 import { useEffect, useRef } from 'react'
@@ -100,6 +107,8 @@ import { useInstant } from '../components/system/useInstant'
 import { DecisionsProvider } from '../components/decisions/data' // PST-293
 import { RaceProvider } from '../components/race/data' // PST-295
 import { PREVIEW_RACE, type PreviewRace } from './raceFixture' // PST-295
+import { InboxProvider } from '../components/inbox/data' // PST-297
+import { isInboxPreview } from './inboxFixture' // PST-297
 
 const session = { me: { firstName: 'Dev', name: 'Dev Preview', email: 'dev@example.com' }, signOut: () => {} }
 
@@ -140,7 +149,7 @@ export function Preview() {
   const state = { today, drawer, sheet: q.has('sheet'), investors: q.get('investors'), plan: q.get('plan'), settings: q.get('settings'), system: q.get('system'), suggestions, qanda: q.get('qanda'), materials, agents, notes: q.get('notes'), drafts, ask, introducer: q.get('introducer'), draft: q.get('draft'), warmPath, race }
   const insights = q.get('insights')
   const extra = { loading: state.system === 'loading', mid: state.plan === 'mid', fail: q.has('fail'), insights: insights === 'default' || insights === 'behind' ? (insights as 'default' | 'behind') : undefined, race: race ? (race === 'race-lead' ? ('lead' as const) : ('race' as const)) : undefined }
-  const google: PreviewGoogle = (PREVIEW_GOOGLE as readonly string[]).includes(q.get('google') ?? '') ? (q.get('google') as PreviewGoogle) : drawer === 'emails' || q.get('qanda') === 'prep' || ask === 'prep' ? 'connected' : 'none'
+  const google: PreviewGoogle = (PREVIEW_GOOGLE as readonly string[]).includes(q.get('google') ?? '') ? (q.get('google') as PreviewGoogle) : drawer === 'emails' || q.get('qanda') === 'prep' || ask === 'prep' || /* PST-297 */ isInboxPreview(today) ? 'connected' : 'none'
   const ai: PreviewAI = (PREVIEW_AI as readonly string[]).includes(q.get('ai') ?? '') ? (q.get('ai') as PreviewAI) : 'default'
   /* ---------- PST-293: &signal=auto|decide and &pipeline=maybes ---------- */
   const decisionState = { signal: q.get('signal'), pipeline: q.get('pipeline') }
@@ -174,6 +183,8 @@ export function Preview() {
                 <DecisionsProvider>
                 {/* PST-295 */}
                 <RaceProvider>
+                {/* PST-297 */}
+                <InboxProvider>
                 <PreviewWispr state={wispr} fail={extra.fail}>
                   {/* PST-289 */}
                   <PreviewFeedback state={feedback} fail={extra.fail}>
@@ -184,6 +195,7 @@ export function Preview() {
                     </AppShell>
                   </PreviewFeedback>
                 </PreviewWispr>
+                </InboxProvider>
                 </RaceProvider>
                 </DecisionsProvider>
               </DraftsProvider>

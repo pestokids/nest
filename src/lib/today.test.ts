@@ -73,6 +73,19 @@ describe('next moves', () => {
     expect(askMove([a, b], asked, undefined, TODAY, new Set([b._id]))?.title).toBe('Ask Big for a number')
   })
 
+  it('names the higher-Priority investor when Priority is given (PST-297)', () => {
+    const a = inv({ name: 'Small', stage: 'm1', expected: 10000 })
+    const b = inv({ name: 'Big', stage: 'm1', expected: 90000 })
+    const c = inv({ name: 'Diligence', stage: 'dd', expected: 5000 })
+    const prio = (id: string) => (id === a._id ? 90 : 40)
+    expect(askMove([a, b], [], undefined, TODAY, undefined, prio)?.title).toBe('Ask Small for a number')
+    expect(askMove([a, b, c], [], undefined, TODAY, undefined, prio)?.title).toBe('Ask Diligence for a number')
+    const full = Array.from({ length: 10 }, (_, i) => inv({ name: `N${i}`, path: 'Ria', expected: i === 0 ? 90000 : 10000 }))
+    const keen = full[7]._id
+    const m = nextMoves({ investors: full, acts: [], round, today: TODAY, priority: (id) => (id === keen ? 80 : 20) })
+    expect(m.map((x) => x.key)).toContain(`reach:${keen}`)
+  })
+
   it('says which phase it works from', () => {
     expect(movesNote(round, TODAY)).toBe('Prep ends Mon 7 Jan. Do these in order.')
     expect(movesNote(round, '2029-12-30')).toBe('Prep starts Tue 1 Jan. Do these in order.')
