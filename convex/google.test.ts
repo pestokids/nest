@@ -31,7 +31,7 @@ function fakeFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Respon
   const form = new URLSearchParams(typeof init?.body === 'string' ? init.body : '')
   if (url.href.startsWith('https://oauth2.googleapis.com/token')) {
     if (form.get('grant_type') === 'authorization_code')
-      return Promise.resolve(json({ access_token: 'access-new', refresh_token: 'refresh-from-code', scope: 'openid email https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/gmail.metadata' }))
+      return Promise.resolve(json({ access_token: 'access-new', refresh_token: 'refresh-from-code', scope: 'openid email https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/gmail.readonly' }))
     if (form.get('refresh_token') === 'refresh-revoked') return Promise.resolve(json({ error: 'invalid_grant' }, 400))
     return Promise.resolve(json({ access_token: 'access-1' }))
   }
@@ -301,7 +301,7 @@ describe('connect and disconnect', () => {
     const s = await setup()
     const url = new URL(await s.asDev.action(api.google.connect, {}))
     expect(url.origin + url.pathname).toBe('https://accounts.google.com/o/oauth2/v2/auth')
-    expect(url.searchParams.get('scope')).toBe('https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/gmail.metadata')
+    expect(url.searchParams.get('scope')).toBe('https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/gmail.readonly')
     expect(url.searchParams.get('access_type')).toBe('offline')
     expect(url.searchParams.get('prompt')).toBe('consent')
     expect(url.searchParams.get('include_granted_scopes')).toBe('true')
@@ -763,5 +763,44 @@ describe('mapLimit', () => {
         throw new Error(`fail ${x}`)
       }),
     ).rejects.toThrow('fail 1')
+  })
+})
+
+/* ---------- PST-293: reading email text needs gmail.readonly ---------- */
+
+describe('email bodies (PST-293)', () => {
+  const READONLY = 'https://www.googleapis.com/auth/gmail.readonly'
+  const METADATA = 'https://www.googleapis.com/auth/gmail.metadata'
+  /** Google lists the grant's scopes on a refresh. */
+  const refreshWith = (scope: string) =>
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const form = new URLSearchParams(typeof init?.body === 'string' ? init.body : '')
+      if (String(input).startsWith('https://oauth2.googleapis.com/token') && form.get('grant_type') === 'refresh_token') return json({ access_token: 'access-1', scope })
+      return fakeFetch(input, init)
+    }))
+
+  it('a grant with gmail.metadata only shows "Reconnect Google to read email bodies"; gmail.readonly clears it', async () => {
+    const s = await setup()
+    const conn = await s.connect(s.dev, 'founder@pestokids.com')
+    refreshWith('https://www.googleapis.com/auth/calendar.readonly ' + METADATA)
+    expect(await s.t.action(internal.googleSync.run, { connectionId: conn })).toBe('done')
+    expect((await s.asDev.query(api.google.data, {})).me).toMatchObject({ status: 'connected', emailBodies: false })
+    refreshWith('https://www.googleapis.com/auth/calendar.readonly ' + READONLY)
+    await s.t.action(internal.googleSync.run, { connectionId: conn })
+    expect((await s.asDev.query(api.google.data, {})).me).toMatchObject({ emailBodies: true })
+  })
+
+  it('a refresh that lists no scopes leaves it as it was', async () => {
+    const s = await setup()
+    const conn = await s.connect(s.dev, 'founder@pestokids.com')
+    await s.t.mutation(internal.google.setBodies, { connectionId: conn, bodies: false })
+    await s.t.action(internal.googleSync.run, { connectionId: conn })
+    expect((await s.asDev.query(api.google.data, {})).me).toMatchObject({ emailBodies: false })
+  })
+
+  it('connecting again (every scope granted) can read bodies', async () => {
+    const s = await setup()
+    await s.t.mutation(internal.google.store, { userId: s.dev, googleEmail: 'founder@pestokids.com', sealed: await encryptToken('refresh-ok') })
+    expect((await s.asDev.query(api.google.data, {})).me).toMatchObject({ emailBodies: true })
   })
 })

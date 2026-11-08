@@ -25,6 +25,8 @@ import { normEmail } from '../src/lib/google'
 import { DEFAULT_OPTIONS, shareUrl, type MaterialKind } from '../src/lib/materials'
 import { LABEL } from '../src/lib/stages'
 import { addRunUsage } from '../src/lib/models'
+import { askByDate } from '../src/lib/decisions' // PST-293
+import { decisionFor } from './decisions' // PST-293
 
 const noKey = () => new ConvexError({ code: NO_AI_KEY, message: 'AI isn’t set up here.' })
 const vInput = { draftId: v.optional(v.id('drafts')), investorId: v.id('investors'), type: vDraftType, to: v.string(), subject: v.string(), body: v.string() }
@@ -130,6 +132,8 @@ export const context = internalQuery({
       deck: await linked(ctx, investorId, 'deck'),
       dataRoom: await linked(ctx, investorId, 'data-room'),
       sent: sent.sort((a, b) => b.at - a.at).slice(0, 5).map(({ at: _, ...s }) => s),
+      // PST-293
+      askBy: askByDate((await decisionFor(ctx, investorId)).decideBy, todayIST()),
     }
   },
 })

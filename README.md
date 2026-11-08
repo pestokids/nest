@@ -81,7 +81,7 @@ The drawer (`src/components/Drawer.tsx`) is a side drawer on desktop and a botto
 
 ## Calendar and Gmail
 
-Each teammate connects their own Google account on Settings (Connect Google: a separate OAuth flow from sign-in, read-only scopes `calendar.readonly` and `gmail.metadata`, offline). The callback is an HTTP action at `/google/callback` (`convex/googleOAuth.ts`). A cron (`convex/crons.ts`) syncs every connection every 10 minutes (`convex/googleSync.ts`): Calendar incrementally with a sync token (first sync 30 days back, 60 ahead), Gmail from the stored history id (first sync reads the last 30 days of threads, newest first). Matching and rules live in `src/lib/google.ts`:
+Each teammate connects their own Google account on Settings (Connect Google: a separate OAuth flow from sign-in, read-only scopes `calendar.readonly` and `gmail.readonly`, offline; connections made before PST-293 have `gmail.metadata` and keep working on headers). The callback is an HTTP action at `/google/callback` (`convex/googleOAuth.ts`). A cron (`convex/crons.ts`) syncs every connection every 10 minutes (`convex/googleSync.ts`): Calendar incrementally with a sync token (first sync 30 days back, 60 ahead), Gmail from the stored history id (first sync reads the last 30 days of threads, newest first). Matching and rules live in `src/lib/google.ts`:
 
 - An investor is matched by exact email first (`email` and `emails`), then by firm domain (`domains`). Personal mail domains (gmail.com, outlook.com…) and our own pestokids.com addresses never match.
 - A future meeting moves the investor to Booked if they're behind it (forward only, never past Diligence), and sets the next step and date. A past meeting, or an email either way, sets Last touch. Stage changes from sync are logged with `source: calendar`.
@@ -95,7 +95,7 @@ What Nest stores, per teammate who connects:
 
 - **The connection**: the Google address, sync cursors, last sync time, and the refresh token, encrypted (AES-256-GCM) with `GOOGLE_TOKEN_KEY`. No query returns the token and it never reaches the browser.
 - **Meetings**: calendar events with at least one person from outside pestokids.com: title, start and end, the outside attendees' emails and display names, and the event link. Meetings that match no investor are only shown to the person whose calendar they're on, and are dropped after 15 days.
-- **Email touches**: only Gmail threads with an investor in them: subject, participants' email addresses, the date and sender of the last message, the message count and the Gmail link. Never bodies, snippets or attachments (the `gmail.metadata` scope can't read them anyway).
+- **Email touches**: only Gmail threads with an investor in them: subject, participants' email addresses, the date and sender of the last message, the message count and the Gmail link. Never bodies, snippets or attachments. PST-293: each new email from an investor is read once in the sync, stripped of quoted replies and the signature, and handed to Jev for signals; the text is never stored (see Decisions and signals).
 
 Disconnecting (Settings → Disconnect) deletes your connection, your meetings and your email touches, and asks Google to revoke the grant. Stage moves that sync already made stay in each investor's History.
 
@@ -195,6 +195,18 @@ Jev is TypeSafe's "System One" model (`jev-latest`, docs.typesafe.ai). It never 
 
 Code: the client `askJev(ctx, { feature, state, questions })` is in `convex/lib/jev.ts` (it re-exports the question builders for signals and scoring), the pure parts (questions, thresholds, trigrams, cost) in `src/lib/jev.ts`, the event hooks in `convex/lib/jevHooks.ts`, the checks in `convex/jevHousekeeping.ts` and the tables in `convex/jevSchema.ts`. Preview: `&ai=jev` (Settings), `&whos=prechecked` (Today), `&suggestions=jev`, `&notes=probably` and `&qanda=jev`.
 <!-- end PST-292 -->
+
+<!-- PST-293: decisions and signals -->
+## Decisions and signals
+
+Each investor has a decision apart from their stage (`convex/decisions.ts`, table `decisions`): a status (Interested, Maybe, Yes or No), a decide-by date (7 days after the 1st call unless Dev sets or clears it, in the drawer or with ⌘K "Set a decide-by date"), the calls so far (days with a past Calendar meeting, a logged call or meeting, or a move to 1st or 2nd meeting; "ask or drop" at the 3rd) and how long they've been a maybe. Every status change is logged (`decisionLog`) for History and Undo. In the drawer, Y marks Yes.
+
+**Signals (Jev)**: one call per new Gmail message from an investor (Dev's own, auto-replies and no-reply senders skipped; subject plus body, quoted replies and signature cut) asks what they want (deck, data, numbers, a meeting, an intro, nothing), whether it's a pass, and whether it's real interest. One call per new meeting note tied to an investor asks their status, whether they offered to lead, whether they said to come back with a lead, and their interest from 1 to 5. Each lands in `signals` with the answers and probabilities and a reference to the email or note (never the text). Sure answers (a Choice at 0.85, a Noul at 0.85 or 0.15; `THRESHOLDS` in `src/lib/jev.ts`) change the status by themselves, with an Undo toast and "Auto" in History: a pass sets No, "come back with a lead" sets Maybe ("wants a lead"). A Yes or No Dev holds is never changed by itself. Unsure answers become Decide rows; sure asks become Inbox rows. When Jev can't answer, nothing changes.
+
+**Pipeline › Maybes** (`?view=maybes` until PST-295's switcher): maybes, the longest first, with Ask for a yes or no (a "Yes or no" draft), Mark as no or Set a date. **Inbox selectors** for PST-297 are in `src/lib/inbox.ts` (decide-by passed, 3rd call done, new asks, Decide rows); Today shows them in Due today for now. `useDecisions().latestSignal(investor)` is for PST-295's race lanes.
+
+Code: pure parts in `src/lib/decisions.ts` and `src/lib/signals.ts`, hooks in `convex/lib/signalHooks.ts`, Jev calls in `convex/signals.ts`, tables in `convex/decisionsSchema.ts`. Preview: `&drawer=decision`, `&pipeline=maybes`, `&signal=auto` and `&signal=decide`.
+<!-- end PST-293 -->
 
 ## System states
 

@@ -16,7 +16,11 @@ export const JEV_MAX_CAP = 10
 export const JEV_STATE_CHARS = 24_000
 
 /** What each call is for (jevRuns.feature). PST-293 and PST-296 add theirs here. */
-export const JEV_FEATURES = ['whos_this', 'unmatched_notes', 'duplicate_firms', 'qa_repeats'] as const
+export const JEV_FEATURES = [
+  'whos_this', 'unmatched_notes', 'duplicate_firms', 'qa_repeats',
+  // PST-293: signals from emails and notes (src/lib/signals.ts).
+  'email_signals', 'note_signals',
+] as const
 export type JevFeature = (typeof JEV_FEATURES)[number]
 
 /* ---------- questions and answers (docs.typesafe.ai/primitives) ---------- */
@@ -123,6 +127,13 @@ export const THRESHOLDS = {
   qaSimilar: 0.2,
   qaSame: 0.85,
   qaNone: 0.3,
+  /* ---------- PST-293: signals from emails and notes (src/lib/signals.ts) ---------- */
+  /** A Choice whose top pick is at least this changes the decision on its own (and an ask makes an Inbox row). */
+  signalChoice: 0.85,
+  /** A Noul at least this is a sure yes, and at most `signalNo` a sure no. Anything between is a Decide row. */
+  signalYes: 0.85,
+  signalNo: 0.15,
+  /* ---------- end PST-293 ---------- */
 } as const
 
 /** The option with the highest probability, and that probability. */

@@ -3,7 +3,7 @@ import { createContext, useContext } from 'react'
 // DEV/preview only: which state `?preview` should show (Today, the drawer, and the
 // Investors / Plan / Settings / system states). Null outside preview.
 export const PREVIEW_TODAY = ['default', 'nothingdue', 'win'] as const
-export const PREVIEW_DRAWER = ['view', 'edit', 'new', 'advance', 'touch', 'history', 'emails', 'materials', 'notes', 'delete'] as const
+export const PREVIEW_DRAWER = ['view', 'edit', 'new', 'advance', 'touch', 'history', 'emails', 'materials', 'notes', 'delete', /* PST-293 */ 'decision'] as const
 export type PreviewToday = (typeof PREVIEW_TODAY)[number]
 export type PreviewDrawer = (typeof PREVIEW_DRAWER)[number]
 export type PreviewState = {
@@ -32,6 +32,12 @@ export type PreviewState = {
   drafts?: string | null
   /** PST-279 `&ask=empty|thinking|streaming|answer|verbal|prep|deck|unknown|failed` (⌘K opens in Ask mode) */
   ask?: string | null
+  /* ---------- PST-293 ---------- */
+  /** `&signal=auto|decide` (src/preview/decisionsFixture.ts) */
+  signal?: string | null
+  /** `&pipeline=maybes`: Pipeline › Maybes (the board states stay `hidden|shown|end`) */
+  pipeline?: string | null
+  /* ---------- end PST-293 ---------- */
 }
 
 /** PST-279 `&ask=…`: the question ⌘K asks as it opens in Ask mode (empty: just Ask mode). See src/preview/askFixture.ts. */

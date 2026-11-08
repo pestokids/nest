@@ -4,17 +4,21 @@
 import { domainOf, isOurs, nameFromEmail, normEmail } from './google'
 import { COMMIT, type Stage } from './stages'
 
-export const DRAFT_TYPES = ['intro', 'followup', 'nudge', 'thanks', 'dataroom', 'confirm', 'allocation'] as const
+export const DRAFT_TYPES = [
+  'intro', 'followup', 'nudge', 'thanks', 'dataroom', 'confirm', 'allocation',
+  // PST-293: "Ask for a yes or no" (Pipeline › Maybes, the Inbox).
+  'decision',
+] as const
 export type DraftType = (typeof DRAFT_TYPES)[number]
 export const TYPE_LABEL: Record<DraftType, string> = {
-  intro: 'Intro ask', followup: 'Follow-up', nudge: 'Nudge', thanks: 'Thank you', dataroom: 'Data room', confirm: 'Written confirmation', allocation: 'Allocation',
+  intro: 'Intro ask', followup: 'Follow-up', nudge: 'Nudge', thanks: 'Thank you', dataroom: 'Data room', confirm: 'Written confirmation', allocation: 'Allocation', decision: 'Yes or no',
 }
 /**
  * The types Claude writes. PST-291: "confirm" (the written confirmation) and
  * "allocation" are fixed templates from Close (src/lib/closeKit.ts): Nest fills
  * in the amount, cap and dates from the records, and Claude never rewrites them.
  */
-export const AI_DRAFT_TYPES = ['intro', 'followup', 'nudge', 'thanks', 'dataroom'] as const
+export const AI_DRAFT_TYPES = ['intro', 'followup', 'nudge', 'thanks', 'dataroom', 'decision'] as const
 export type AiDraftType = (typeof AI_DRAFT_TYPES)[number]
 export const isAiType = (t: DraftType): t is AiDraftType => (AI_DRAFT_TYPES as readonly string[]).includes(t)
 
@@ -125,6 +129,7 @@ export function draftTitle(type: DraftType, investor: string, warm?: Recipient |
     case 'dataroom': return 'Share the data room with ' + investor
     case 'confirm': return 'Confirm ' + investor + ' in writing'
     case 'allocation': return 'Allocation for ' + investor
+    case 'decision': return 'Ask ' + investor + ' for a yes or no'
   }
 }
 

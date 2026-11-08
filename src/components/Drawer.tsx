@@ -33,8 +33,10 @@ import { NotesTab } from './qanda/NotesTab'
 import { useUI } from './raise-ui'
 import { Button, buttonClass, Checkbox, Chip, Icon, Input, Segmented, Select, SubTabButtons, Textarea, Toggle, type ChipTone } from './ui'
 import { Link } from '@tanstack/react-router'
+import { DecisionSection, useDecisionHistory } from './decisions/DecisionSection' // PST-293
+import { useDecide, useDecisions } from './decisions/data'
 
-export type DrawerStart = 'view' | 'edit' | 'advance' | 'touch' | 'history' | 'emails' | 'materials' | 'notes' | 'delete'
+export type DrawerStart = 'view' | 'edit' | 'advance' | 'touch' | 'history' | 'emails' | 'materials' | 'notes' | 'delete' | /* PST-293 */ 'decision'
 type Mode = 'view' | 'edit' | 'advance' | 'touch' | 'park' | 'delete'
 type Tab = 'details' | 'history' | 'emails' | 'materials' | 'notes'
 
@@ -149,7 +151,7 @@ export function Drawer({ id, start = 'view', forceSheet, onClose }: { id: string
   const inv = id ? d.investors.find((i) => i._id === id) : undefined
   const isNew = !id
   const startTab: Tab = ui.opening.tab ?? (start === 'history' || start === 'emails' || start === 'materials' || start === 'notes' ? start : 'details')
-  const [mode, setMode] = useState<Mode>(isNew ? 'edit' : startTab !== 'details' ? 'view' : start === 'view' && ui.opening.mode ? ui.opening.mode : (start as Mode))
+  const [mode, setMode] = useState<Mode>(isNew ? 'edit' : startTab !== 'details' ? 'view' : start === 'view' && ui.opening.mode ? ui.opening.mode : start === 'decision' ? 'view' : (start as Mode))
   /** PST-290: Y opens the Verbal step, which may be more than one stage on. */
   const [advanceTo, setAdvanceTo] = useState<PipelineStage | null>(null)
   const instant = useInstant()
@@ -162,6 +164,8 @@ export function Drawer({ id, start = 'view', forceSheet, onClose }: { id: string
   const stageChip = useRef<HTMLSpanElement>(null)
   const uid = useId()
   const log = d.useLog(inv ? inv._id : null)
+  const decisions = useDecisions() // PST-293
+  const decide = useDecide()
   const emailCount = inv ? d.google.threads.filter((t) => t.investorIds.includes(inv._id)).length : 0
 
   const close = useCallback(() => {
@@ -216,12 +220,9 @@ export function Drawer({ id, start = 'view', forceSheet, onClose }: { id: string
       } else if (is('logTouch')) setMode('touch')
       else if (is('askNumber')) instant.ask(inv)
       else if (is('yes')) {
-        // Until decisions land (PST-293), yes is the Verbal step.
-        if ((IDX[inv.stage] ?? -1) >= IDX.verbal!) nope()
-        else {
-          setAdvanceTo('verbal')
-          setMode('advance')
-        }
+        // PST-293: Y marks the decision Yes (the Verbal step is still M, or the advance panel).
+        if (decisions.decisionOf(inv._id).status === 'yes') nope()
+        else decide.status(inv, 'yes')
       } else if (is('no')) {
         if (inv.stage === 'passed') nope()
         else instant.pass(inv, stageChip.current)
@@ -235,7 +236,7 @@ export function Drawer({ id, start = 'view', forceSheet, onClose }: { id: string
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [inv, mode, closing, instant, ui])
+  }, [inv, mode, closing, instant, ui, decisions, decide])
 
   // No page scroll behind the drawer.
   useEffect(() => {
@@ -558,6 +559,8 @@ function Details({ inv, log, sheet, onDelete, onEdit }: { inv: Investor; log: Ac
   if (inv.committed) rows.splice(1, 0, ['Committed', money(inv.committed)])
   return (
     <div className="details">
+      {/* PST-293 */}
+      <DecisionSection inv={inv} />
       <InvestorEnrich inv={inv} sheet={sheet} />
       <dl className="details__rows">
         {rows.map(([k, v]) => (
@@ -594,11 +597,12 @@ function eventText(a: Activity): [string, string] {
   return ['Note', a.note ?? '']
 }
 
-const SOURCE_LABEL = { calendar: 'From Calendar', gmail: 'From Gmail' } as const
+const SOURCE_LABEL = { calendar: 'From Calendar', gmail: 'From Gmail', /* PST-293: a status Nest set from a signal */ auto: 'Auto' } as const
 
 function History({ inv, log, fresh }: { inv: Investor; log: Activity[] | undefined; fresh: boolean }) {
   const today = todayIST()
   const { google } = useRaise()
+  const decisions = useDecisionHistory(inv._id) // PST-293
   if (log === undefined) return <div className="history history--loading" aria-busy="true" />
   type Item = { key: string; date: string; title: string; sub: string; by?: string; from?: keyof typeof SOURCE_LABEL; at?: number }
   const items: Item[] = log.map((a) => {
@@ -609,6 +613,8 @@ function History({ inv, log, fresh }: { inv: Investor; log: Activity[] | undefin
   const now = Date.now()
   for (const m of dedupeMeetings(google.meetings.filter((x) => x.investorIds.includes(inv._id))))
     items.push({ key: 'm-' + m._id, date: dayOf(m.start), at: m.start, title: m.start > now ? 'Meeting booked' : 'Meeting', sub: `${m.title} · ${timeOf(m.start)}`, by: m.by, from: 'calendar' })
+  // PST-293: status changes (Nest's own marked Auto).
+  for (const x of decisions) items.push({ key: x.key, date: todayIST(x.at), at: x.at, title: x.title, sub: x.sub, by: x.by, from: x.auto ? 'auto' : undefined })
   items.sort((a, b) => b.date.localeCompare(a.date) || (b.at ?? 0) - (a.at ?? 0))
   if (inv._creationTime)
     items.push({ key: 'added', date: todayIST(inv._creationTime), title: 'Added to the nest', sub: inv.source || '', by: undefined })

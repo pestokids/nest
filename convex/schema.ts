@@ -13,6 +13,8 @@ import { wisprTables } from './wisprSchema'
 import { feedbackTables } from './feedbackSchema' // PST-289
 // PST-292: Jev (jevRuns, jevCache, jevMarks; see jevSchema.ts).
 import { jevTables } from './jevSchema'
+// PST-293: decisions and signals (decisions, decisionLog, signals; see decisionsSchema.ts).
+import { decisionTables } from './decisionsSchema'
 import { roundFields, vGeo, vMeetingAnswer, vPipelineStage, vStage, vSyncSource, vTier, vTouch, vType, vWarmth, vWave } from './validators'
 import { vSuggestionKind, vSuggestionPatch, vSuggestionSource, vSuggestionStatus, vSuggestionUndo } from './validators'
 import { vAnswerVersion, vAskSource, vQuestionMerge } from './validators'
@@ -116,6 +118,8 @@ export default defineSchema({
     ),
     /** An investor's emails or domains changed: read the last 30 days again on the next run. */
     rescan: v.optional(v.boolean()),
+    // PST-293 (optional, additive): the grant has gmail.readonly, so the sync can read email text for Jev. False: metadata only, reconnect.
+    gmailBodies: v.optional(v.boolean()),
   }).index('by_user', ['userId']),
 
   // Calendar events with at least one outside attendee. Title, times, attendees' emails (and display names), the event link.
@@ -283,4 +287,8 @@ export default defineSchema({
   /* ---------- PST-291: close kit and allocation (allocations; closings and the round row gain optional fields; see closeSchema.ts) ---------- */
   ...closeKitTables,
   /* ---------- end PST-291 ---------- */
+
+  /* ---------- PST-293: decisions and signals (decisions, decisionLog, signals; see decisionsSchema.ts) ---------- */
+  ...decisionTables,
+  /* ---------- end PST-293 ---------- */
 })

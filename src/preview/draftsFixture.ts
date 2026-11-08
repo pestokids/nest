@@ -11,6 +11,9 @@
 //   failed    Claude failed (Try again)                    history   the drawer's History with the last drafts
 import { DECK_LINK, type AiDraftType, type Draft, type DraftType, type Known, type Tweak } from '../lib/drafts'
 import type { Investor } from '../lib/pipeline'
+import { todayIST } from '../lib/dates' // PST-293
+import { dayMonth } from '../lib/home'
+import { addDays } from '../lib/today'
 
 export const PREVIEW_DRAFTS = ['followup', 'intro', 'blurb', 'nudge', 'thanks', 'dataroom', 'writing', 'nokey', 'noemail', 'copied', 'failed', 'history'] as const
 export type PreviewDrafts = (typeof PREVIEW_DRAFTS)[number]
@@ -69,6 +72,12 @@ function base(type: AiDraftType, i: Investor, deck: string, dataRoom: string): {
       }
     case 'dataroom':
       return { subject: 'Pesto · data room', paras: [hi, 'Here’s our data room: ' + dataRoom, 'Everything we’ve shared so far is in one place.', 'What would you like to see first?', 'Dev'] }
+    // PST-293: "Ask for a yes or no"
+    case 'decision':
+      return {
+        subject: 'Pesto · a yes or a no?',
+        paras: [hi, 'Thanks for the time you’ve given Pesto so far.', 'Could you let me know by ' + dayMonth(addDays(todayIST(), 5)) + ' whether you’re in? A no is completely fine and helps me plan the round.', 'Dev'],
+      }
     case 'intro': {
       const warm = /ankur/i.test(i.path) ? 'Ankur' : /ria/i.test(i.path) ? 'Ria' : null
       return warm

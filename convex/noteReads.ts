@@ -15,6 +15,7 @@ import { conform, SchemaError } from './lib/jsonSchema'
 import { DRAFT_SYSTEM, draftPrompt, notePrompt, SYSTEM, vNoteAnswer } from './lib/notesPrompt'
 import { READ_STALE_MS, startRead } from './lib/noteRead'
 import { matchNoteLater } from './lib/jevHooks'
+import { noteSignalLater } from './lib/signalHooks' // PST-293
 import { acceptOne, insertSuggestion, reopen } from './suggestions'
 import { vNoteSource, vProposal } from './notesSchema'
 import { vModel, vUsage } from './validators'
@@ -314,6 +315,7 @@ export async function addMeetingNotes(
     const noteId = await ctx.db.insert('notes', {
       investorId, date, text, title: meetingTitle.slice(0, LIMITS.title), source: a.source, ...(meetingId ? { meetingId } : {}),
     })
+    await noteSignalLater(ctx, noteId) // PST-293
     return { noteId, investorId, readId: await startRead(ctx, noteId, { auto: true }) }
 }
 
@@ -352,6 +354,7 @@ export async function attachUnmatched(ctx: MutationCtx, u: Doc<'unmatchedNotes'>
   const noteId = await ctx.db.insert('notes', { investorId, date: u.date, text: u.text, title: u.meetingTitle.slice(0, LIMITS.title), source: u.source, ...(meeting ? { meetingId: meeting._id } : {}) })
   await ctx.db.patch(u._id, { noteId })
   await startRead(ctx, noteId, { auto: true })
+  await noteSignalLater(ctx, noteId) // PST-293
   return noteId
 }
 

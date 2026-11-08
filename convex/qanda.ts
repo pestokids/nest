@@ -16,6 +16,7 @@ import { firstName, requireUser } from './lib/access'
 import { vAskSource, type vSuggestionUndo } from './validators'
 import { startRead } from './lib/noteRead'
 import { checkRepeatLater } from './lib/jevHooks'
+import { noteSignalLater } from './lib/signalHooks' // PST-293
 import { isISODate, todayIST } from '../src/lib/dates'
 import { cleanQuestion, cleanTheme, guessTheme, LIMITS, needsAnswer, nextDeck, noteLines, sameText } from '../src/lib/qanda'
 
@@ -319,6 +320,7 @@ export const addNote = mutation({
     const title = a.title?.replace(/\s+/g, ' ').trim().slice(0, LIMITS.title) || undefined
     const id = await ctx.db.insert('notes', { investorId: a.investorId, meetingId: a.meetingId, date: dayOr(a.date), text, title, createdBy: userId, source: 'paste' })
     await startRead(ctx, id, { auto: true })
+    await noteSignalLater(ctx, id) // PST-293
     return id
   },
 })

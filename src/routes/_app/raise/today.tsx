@@ -7,6 +7,7 @@ import { MaterialOpens } from '../../../components/materials/Opens'
 import { MorningBrief } from '../../../components/MorningBrief'
 import { Suggestions } from '../../../components/Suggestions'
 import { UnmatchedNotes } from '../../../components/qanda/UnmatchedNotes'
+import { DecisionRows, useDecisionInbox } from '../../../components/decisions/InboxRows' // PST-293
 import { EggHatching, NestSleeping, NestWithEggs } from '../../../components/illustrations'
 import { PhaseBar } from '../../../components/PhaseBar'
 import { usePreviewState } from '../../../components/preview-state'
@@ -269,7 +270,10 @@ function DueToday({ today }: { today: string }) {
   const [gone, setGone] = useState<ReadonlySet<string>>(() => new Set())
   const [leaving, setLeaving] = useState<ReadonlySet<string>>(() => new Set())
   const rows = all.filter((i) => !gone.has(i._id))
-  const countRef = usePop<HTMLSpanElement>(rows.length)
+  // PST-293: decisions to make (until PST-297's Inbox replaces Today).
+  const decisionRows = useDecisionInbox(today)
+  const count = rows.length + decisionRows.length
+  const countRef = usePop<HTMLSpanElement>(count)
 
   async function tick(i: Investor) {
     setLeaving((s) => new Set(s).add(i._id))
@@ -294,14 +298,14 @@ function DueToday({ today }: { today: string }) {
       <header className="list-panel__head">
         <h2 id="due-title" className="today__h2">
           Due today
-          {rows.length ? (
-            <Badge ref={countRef} className="list-panel__badge" aria-label={`${rows.length} due`}>
-              {rows.length}
+          {count ? (
+            <Badge ref={countRef} className="list-panel__badge" aria-label={`${count} due`}>
+              {count}
             </Badge>
           ) : null}
         </h2>
       </header>
-      {rows.length ? (
+      {count ? (
         <ul className="rows">
           {rows.map((i) => {
             const due = dueDate(i)!
@@ -325,6 +329,7 @@ function DueToday({ today }: { today: string }) {
               </li>
             )
           })}
+          <DecisionRows rows={decisionRows} />
         </ul>
       ) : (
         <div className="empty-state empty-state--cream">
