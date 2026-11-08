@@ -86,7 +86,8 @@ export const addRunUsage = (a: RunUsage, b: RunUsage): RunUsage => ({
 
 /* ---------- features, and which model each runs on ---------- */
 
-export const FEATURES = ['enrich', 'notes', 'drafts', 'ask', 'brief'] as const
+// PST-296 adds find (Find more like these: Haiku with web search).
+export const FEATURES = ['enrich', 'notes', 'drafts', 'ask', 'brief', 'find'] as const
 export type Feature = (typeof FEATURES)[number]
 export const FEATURE_LABEL: Record<Feature, string> = {
   enrich: 'Enrichment & Who’s this? lookups',
@@ -94,9 +95,10 @@ export const FEATURE_LABEL: Record<Feature, string> = {
   drafts: 'Drafts',
   ask: 'Ask Nest',
   brief: 'Morning brief',
+  find: 'Find more',
 }
 /** The model a run used before runs recorded it (PST-273): Sonnet, except the brief, which was always Haiku. */
-export const LEGACY_MODEL: Record<Feature, Model> = { enrich: SONNET, notes: SONNET, drafts: SONNET, ask: SONNET, brief: HAIKU }
+export const LEGACY_MODEL: Record<Feature, Model> = { enrich: SONNET, notes: SONNET, drafts: SONNET, ask: SONNET, brief: HAIKU, find: HAIKU }
 
 /** Settings › AI: the default model, and the features that have their own. */
 export type ModelChoice = { default: Model; features: Partial<Record<Feature, Model>> }
@@ -119,6 +121,7 @@ export const modelFor = (c: ModelChoice, f: Feature): Model => c.features[f] ?? 
  *   ask: 2K of instructions and tools, then three lookups of about 3K, each
  *     turn reading the ones before (2+5+8+11 = 26K); a 500-token answer.
  *   brief: three moves' facts, 1.5K; three one-line reasons.
+ *   find: six searches (three companies, three investors); see findEstimate in src/lib/findMore.ts.
  */
 export const TYPICAL: Record<Feature, RunUsage> = {
   enrich: { input: 90_000, output: 3_000, cacheRead: 0, cacheWrite: 0, webSearches: 3 },
@@ -126,6 +129,7 @@ export const TYPICAL: Record<Feature, RunUsage> = {
   drafts: { input: 3_000, output: 400, cacheRead: 0, cacheWrite: 0, webSearches: 0 },
   ask: { input: 26_000, output: 500, cacheRead: 0, cacheWrite: 0, webSearches: 0 },
   brief: { input: 1_500, output: 150, cacheRead: 0, cacheWrite: 0, webSearches: 0 },
+  find: { input: 105_000, output: 6_000, cacheRead: 0, cacheWrite: 0, webSearches: 6 },
 }
 /** Runs with stored usage a feature needs before its estimate uses them instead of TYPICAL. */
 export const MIN_REAL_RUNS = 5

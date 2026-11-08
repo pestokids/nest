@@ -211,6 +211,17 @@ Each investor has a decision apart from their stage (`convex/decisions.ts`, tabl
 
 Code: pure parts in `src/lib/decisions.ts` and `src/lib/signals.ts`, hooks in `convex/lib/signalHooks.ts`, Jev calls in `convex/signals.ts`, tables in `convex/decisionsSchema.ts`. Preview: `&drawer=decision`, `&pipeline=maybes`, `&signal=auto` and `&signal=decide`.
 <!-- end PST-293 -->
+<!-- PST-296: Find more and Jev fit scores -->
+## Find more like these, and Priority with Jev
+
+**Find more like these** on Investors (`convex/findMore.ts`, rules in `src/lib/findMore.ts`) starts from the companies one step ahead of Pesto (editable chips, saved in `findSettings`) and the top three Priority investors. The panel shows the estimated cost before anything runs: Haiku's tokens plus a web search per seed (at most 10) at $10 per 1,000, and a Jev call per candidate. A run asks Haiku with the web search tool only (`convex/lib/findPrompt.ts`) for investors who backed those companies or invest alongside those investors, then keeps those with a deal in the last 12 months, drops anyone already in Nest (same firm domain, or the same firm or name once normalised) or already suggested, and keeps at most 30. The run's real cost is on its `findRuns` row and in Settings › AI's spend view under Find more (its Jev calls count under Jev).
+
+Each candidate gets one Jev call with four Score questions (stage fit, check-size fit, thesis fit, recent activity). Jev reads the round's facts (pre-seed, the target, and checks from the minimum check to a quarter of the target) and the candidate's own facts, never another investor's name. Nest weighs the answers into a fit score (`src/lib/fitScore.ts`: stage 0.3, check size 0.25, thesis 0.3, activity 0.15). When Jev answers null (off, no key, the cap), the candidate gets the Priority score Nest always worked out. Each result shows its reason chips, a warm path when someone on the team met or emailed a person at the firm's domain (Gmail and Calendar), and its sources.
+
+"Add" and "Add N to Wave 2" file new-investor suggestions (source `find_more`). Nothing is on the list until Dev accepts one in Suggestions; then it's added as Not contacted (in Wave 2 for the batch), with the firm's domain and its Jev score.
+
+**Sort: Priority** uses the same Jev fit score in place of the light Fit for investors already in Nest (`jevScores`). A score is only recomputed when enrichment keeps a fund fact and the facts Jev reads have changed: Nest hashes those facts with the questions (`factsHash`) and skips the call when the hash matches. There is no sweep.
+<!-- end PST-296 -->
 
 ## System states
 

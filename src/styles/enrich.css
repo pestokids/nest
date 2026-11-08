@@ -263,3 +263,5 @@
 .set-ai-sees__list li { display: flex; align-items: flex-start; gap: 10px; font: 400 14px/1.35 var(--font-ui); color: var(--text-primary); }
 .set-ai-sees__tick { display: grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--brand-forest); color: var(--brand-lime); }
 .set-ai-sees__note { margin: 18px 0 0; font: 400 13px/1.35 var(--font-ui); color: var(--text-secondary); }
+/* PST-296 */
+.set-ai__seg--find { background: var(--brand-forest-2); }

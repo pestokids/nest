@@ -11,6 +11,9 @@ import { exportInvestors } from '../../../components/investors/exportCsv'
 import { InvestorViews } from '../../../components/investors/InvestorViews' // PST-294
 import { IntroducersView } from '../../../components/introducers/IntroducersView' // PST-294
 import { Button } from '../../../components/ui' // PST-294
+// PST-296: Find more like these, and Jev's fit scores in Sort: Priority.
+import { FindMoreButton, FindMorePanel } from '../../../components/investors/FindMore'
+import { previewFind, usePriorityScores } from '../../../components/investors/findMoreData'
 import { useUI } from '../../../components/raise-ui'
 import { useListKeys } from '../../../components/system/useListKeys'
 import { usePreviewState } from '../../../components/preview-state'
@@ -68,9 +71,12 @@ function Investors() {
   const today = todayIST()
   const inv = d.investors
   const fits = d.useFits()
+  const jevScores = usePriorityScores()
   const byPriority = s.sort === 'priority'
-  // PST-284: scored against the whole list (the round's average check), whatever the filters show.
-  const prio = useMemo(() => (byPriority ? priorities(inv, fits, today) : undefined), [byPriority, inv, fits, today])
+  // PST-284: scored against the whole list (the round's average check), whatever the filters show. PST-296: Jev's fit score where there is one.
+  const prio = useMemo(() => (byPriority ? priorities(inv, fits, today, jevScores) : undefined), [byPriority, inv, fits, today, jevScores])
+  // PST-296: ?preview&investors=find-more (and &find=…) opens the panel.
+  const [findOpen, setFindOpen] = useState(() => flags?.investors === 'find-more' || (!!flags && !!previewFind()))
 
   const setSearch = useCallback((patch: Partial<InvestorSearch>) => navigate({ search: (prev) => ({ ...prev, ...patch }), replace: true }), [navigate])
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -87,7 +93,7 @@ function Investors() {
     if (flags?.introducer === 'add') setAddingIntro(true)
   }, [flags?.investors, flags?.introducer, setSearch])
 
-  // ?preview&investors=filtered|empty|bulk|enrich|exported|import1|import2|import3 (enrich: with &ai=bulk, four enriching)
+  // ?preview&investors=filtered|empty|bulk|enrich|exported|import1|import2|import3 (enrich: with &ai=bulk, four enriching); PST-296: find-more
   const previewDone = useRef(false)
   useEffect(() => {
     const p = flags?.investors
@@ -215,6 +221,10 @@ function Investors() {
   return (
     <section className="inv">
       <InvestorViews view="list" /> {/* PST-294 */}
+      {/* PST-296 */}
+      <FindMoreButton open={findOpen} onToggle={() => setFindOpen((o) => !o)} />
+      {findOpen ? <FindMorePanel /> : null}
+      {/* /PST-296 */}
       <FilterBar
         s={s}
         set={setSearch}

@@ -62,10 +62,16 @@ export function priority(i: PInv, fit: Fit | null | undefined, avgCheck: number 
 /** Score bands for the pill: dark from 80, green from 55, grey below. */
 export const scoreBand = (score: number): 'high' | 'mid' | 'low' => (score >= 80 ? 'high' : score >= 55 ? 'mid' : 'low')
 
-/** Every investor's priority, against the round's average check. */
-export function priorities<T extends PInv & { _id: string }>(inv: readonly T[], fits: Readonly<Record<string, Fit>>, today: string): Map<string, Priority> {
+/** PST-296: an investor's Jev fit score (src/lib/fitScore.ts) stands in for the light Fit's score; the Fit's reasons still make the chips. */
+export function withJev(fit: Fit | undefined, jev: number | undefined): Fit | undefined {
+  if (jev === undefined) return fit
+  return { score: jev, headline: fit?.headline ?? '', reasons: fit?.reasons ?? [] }
+}
+
+/** Every investor's priority, against the round's average check. PST-296: `jev` holds the Jev fit scores by id (without one, the light Fit as before). */
+export function priorities<T extends PInv & { _id: string }>(inv: readonly T[], fits: Readonly<Record<string, Fit>>, today: string, jev: Readonly<Record<string, number>> = {}): Map<string, Priority> {
   const avg = averageCheck(inv)
-  return new Map(inv.map((i) => [i._id, priority(i, fits[i._id], avg, today)]))
+  return new Map(inv.map((i) => [i._id, priority(i, withJev(fits[i._id], jev[i._id]), avg, today)]))
 }
 
 /** Each investor's Fit from their kept fund facts (investors with too little known have none). */

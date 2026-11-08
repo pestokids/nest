@@ -187,7 +187,8 @@ export const FIT_FOCUS = {
 
 export type Fit = { score: number; headline: string; reasons: string[] }
 
-const latestKept = (facts: readonly Fact[], field: string) =>
+/** PST-296 exports it for the fit score (src/lib/fitScore.ts). */
+export const latestKept = (facts: readonly Fact[], field: string) =>
   facts.filter((f) => f.group === 'fund' && f.field === field && f.status === 'kept').sort((a, b) => (b.keptAt ?? 0) - (a.keptAt ?? 0))[0]
 
 /**

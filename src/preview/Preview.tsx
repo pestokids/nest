@@ -67,6 +67,10 @@
 //   &pipeline=race-lead      two offers the same week (the lime card), and Orchard is leading
 //   &pipeline=update         the race, scrolled to Who to update;  &home=race  Home's Raise card with the race
 //   &drafts=lead             the "Ask if they'll lead" draft
+//   ---------- PST-296: Find more like these (see preview/findMoreFixture.ts) ----------
+//   &investors=find-more      the Find more panel open, before a run (Search the web plays a pretend run)
+//   &find=running|results|empty  with &investors=find-more: a run searching, eight new investors, a run that found nobody new
+//   ---------- end PST-296 ----------
 //   &fail                    every write fails (save-failed toast with Retry)
 //   any unknown path         the 404, e.g. /nowhere?preview
 import { useEffect, useRef } from 'react'
