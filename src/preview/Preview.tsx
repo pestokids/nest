@@ -62,6 +62,8 @@
 //   &introducer=panel|add|ask  one introducer's panel open (Ankur), on phones too; Add introducer; Ask for another intro
 //   &draft=forwardable       the forwardable intro draft: the ask, and the note to forward
 //   &drawer=warm-path        the drawer on Kite Angels, scrolled to the warm path and its steps
+//   PST-303: &drawer=edit-vc|edit-accelerator|edit-angel  the edit form on Orchard Capital (fund), Northwind Accelerator
+//                            and Kite Angels (angel), with the type's labels and help
 //   PST-295 Race and the lead (see preview/raceFixture.ts; a made-up kickoff week):
 //   &pipeline=race           Pipeline › Race: kickoff week, who's ahead with the slow-down note, no lead yet
 //   &pipeline=race-lead      two offers the same week (the lime card), and Orchard is leading

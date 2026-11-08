@@ -16,8 +16,11 @@ import { Chip, Icon, type ChipTone } from '../ui'
 export type SortKey = 'name' | 'type' | 'stage' | 'wave' | 'path' | 'lastTouch' | 'nextStep' | 'expected' | 'priority'
 
 type Col = { k: SortKey | 'enriched' | 'why'; label: string; className?: string }
+/** PST-303: the same words as the drawer's form, which names these fields by type (src/lib/investorForm.ts). */
+const NAME_HEAD = 'Name · Firm / title'
+const NAME_TIP = ['VCs: the partner, then the fund.', 'Accelerators: the programme and batch, then the accelerator.', 'Angels: the person, then their title or company.']
 const COLS: Col[] = [
-  { k: 'name', label: 'Investor', className: 'c-name' },
+  { k: 'name', label: NAME_HEAD, className: 'c-name' },
   { k: 'type', label: 'Type', className: 'c-type' },
   { k: 'stage', label: 'Stage', className: 'c-stage' },
   { k: 'wave', label: 'Wave', className: 'c-wave' },
@@ -29,7 +32,7 @@ const COLS: Col[] = [
 ]
 /** PST-284: Sort: Priority (raise-investors/by-priority.png). */
 const PRIORITY_COLS: Col[] = [
-  { k: 'name', label: 'Investor', className: 'c-name' },
+  { k: 'name', label: NAME_HEAD, className: 'c-name' },
   { k: 'priority', label: 'Priority', className: 'c-prio' },
   { k: 'why', label: 'Why', className: 'c-why' },
   { k: 'stage', label: 'Stage', className: 'c-stage' },
@@ -108,11 +111,16 @@ export function InvestorList({ rows, today, quietDays, selected, setSelected, al
                 {label}
               </span>
             ) : (
-              <span key={k} className={className} role="columnheader" aria-sort={sort === k ? (dir === 'asc' ? 'ascending' : 'descending') : undefined}>
-                <button type="button" className={`inv-sort${sort === k ? ' is-on' : ''}`} onClick={() => onSort(k)}>
+              <span key={k} className={className + (k === 'name' ? ' inv-head-tipped' : '')} role="columnheader" aria-sort={sort === k ? (dir === 'asc' ? 'ascending' : 'descending') : undefined}>
+                <button type="button" className={`inv-sort${sort === k ? ' is-on' : ''}`} onClick={() => onSort(k)} aria-describedby={k === 'name' ? 'inv-name-tip' : undefined}>
                   {label}
                   {sort === k || k === 'name' ? <Icon name="sort" size={13} strokeWidth={2.2} className={`inv-sort__icon${sort === k ? ` is-${dir}` : ''}`} /> : null}
                 </button>
+                {k === 'name' ? (
+                  <span className="inv-head-tip" id="inv-name-tip" role="tooltip">
+                    {NAME_TIP.map((x) => <span key={x}>{x}</span>)}
+                  </span>
+                ) : null}
               </span>
             ),
           )}
