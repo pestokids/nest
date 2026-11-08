@@ -8,6 +8,7 @@ import { internal } from '../_generated/api'
 import { hasAIKey } from './anthropic'
 import { precheckWho, type Invite } from './jevHooks'
 import { INVESTOR_STEPS, SENDER_STEPS } from './research'
+import { fillCanLead } from '../race' // PST-295
 import { firmDomain, investorWrite } from '../../src/lib/enrich'
 import { todayIST } from '../../src/lib/dates'
 import { DAY_MS, domainOf, GENERIC_DOMAINS, isOurs, normEmail } from '../../src/lib/google'
@@ -124,7 +125,9 @@ async function copyRun(ctx: MutationCtx, src: Doc<'enrichRuns'>, inv: Doc<'inves
   const runId = await ctx.db.insert('enrichRuns', {
     ...t, auto: true, cached: true, status: 'done', steps: src.steps.map((s) => ({ ...s, state: 'done' as const })), costUsd: 0, startedAt: now, finishedAt: now,
     factCount: facts.length, ...(src.verdict ? { verdict: src.verdict } : {}), ...(src.summary ? { summary: src.summary } : {}),
+    ...(src.canLead ? { canLead: src.canLead } : {}),
   })
+  if (src.canLead) await fillCanLead(ctx, inv, src.canLead) // PST-295
   for (const f of facts) {
     const clash = investorWrite(inv, f).clash
     await ctx.db.insert('facts', {

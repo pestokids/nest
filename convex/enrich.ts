@@ -16,6 +16,8 @@ import { jevStatus } from './lib/jev'
 import { saveInvestor } from './investors'
 import { vNewFact, vStep, vVerdict } from './enrichSchema'
 import { vFeature, vModel, vUsage } from './validators'
+import { vCanLead } from './raceSchema' // PST-295
+import { fillCanLead } from './race' // PST-295
 import { asRank, firmDomain, investorWrite, NO_AI_KEY, type RecentRun } from '../src/lib/enrich'
 import { todayIST } from '../src/lib/dates'
 import { DAY_MS, domainOf, GENERIC_DOMAINS, nameFromEmail, normEmail } from '../src/lib/google'
@@ -459,7 +461,7 @@ export const progress = internalMutation({
 
 /** Store what a run found as pending facts (older pending ones go; kept and dismissed ones aren't asked again), then start the next run. */
 export const finish = internalMutation({
-  args: { runId: v.id('enrichRuns'), facts: v.array(vNewFact), verdict: vVerdict, summary: v.string(), costUsd: v.number(), model: vModel, usage: vUsage },
+  args: { runId: v.id('enrichRuns'), facts: v.array(vNewFact), verdict: vVerdict, summary: v.string(), costUsd: v.number(), model: vModel, usage: vUsage, canLead: v.optional(vCanLead) },
   handler: async (ctx, a) => {
     const run = await ctx.db.get(a.runId)
     if (!run) return
@@ -486,8 +488,9 @@ export const finish = internalMutation({
     }
     await ctx.db.patch(run._id, {
       status: 'done', steps: run.steps.map((s) => ({ ...s, state: 'done' as const })), costUsd: a.costUsd, finishedAt: Date.now(), factCount: n, verdict: a.verdict, summary: a.summary,
-      model: a.model, usage: a.usage,
+      model: a.model, usage: a.usage, ...(a.canLead ? { canLead: a.canLead } : {}),
     })
+    if (inv && a.canLead) await fillCanLead(ctx, inv, a.canLead) // PST-295
     await syncReview(ctx, run._id)
     await pump(ctx)
   },
@@ -565,7 +568,8 @@ export const execute = internalAction({
       const answer = conform(vResearch, extractJson(out.text + '\n'))
       const facts = factsFrom(answer)
       found = facts.length
-      await ctx.runMutation(internal.enrich.finish, { runId, facts, verdict: answer.verdict, summary: answer.summary.trim().slice(0, 200), costUsd: cost, model: job.model, usage })
+      const canLead = answer.canLead ? { value: answer.canLead.value, reason: answer.canLead.reason.trim().slice(0, 120) } : undefined
+      await ctx.runMutation(internal.enrich.finish, { runId, facts, verdict: answer.verdict, summary: answer.summary.trim().slice(0, 200), costUsd: cost, model: job.model, usage, canLead })
     } catch (e) {
       status = stopped ? 'stopped' : 'failed'
       if (!stopped) failure = ' error=' + errorTag(e)

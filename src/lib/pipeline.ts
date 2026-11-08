@@ -2,6 +2,7 @@
 // shared by the UI and Convex.
 import { dayDiff, isISODate } from './dates'
 import { currentPhase, targetValue, type Metric, type Phase, type Round } from './round'
+import type { LeadFields } from './race'
 import {
   ACTIVE, COMMIT, DONE, IDX, STAGES, TYPES,
   type Geo, type InvestorType, type PipelineStage, type Stage, type Tier, type TouchKind, type Warmth, type Wave,
@@ -37,7 +38,8 @@ export type InvestorFields = {
 /** PST-263, derived (never saved): the IST day of the latest email touch and of the latest past meeting. */
 export type Contact = { email?: string; meeting?: string }
 
-export type Investor = InvestorFields & { _id: string; maxStage: PipelineStage; slug?: string; updatedAt?: number; _creationTime?: number; contact?: Contact }
+/** PST-295: LeadFields (can lead, Dev's override, asked to lead) come from Convex as they are; the form never sends them. */
+export type Investor = InvestorFields & LeadFields & { _id: string; maxStage: PipelineStage; slug?: string; updatedAt?: number; _creationTime?: number; contact?: Contact }
 
 export type Activity = {
   _id: string

@@ -16,6 +16,7 @@ import { jevTables } from './jevSchema'
 // PST-293: decisions and signals (decisions, decisionLog, signals; see decisionsSchema.ts).
 import { decisionTables } from './decisionsSchema'
 import { introducerTables } from './introducersSchema' // PST-294
+import { investorLeadFields, raceTables, roundLeadField } from './raceSchema' // PST-295
 import { roundFields, vGeo, vMeetingAnswer, vPipelineStage, vStage, vSyncSource, vTier, vTouch, vType, vWarmth, vWave } from './validators'
 import { vSuggestionKind, vSuggestionPatch, vSuggestionSource, vSuggestionStatus, vSuggestionUndo } from './validators'
 import { vAnswerVersion, vAskSource, vQuestionMerge } from './validators'
@@ -52,6 +53,8 @@ export default defineSchema({
     updatedAt: v.number(),
     // Absent on rows imported by the seed until someone edits them.
     updatedBy: v.optional(v.id('users')),
+    // PST-295 (optional, additive): can they lead (enrichment, and Dev's override), and when Dev asked them to.
+    ...investorLeadFields,
   })
     .index('by_stage', ['stage'])
     .index('by_slug', ['slug']),
@@ -73,7 +76,8 @@ export default defineSchema({
 
   // The round row (key "round"), and PST-274's AI toggles (key "ai"; PST-279 adds morningBrief, see askSchema.ts).
   // PST-283: the round row also holds the cap table inputs (`capTable`, optional; see closeSchema.ts).
-  settings: defineTable(v.union(v.object({ key: v.literal('round'), ...roundFields, ...roundCapTableField }), v.object({ ...aiSettingsFields, ...askSettingsFields }))).index('by_key', ['key']),
+  // PST-295: and the investor leading the round (`leadId`, optional; see raceSchema.ts).
+  settings: defineTable(v.union(v.object({ key: v.literal('round'), ...roundFields, ...roundCapTableField, ...roundLeadField }), v.object({ ...aiSettingsFields, ...askSettingsFields }))).index('by_key', ['key']),
 
   settingsLog: defineTable({
     userId: v.id('users'),
@@ -295,4 +299,7 @@ export default defineSchema({
   /* ---------- PST-294: Introducers and intro steps (introducers, intros; see introducersSchema.ts) ---------- */
   ...introducerTables,
   /* ---------- end PST-294 ---------- */
+  /* ---------- PST-295: Race and the lead (investorUpdates; see raceSchema.ts) ---------- */
+  ...raceTables,
+  /* ---------- end PST-295 ---------- */
 })

@@ -46,6 +46,9 @@ const WHAT: Record<AiDraftType, (c: DraftContext) => string> = {
       'Answer with only a JSON object: {"subject": "...", "body": "...", "forwardSubject": "...", "forwardBody": "..."}.',
     ].join('\n')
   },
+  // PST-295
+  lead: (c) =>
+    'Ask ' + c.investor.name + ' whether they would lead the round. Thank them for where the conversation is (from the notes), say in one line why they’d be the right lead, from the facts below, and ask plainly if they’d lead and what they’d need to decide. Never say who else is in or how much is committed unless the input says so; never name a valuation or terms the input doesn’t give: write ' + BLANK + ' instead.',
 }
 
 const TWEAK_TEXT: Record<Tweak, string> = {
