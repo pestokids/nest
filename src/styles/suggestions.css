@@ -4,13 +4,6 @@
 .sg-eyebrow__spark { color: var(--brand-orange); }
 
 /* ---------- Today card ---------- */
-.sg-card.card { padding: 26px 28px 10px; }
-.sg-card__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 18px; }
-.sg-card__lead { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.sg-card__title { margin: 2px 0 0; font: 700 24px/1.2 var(--font-display); color: var(--text-primary); }
-.sg-card__sub { margin: 0; font: 400 14px/1.4 var(--font-ui); color: var(--text-secondary); }
-.sg-card__all { flex: none; margin-top: 18px; }
-.sg-card .sg-tidy { margin-bottom: 16px; }
 
 /* ---------- Rows ---------- */
 .sg-rows { list-style: none; margin: 0; padding: 0; }
@@ -75,10 +68,6 @@
 
 /* ---------- Phones ---------- */
 @media (max-width: 720px) {
-  .sg-card.card { padding: 20px 18px 6px; }
-  .sg-card__head { flex-direction: column; gap: 12px; }
-  .sg-card__title { font-size: 20px; }
-  .sg-card__all { margin-top: 0; }
   .sg-row__in { grid-template-columns: minmax(0, 1fr); }
   .sg-row__in > * { padding: 0; }
   .sg-row__kind { padding-top: 16px !important; }

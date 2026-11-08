@@ -21,6 +21,7 @@ import {
 } from '../preview/suggestionsFixture'
 import { fixtureCloseInvestors, type PreviewClose } from '../preview/closeFixture'
 import { RaiseContext, type LogRow, type RaiseData } from './data'
+import type { PreviewToday } from './preview-state'
 import { PreviewQanda } from '../preview/PreviewQanda'
 import { useAgentsPreview, type PreviewAgents } from '../preview/agentsFixture'
 import { useAskPreview, type PreviewAsk, type PreviewBrief } from '../preview/askFixture'
@@ -50,7 +51,7 @@ export function PreviewData({
   source: 'fixture' | 'seed'
   home?: PreviewHome
   board?: boolean
-  today?: 'default' | 'nothingdue' | 'win'
+  today?: PreviewToday
   extra?: PreviewExtra
   google?: PreviewGoogle
   /** PST-275 `&suggestions=…` */

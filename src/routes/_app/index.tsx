@@ -3,10 +3,11 @@ import { useState } from 'react'
 import { useRaise } from '../../components/data'
 import { NestEmpty, NestWithEggs } from '../../components/illustrations'
 import { useSession } from '../../components/session'
-import { Badge, buttonClass, Card, Chip, Icon, type ChipTone } from '../../components/ui'
+import { Badge, buttonClass, Card, Chip, Icon } from '../../components/ui'
 import { todayIST } from '../../lib/dates'
 import { dateEyebrow, dayMonth, greeting, isChecklistDone, nextPhase, phaseLine, phaseOn, raiseStats, thisWeek, weekDay } from '../../lib/home'
-import { INBOX_LABEL, inboxPreview, type InboxKind, type InboxRow } from '../../lib/inbox'
+import { INBOX_TYPE_LABEL, type InboxRow } from '../../lib/inbox'
+import { INBOX_TONE, useInbox } from '../../components/inbox/data' // PST-297
 import { rise, usePop } from '../../lib/motion'
 import { money } from '../../lib/money'
 import { totals } from '../../lib/pipeline'
@@ -44,7 +45,7 @@ function Home() {
 
       <div className="home-grid">
         <RaiseCard round={r} roundExists={d.roundExists} today={today} />
-        <InboxCard today={today} now={now} />
+        <InboxCard />
         <WeekCard round={r} roundExists={d.roundExists} today={today} />
       </div>
     </div>
@@ -98,10 +99,11 @@ function RaiseCard({ round: r, roundExists, today }: { round: Round; roundExists
   )
 }
 
-/** The Inbox's top 4, from Today's lists (lib/inbox.ts). A row opens that investor on Today; a suggestion opens the list. */
-function InboxCard({ today, now }: { today: string; now: number }) {
-  const d = useRaise()
-  const { total, rows } = inboxPreview({ investors: d.investors, threads: d.google.threads, suggestions: d.suggestions, quietDays: d.round.quietDays, today, now })
+/** The Inbox's top 4 (PST-297: the same rows and count as Today and the top bar). A row opens that investor on Today, anything else opens Today. */
+function InboxCard() {
+  const inbox = useInbox()
+  const total = inbox.count
+  const rows = inbox.rows.slice(0, 4)
   return (
     <Card riseIndex={2} className="home-inbox" aria-labelledby="home-inbox-title">
       <header className="home-card__head">
@@ -128,33 +130,37 @@ function InboxCard({ today, now }: { today: string; now: number }) {
       ) : (
         <div className="home-card__empty">
           <NestEmpty size={88} />
-          <p>Nothing waiting. Replies owed, steps due and quiet conversations land here.</p>
+          <p>Nothing waiting. Replies, follow-ups, decisions and close steps land here.</p>
         </div>
       )}
     </Card>
   )
 }
 
-const KIND_TONE: Record<InboxKind, ChipTone> = { reply: 'success', due: 'waiting', quiet: 'error', review: 'neutral' }
-
 function InboxLink({ row: x }: { row: InboxRow }) {
   const body = (
     <>
-      <Chip tone={KIND_TONE[x.kind]} dot={false}>
-        {INBOX_LABEL[x.kind]}
+      <Chip tone={INBOX_TONE[x.type]} dot={false}>
+        {INBOX_TYPE_LABEL[x.type]}
       </Chip>
       <span className="home-inbox__text">
         <b>{x.name}</b> · {x.detail}
       </span>
     </>
   )
-  if (x.kind === 'review' || !x.investorId)
+  if (x.type === 'fix')
     return (
       <Link to="/raise/today" state={(s) => ({ ...s, suggestions: true })} className="home-inbox__row">
         {body}
       </Link>
     )
   const id = x.investorId
+  if (!id)
+    return (
+      <Link to="/raise/today" className="home-inbox__row">
+        {body}
+      </Link>
+    )
   return (
     <Link to="/raise/today" state={(s) => ({ ...s, drawer: { id } })} className="home-inbox__row">
       {body}

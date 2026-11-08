@@ -56,7 +56,6 @@
 .draft__send-off { max-width: 300px; text-align: right; }
 
 /* Today › Gone quiet and the drawer: the Draft buttons. */
-.quiet-row__draft { flex: none; }
 
 /* The drawer's History: the last few drafts. */
 .draft-hist { margin-bottom: 22px; }
@@ -82,7 +81,6 @@
   .draft__share .btn { flex: 1; }
   .draft__send { align-items: stretch; }
   .draft__send p, .draft__send-off { text-align: center; max-width: none; }
-  .quiet-row__draft .btn__label { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -55,8 +55,6 @@
 .maybe-row__calls.is-hot, .maybe-row__when.is-hot { color: var(--text-orange-deep); }
 .maybe-row__act { flex: none; display: flex; justify-content: flex-end; min-width: 176px; }
 .maybes__empty { margin: 6px 0 14px; }
-.list-panel .decision-row .row__sub { overflow-wrap: anywhere; }
-.decision-row__leave { flex: none; }
 
 @media (max-width: 720px) {
   .maybes.card { padding: 22px 16px 10px; }

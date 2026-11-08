@@ -1,7 +1,8 @@
 import { Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
+import { Badge } from './Chip'
 
-export type TabItem = { to: string; label: string; live?: boolean; soon?: boolean; exact?: boolean }
+export type TabItem = { to: string; label: string; live?: boolean; soon?: boolean; exact?: boolean; /** PST-297: a count beside the label (the Inbox on Raise), in place of the live dot. */ count?: number }
 
 /** Top bar section tabs: forest pill when active, "soon" tabs are muted and not links. */
 export function Tabs({ items, label }: { items: TabItem[]; label: string }) {
@@ -16,7 +17,13 @@ export function Tabs({ items, label }: { items: TabItem[]; label: string }) {
         ) : (
           <Link key={t.to} to={t.to} className="tab" activeProps={{ className: 'tab tab--active', 'aria-current': 'page' }} activeOptions={{ exact: t.exact, includeSearch: false }}>
             {t.label}
-            {t.live ? <span className="tab__live m-live-dot" aria-hidden="true" /> : null}
+            {t.count ? (
+              <Badge className="tab__count" aria-label={t.count + ' in the Inbox'}>
+                {t.count}
+              </Badge>
+            ) : t.live ? (
+              <span className="tab__live m-live-dot" aria-hidden="true" />
+            ) : null}
           </Link>
         ),
       )}
