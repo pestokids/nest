@@ -200,15 +200,16 @@ export function introNudges(src: IntroInboxSources): IntroRow[] {
 // marks per row key with the row's version: a row comes back when its source
 // changes (a new email, a new date).
 
-export const INBOX_TYPES = ['followup', 'reply', 'thank', 'report', 'decide', 'confirm', 'close', 'due', 'review', 'fix', 'opened', 'quiet', 'move'] as const
+/** `awaiting` is PST-302's slot: an application whose decision date passed. Its selector joins buildInbox; the rest already handles the type. */
+export const INBOX_TYPES = ['followup', 'reply', 'thank', 'report', 'decide', 'awaiting', 'confirm', 'close', 'due', 'review', 'fix', 'opened', 'quiet', 'move'] as const
 export type InboxType = (typeof INBOX_TYPES)[number]
 export const INBOX_TYPE_LABEL: Record<InboxType, string> = {
-  followup: 'Follow up', reply: 'Reply', thank: 'Thank', report: 'Report back', decide: 'Decide', confirm: 'Confirm', close: 'Close',
+  followup: 'Follow up', reply: 'Reply', thank: 'Thank', report: 'Report back', decide: 'Decide', awaiting: 'Decision due', confirm: 'Confirm', close: 'Close',
   due: 'Next step', review: 'Review', fix: 'Fix', opened: 'Opened', quiet: 'Quiet', move: 'Next move',
 }
 /** The filter chips over the list: introducers' rows share one, and so do the close kit's. */
 export const INBOX_CHIP: Record<InboxType, string> = {
-  followup: 'Follow up', reply: 'Reply', thank: 'Introducers', report: 'Introducers', decide: 'Decide', confirm: 'Close', close: 'Close',
+  followup: 'Follow up', reply: 'Reply', thank: 'Introducers', report: 'Introducers', decide: 'Decide', awaiting: 'Awaiting', confirm: 'Close', close: 'Close',
   due: 'Next steps', review: 'Review', fix: 'Fixes', opened: 'Opened', quiet: 'Quiet', move: 'Moves',
 }
 
@@ -496,7 +497,7 @@ function quietRows(src: InboxSources): Raw[] {
 }
 
 function moveRows(src: InboxSources): Raw[] {
-  return nextMoves({ investors: [...src.investors], acts: [...src.acts], round: src.round, today: src.today })
+  return nextMoves({ investors: [...src.investors], acts: [...src.acts], round: src.round, today: src.today, priority: src.priority })
     .filter((m) => m.action.kind !== 'scroll')
     .map((m) => {
       const b = src.briefMoves?.find((x) => x.key === m.key)

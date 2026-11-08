@@ -12,6 +12,7 @@ import { duration, topPage } from '../../lib/materials'
 import { priorities } from '../../lib/priority'
 import { previewInboxSources } from '../../preview/inboxFixture'
 import { CloseProvider, useClose } from '../close/CloseData'
+import { usePriorityScores } from '../investors/findMoreData'
 import { useRaise } from '../data'
 import { useDecisions } from '../decisions/data'
 import { useIntroducers, useIntroInvestors } from '../introducers/data'
@@ -22,7 +23,7 @@ import type { ChipTone } from '../ui'
 
 /** Each row type's chip, on Today and Home. */
 export const INBOX_TONE: Record<InboxType, ChipTone> = {
-  followup: 'waiting', reply: 'success', thank: 'success', report: 'success', decide: 'error', confirm: 'selected', close: 'selected',
+  followup: 'waiting', reply: 'success', thank: 'success', report: 'success', decide: 'error', awaiting: 'waiting', confirm: 'selected', close: 'selected',
   due: 'outline', review: 'neutral', fix: 'success', opened: 'success', quiet: 'waiting', move: 'muted',
 }
 
@@ -96,10 +97,11 @@ function useInboxValue(marks: Marks): InboxValue {
       }),
     [m.notices, m.links, ix],
   )
+  const jev = usePriorityScores()
   const priority = useMemo(() => {
-    const p = priorities(d.investors, fits, today)
+    const p = priorities(d.investors, fits, today, jev)
     return (id: string) => p.get(id)?.score ?? 0
-  }, [d.investors, fits, today])
+  }, [d.investors, fits, today, jev])
 
   const all = useMemo(() => {
     const src: InboxSources = {
