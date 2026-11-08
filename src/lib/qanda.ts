@@ -61,6 +61,8 @@ export type Question = {
   createdAt: number
   updatedAt: number
   asks: Ask[]
+  /** PST-292: Jev marked it the same as this question in the bank (Merge, or Not the same). */
+  sameAs?: { id: string; text: string }
 }
 export type Note = {
   _id: string

@@ -9,6 +9,7 @@ import { domainOf, GENERIC_DOMAINS, normDomain, normEmail } from './google'
 import type { Round } from './round'
 import { TYPES, type Geo, type InvestorType } from './stages'
 import { DEFAULT_CHOICE, FEATURES, MODELS, type Feature, type Model, type ModelChoice, type RealUsage } from './models'
+import { JEV_OFF, type JevStatus } from './jev'
 
 export const RANKS = ['managing partner', 'partner', 'principal', 'associate', 'scout', 'angel'] as const
 export type Rank = (typeof RANKS)[number]
@@ -361,6 +362,10 @@ export type AIData = {
   features: Record<Feature, { month: number; real: RealUsage | null }>
   /** This month's spend by model and by feature (runs from before PST-273 count as the model they used). */
   spend: { byModel: Record<Model, number>; byFeature: Record<Feature, number> }
+  /** PST-292: Jev (TYPESAFE_API_KEY): on or off, the monthly cap and this month's spend (also in month.usd). */
+  jev: JevStatus
+  /** PST-292: Who's this? people Jev's pre-check said probably aren't investors (not looked up), with the probability it gave. */
+  prechecked: { email: string; likely: number }[]
 }
 export type InvestorAI = { run: Run | null; facts: Fact[]; people: Person[] }
 const perFeature = <T>(x: () => T) => Object.fromEntries(FEATURES.map((k) => [k, x()])) as Record<Feature, T>
@@ -369,4 +374,6 @@ export const NO_AI: AIData = {
   models: DEFAULT_CHOICE,
   features: perFeature(() => ({ month: 0, real: null })),
   spend: { byModel: Object.fromEntries(MODELS.map((m) => [m, 0])) as Record<Model, number>, byFeature: perFeature(() => 0) },
+  jev: JEV_OFF,
+  prechecked: [],
 }

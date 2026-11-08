@@ -43,6 +43,8 @@ export function ConvexQanda({ children }: { children: ReactNode }) {
   const matchUnmatched = useMutation(api.noteReads.matchUnmatched)
   const dropUnmatched = useMutation(api.noteReads.dropUnmatched)
   const restoreUnmatched = useMutation(api.noteReads.restoreUnmatched)
+  const notSame = useMutation(api.jevHousekeeping.notSame)
+  const restoreSame = useMutation(api.jevHousekeeping.restoreSame)
   const act = useMemo<QandaActions>(
     () => ({
       create: (a) => create({ ...a, investorId: a.investorId as Id<'investors'> | undefined }),
@@ -68,10 +70,12 @@ export function ConvexQanda({ children }: { children: ReactNode }) {
       matchUnmatched: (id, investorId) => matchUnmatched({ id: id as UId, investorId: investorId as Id<'investors'> }),
       dropUnmatched: (id) => dropUnmatched({ id: id as UId }),
       restoreUnmatched: (id) => restoreUnmatched({ id: id as UId }),
+      notSame: (id) => notSame({ questionId: id as QId }),
+      restoreSame: (id) => restoreSame({ questionId: id as QId }),
     }),
     [
       create, save, link, unlink, merge, unmerge, remove, restore, addToDeck, removeFromDeck, addNote, removeNote, restoreNote, markLine, unmarkLine,
-      readNote, applyRead, dismissRead, undoRead, draftAnswer, matchUnmatched, dropUnmatched, restoreUnmatched,
+      readNote, applyRead, dismissRead, undoRead, draftAnswer, matchUnmatched, dropUnmatched, restoreUnmatched, notSame, restoreSame,
     ],
   )
   const value = useMemo<QandaData>(

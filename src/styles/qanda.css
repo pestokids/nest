@@ -290,6 +290,8 @@
 .qa-draft { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
 .qa-draft__note { margin: 0; font: 400 13px/1.35 var(--font-ui); color: var(--text-muted); }
 .nr-unmatched__line { margin: 4px 0 0; font: 400 14px/1.35 var(--font-ui); color: var(--text-secondary); }
+/* PST-292: Jev's "Probably …" pick. */
+.nr-unmatched__hint { margin-top: 10px; font-weight: 600; color: var(--text-primary); }
 @media (prefers-reduced-motion: reduce) {
   .nr-card--reading::after { animation: none; }
   .nr-row { transition: opacity 150ms linear; }

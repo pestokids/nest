@@ -31,6 +31,12 @@ export function useQandaActions() {
         ui.toast({ message: `Merged into “${short(keep.text)}”. All ${r.asked} asks kept.`, action: { label: 'Undo', onClick: undo(() => act.unmerge(drop._id)) } })
         return true
       },
+      /** PST-292: Jev marked it "Same as …"; Dev says it isn't. */
+      notSame: async (q: Question) => {
+        const r = await save(() => act.notSame(q._id), { failMessage: 'Couldn’t save that.' })
+        if (r === undefined) return
+        ui.toast({ tone: 'info', message: 'Kept as its own question.', action: { label: 'Undo', onClick: undo(() => act.restoreSame(q._id)) } })
+      },
       remove: async (q: Question) => {
         const r = await save(() => act.remove(q._id), { failMessage: 'Couldn’t delete it.' })
         if (r === undefined) return false

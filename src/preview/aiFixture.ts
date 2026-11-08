@@ -4,6 +4,9 @@
 // PST-273: &ai=models (Settings › AI's Model section with two features on their own
 // model, estimates from real runs for two of them), &ai=spend (a month split across
 // all three models).
+// PST-292: &ai=jev (Settings › AI's Jev row set up, with this month's spend and Jev in the
+// spend view), &whos=prechecked (Who's this? with a person Jev's pre-check said probably
+// isn't an investor, so Nest didn't look them up: "Look up anyway").
 // The default shows Kite Angels enriched and reviewed. Clicking Enrich, Refresh or a
 // bulk Enrich plays a pretend run. Invented people at example.com addresses only.
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -12,11 +15,16 @@ import { investorWrite, NO_AI, type AIData, type AISettings, type Fact, type Fac
 import { todayIST } from '../lib/dates'
 import { fieldsOf, NEW_INVESTOR, type Investor, type InvestorFields } from '../lib/pipeline'
 import { DEFAULT_CHOICE, estimate, HAIKU, OPUS, SONNET, type Feature, type Model, type ModelChoice, type RealUsage } from '../lib/models'
+import { JEV_OFF, type JevStatus } from '../lib/jev'
 
-export const PREVIEW_AI = ['default', 'enriching', 'review', 'nokey', 'bulk', 'models', 'spend'] as const
+/** PST-292: Jev this month: 214 calls and 31 answers from the cache, about 1.4¢. */
+const JEV_ON: JevStatus = { connected: true, on: true, capUsd: 4, monthUsd: 0.0137, calls: 214, cached: 31 }
+const PRECHECKED = 'mina@fieldnote.example.com'
+
+export const PREVIEW_AI = ['default', 'enriching', 'review', 'nokey', 'bulk', 'models', 'spend', 'jev', 'prechecked'] as const
 export type PreviewAI = (typeof PREVIEW_AI)[number]
 
-type DB = { runs: Run[]; facts: Fact[]; people: Person[]; settings: AISettings; connected: boolean; models: ModelChoice; state: PreviewAI }
+type DB = { runs: Run[]; facts: Fact[]; people: Person[]; settings: AISettings; connected: boolean; models: ModelChoice; state: PreviewAI; jev: JevStatus; prechecked: AIData['prechecked'] }
 
 const real = (runs: number, input: number, output: number, webSearches = 0): RealUsage => ({ runs, avg: { input, output, cacheRead: 0, cacheWrite: 0, webSearches } })
 /** This month's runs per feature, their real usage, and the spend (enrichment's grows with the pretend runs' cost). */
@@ -182,6 +190,8 @@ function initial(state: PreviewAI, investors: Investor[], now: number): DB {
   const db: DB = {
     runs: [], facts: [], people: [], settings: { lookups: true, enrichNew: true, meetingNotes: true, morningBrief: true }, connected: state !== 'nokey', state,
     models: state === 'models' ? { default: HAIKU, features: { enrich: SONNET, ask: OPUS } } : DEFAULT_CHOICE,
+    jev: state === 'jev' || state === 'prechecked' || state === 'spend' ? JEV_ON : JEV_OFF,
+    prechecked: state === 'prechecked' ? [{ email: PRECHECKED, likely: 0.12 }] : [],
   }
   if (state === 'nokey') return db
   const kite = investors.find((i) => i.name === 'Kite Angels')
@@ -224,6 +234,7 @@ function initial(state: PreviewAI, investors: Investor[], now: number): DB {
   }
   // Who's this? (with &google=connected): three looked up, one still looking.
   for (const [email, seed] of Object.entries(SENDERS)) {
+    if (state === 'prechecked' && email === PRECHECKED) continue
     const run: Run = { _id: uid('r'), email, status: 'done', auto: true, costUsd: 0.03, model: HAIKU, startedAt: now - 2 * H, finishedAt: now - 2 * H + 30e3, steps: SENDER_STEPS.map((l, k) => ({ label: seed.found[k]?.[0] ?? l, state: 'done' as const })), verdict: seed.verdict, summary: seed.summary }
     const facts = factsOf(seed, run._id, { email })
     db.runs.push({ ...run, factCount: facts.length })
@@ -363,6 +374,7 @@ export function useAIPreview(state: PreviewAI, investors: Investor[] | null, sav
         return fs.length
       },
       setAuto: async (p) => update((d) => ({ ...d, settings: { ...d.settings, ...p } })),
+      setJev: async (p) => update((d) => ({ ...d, jev: { ...d.jev, ...(p.on !== undefined ? { on: p.on } : {}), ...(p.capUsd !== undefined ? { capUsd: p.capUsd } : {}) } })),
       setModel: async (feature, model) => {
         update((d) => {
           if (!feature) return { ...d, models: { ...d.models, default: model ?? HAIKU } }
@@ -425,7 +437,9 @@ export function useAIPreview(state: PreviewAI, investors: Investor[] | null, sav
       models: db.models,
       features: m.features,
       spend: { byModel, byFeature },
-      month: { usd: db.connected ? Object.values(byFeature).reduce((s, x) => s + x, 0) : 0, lookups: db.connected ? 42 : 0, enrichments: db.connected ? 9 : 0, noteReads: 6, asks: 11 },
+      jev: db.jev,
+      prechecked: db.prechecked,
+      month: { usd: db.connected ? Object.values(byFeature).reduce((s, x) => s + x, 0) + db.jev.monthUsd : 0, lookups: db.connected ? 42 : 0, enrichments: db.connected ? 9 : 0, noteReads: 6, asks: 11 },
       capLeft: 24,
       runs: [...runs.values()].map((r) => ({ ...r, pending: db.facts.filter((f) => f.investorId === r.investorId && f.status === 'pending').length })),
       senders: [...senders.entries()].map(([email, run]) => ({ email, run, facts: db.facts.filter((f) => f.runId === run._id && f.status !== 'dismissed' && !f.investorId) })),

@@ -33,7 +33,7 @@ export function PreviewQanda({ fail, children }: { fail: boolean; children: Reac
   })
   useEffect(() => {
     if (store || !loaded || !raise.ai.loaded) return
-    const s = state === 'empty' || !investors.length ? EMPTY_QANDA : fixtureQanda(investors, todayIST(), Date.now(), notesState, raise.ai.connected)
+    const s = state === 'empty' || !investors.length ? EMPTY_QANDA : fixtureQanda(investors, todayIST(), Date.now(), notesState, raise.ai.connected, state === 'jev')
     cur.current = s
     setStore(s)
   }, [store, loaded, investors, state, notesState, raise.ai.loaded, raise.ai.connected])
@@ -42,14 +42,15 @@ export function PreviewQanda({ fail, children }: { fail: boolean; children: Reac
     const s = store ?? EMPTY_QANDA
     const people = new Set(investors.map((i) => i._id))
     const noteById = new Map(s.notes.map((n) => [n._id, n]))
-    const questions: Question[] = s.questions.filter(live).map(({ removed: _r, mergedInto: _m, merge: _g, ...q }) => {
+    const questions: Question[] = s.questions.filter(live).map(({ removed: _r, mergedInto: _m, merge: _g, jevSame, ...q }) => {
+      const same = jevSame && !jevSame.undone ? s.questions.find((o) => o._id === jevSame.id && live(o)) : undefined
       const asks = s.asks
         .filter((a) => a.questionId === q._id && people.has(a.investorId))
         .map(({ questionId: _q, ...a }) => {
           const n = a.noteId ? noteById.get(a.noteId) : undefined
           return { ...a, quote: n && a.noteLine !== undefined ? n.text.split('\n')[a.noteLine]?.trim() : undefined, label: n?.title }
         })
-      return { ...q, askedCount: asks.length, asks }
+      return { ...q, askedCount: asks.length, asks, ...(same ? { sameAs: { id: same._id, text: same.text } } : {}) }
     })
 
     let k = 0
@@ -295,6 +296,15 @@ export function PreviewQanda({ fail, children }: { fail: boolean; children: Reac
       restoreUnmatched: w((id) => {
         set((x) => ({ ...x, unmatched: x.unmatched.map((u) => (u._id === id ? { ...u, dropped: false } : u)) }))
         return id
+      }),
+      // PST-292: "Not the same" on a question Jev marked, and its Undo.
+      notSame: w((id) => {
+        set((x) => ({ ...x, questions: x.questions.map((q) => (q._id === id && q.jevSame ? { ...q, jevSame: { ...q.jevSame, undone: true } } : q)) }))
+        return null
+      }),
+      restoreSame: w((id) => {
+        set((x) => ({ ...x, questions: x.questions.map((q) => (q._id === id && q.jevSame ? { ...q, jevSame: { id: q.jevSame.id } } : q)) }))
+        return null
       }),
     }
 

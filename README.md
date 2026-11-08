@@ -58,6 +58,7 @@ Screenshots of every preview screen at 1440 × 900, 440 × 956 and 412 × 915: r
 | `JWT_PRIVATE_KEY`, `JWKS` | Convex Auth signing keys: `node scripts/generate-auth-keys.mjs --set` (add `--prod` for production) |
 | `ANTHROPIC_API_KEY` | Optional. Turns on investor enrichment and Who's this? lookups (Claude with web search). Without it the app shows "AI isn't set up here" and nothing is sent anywhere. |
 | `LINEAR_API_KEY` | Optional (PST-289). A Linear personal API key (Settings › Account › Security & access), used to file ⌘. feedback as issues in Pesto › Nest. Without it feedback is saved and waits in Settings › Feedback. |
+| `TYPESAFE_API_KEY` | Optional (PST-292). Turns on Jev, TypeSafe's yes/no model (see Jev below). Without it everything works as it did before Jev. |
 | `GOOGLE_TOKEN_KEY` | Encrypts Google refresh tokens (Calendar and Gmail) and Wispr Flow's tokens at rest. 32 random bytes, base64: `openssl rand -base64 32`. Set it straight into Convex; don't keep a copy anywhere else. Changing it means everyone reconnects. |
 
 Google OAuth redirect URIs per deployment: `https://<deployment>.convex.site/api/auth/callback/google` (sign-in) and `https://<deployment>.convex.site/google/callback` (Connect Google). The Google Cloud project needs the Gmail API and the Google Calendar API turned on.
@@ -177,6 +178,23 @@ Ask and brief runs show in Settings › AI's recent runs with their cost and cou
 Preview: `&ask=empty|thinking|streaming|answer|verbal|prep|deck|unknown|failed` (with `&ai=nokey` for "AI isn't set up here") and `&brief=default|fallback|quiet|dismissed` on Today.
 
 **Models and cost**: every AI feature runs on Claude Haiku 5.5 unless Settings › AI picks another model: a default (Haiku, Sonnet or Opus) and, per feature, its own. Each row there shows what a run costs on its model (from the feature's last 50 runs once 5 of them stored their usage, else typical token counts) and what a month would cost at this month's pace. "Redo" in the drawer runs one enrichment on Sonnet or Opus, and the model chip in Ask picks one for a single question; neither changes the setting. Every run row (`enrichRuns`, `noteReads`, `drafts`, `askRuns`, `briefs`) keeps its `model` and `usage` (tokens in and out, cache reads and writes, web searches), and its cost is priced with that model (Haiku's long-prompt prices past 100K tokens). Prices, typical runs and the estimate maths are in `src/lib/models.ts`. Preview: `&ai=models` and `&ai=spend` on Settings.
+
+<!-- PST-292: Jev -->
+## Jev
+
+Jev is TypeSafe's "System One" model (`jev-latest`, docs.typesafe.ai). It never writes text: it answers typed questions about a piece of text with probabilities (Choice, Score and Noul). Claude stays for writing and research; Jev only makes small yes/no and pick-one calls, and only when something happens, never on a timer or a sweep of the whole list.
+
+- **Who's this? pre-check**: before the Haiku lookup of a new calendar attendee, one Noul: "This person is likely a venture investor or angel investor." Jev reads their email domain, the invite title, the other attendees' domains and whether the domain is a known investor's firm (no names, no email bodies). Below 0.3 the lookup is skipped and the person shows as "Probably not an investor" with Look up anyway; otherwise the lookup runs as before.
+- **Unmatched notes**: notes Nest can't tie to one investor get a Choice among that meeting's investors plus a companion Noul ("None of these investors is the one this note is about"). At 0.9 or above with the companion below 0.3 the notes are attached and read; otherwise they stay in Unmatched with "Probably <name>".
+- **Duplicate firms**: when an investor is added or renamed, it's compared only with investors whose name is at least 0.6 similar (trigrams), one Noul each ("These two records are the same firm"). At 0.8 or above it becomes a Duplicate in Suggestions, from Jev. Nothing merges until Dev clicks Merge. CSV imports aren't checked (they already skip name and firm duplicates).
+- **Q&A repeats**: a question added from notes gets a Choice among the 5 closest questions in the bank (trigrams) plus a companion Noul ("None of these asks the same thing"). At 0.85 or above with the companion below 0.3 it's marked "Same as …" under New from meetings, with Merge or Not the same (Undo in the toast).
+
+**The cap**: $4.00 a month by default, changed in Settings › AI's Jev row (on/off, "This month $0.0x of $4.00", the cap). Before each call Nest adds this month's spend to the call's estimate (input characters / 4 tokens at $0.042 per million; output is free) and doesn't call past the cap (log line `jev cap reached`). Answers are cached by the sha256 of (model, state, questions) in `jevCache`, so the same text is never asked twice. Every call, cache hit and capped call leaves a `jevRuns` row (feature, tokens, cost, cached, ok or error with a short reason); Jev shows in the spend view as its own model. Logs carry ids and counts, never the text.
+
+**Fallbacks**: with no `TYPESAFE_API_KEY`, Jev switched off, the cap reached, or a failed call (429 and 5xx are retried twice), `askJev` returns null and everything works as it did before Jev: people are looked up, notes wait in Unmatched, and no duplicate or repeat is flagged.
+
+Code: the client `askJev(ctx, { feature, state, questions })` is in `convex/lib/jev.ts` (it re-exports the question builders for signals and scoring), the pure parts (questions, thresholds, trigrams, cost) in `src/lib/jev.ts`, the event hooks in `convex/lib/jevHooks.ts`, the checks in `convex/jevHousekeeping.ts` and the tables in `convex/jevSchema.ts`. Preview: `&ai=jev` (Settings), `&whos=prechecked` (Today), `&suggestions=jev`, `&notes=probably` and `&qanda=jev`.
+<!-- end PST-292 -->
 
 ## System states
 

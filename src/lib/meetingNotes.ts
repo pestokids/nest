@@ -53,7 +53,8 @@ export type NoteRead = {
 }
 
 /** Notes that came in for nobody Nest could match ("Unmatched notes" on Today). */
-export type UnmatchedNote = { _id: string; email?: string; meetingTitle: string; date: string; text: string; source: NoteSource; createdAt: number }
+/** PST-292: `hint` is Jev's pick among the meeting's investors when it wasn't sure enough to attach the notes ("Probably …"). */
+export type UnmatchedNote = { _id: string; email?: string; meetingTitle: string; date: string; text: string; source: NoteSource; createdAt: number; hint?: { investorId: string; p: number } }
 /** What "Draft from past answers" hands the Answer panel: the draft, what it cost, and how many answers and notes it read. */
 export type Draft = { text: string; costUsd: number; from: number }
 

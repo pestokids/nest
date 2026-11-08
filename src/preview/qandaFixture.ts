@@ -5,12 +5,15 @@ import { expectedClash, type NoteRead, type UnmatchedNote } from '../lib/meeting
 import { NEXT_DECK, type AnswerVersion, type AskSource, type Note, type Question } from '../lib/qanda'
 import { addDays } from '../lib/today'
 
-export const PREVIEW_QANDA = ['default', 'empty', 'answer', 'edit', 'new', 'same', 'prep'] as const
+/** PST-292: jev adds a new question Jev marked "Same as …" one in the bank. */
+export const PREVIEW_QANDA = ['default', 'empty', 'answer', 'edit', 'new', 'same', 'prep', 'jev'] as const
 
 export type QRow = Omit<Question, 'asks' | 'askedCount'> & {
   removed?: boolean
   mergedInto?: string
   merge?: { askIds: string[]; keepBefore: Pick<Question, 'bestAnswer' | 'answerVersions' | 'slideRef' | 'onDeck'> }
+  /** PST-292: the question Jev marked this one the same as, and whether Dev said "Not the same". */
+  jevSame?: { id: string; undone?: boolean }
 }
 export type AskRow = { _id: string; questionId: string; investorId: string; date: string; source: AskSource; noteId?: string; noteLine?: number }
 export type NoteRow = Note & { removed?: boolean }
@@ -18,8 +21,8 @@ export type QandaStore = { questions: QRow[]; asks: AskRow[]; notes: NoteRow[]; 
 
 export const EMPTY_QANDA: QandaStore = { questions: [], asks: [], notes: [], reads: [], unmatched: [] }
 
-/** PST-277 &notes=…: Nest's read of Kite Angels' 1st meeting notes (default: waiting on you), or no reads, one reading, applied, failed; unmatched adds Unmatched notes on Today. */
-export const PREVIEW_NOTES = ['default', 'none', 'reading', 'applied', 'failed', 'unmatched'] as const
+/** PST-277 &notes=…: Nest's read of Kite Angels' 1st meeting notes (default: waiting on you), or no reads, one reading, applied, failed; unmatched adds Unmatched notes on Today; PST-292: probably adds them with Jev's "Probably …" pick. */
+export const PREVIEW_NOTES = ['default', 'none', 'reading', 'applied', 'failed', 'unmatched', 'probably'] as const
 export type PreviewNotes = (typeof PREVIEW_NOTES)[number]
 
 type Spec = {
@@ -110,7 +113,7 @@ const SPECS: Spec[] = [
 ]
 
 /** The bank, the notes and who asked what, built on the preview investors (rows for missing names are skipped). */
-export function fixtureQanda(investors: readonly Investor[], today: string, now = Date.now(), notesState: PreviewNotes = 'default', ai = true): QandaStore {
+export function fixtureQanda(investors: readonly Investor[], today: string, now = Date.now(), notesState: PreviewNotes = 'default', ai = true, jev = false): QandaStore {
   const id = (name: string) => investors.find((i) => i.name === name)?._id
   const D = 864e5
   const notes: NoteRow[] = []
@@ -143,10 +146,18 @@ export function fixtureQanda(investors: readonly Investor[], today: string, now 
   })
   const kite = investors.find((i) => i.name === 'Kite Angels')
   const reads = ai && kite && noteIds.kite1 && notesState !== 'none' ? fixtureReads(kite, noteIds, today, now, notesState) : []
+  // PST-292: a new question Jev marked as the same as the safety one already in the bank.
+  const safe = questions.find((q) => q.text.startsWith('How do you keep the stories safe'))
+  const lantern = id('Lantern Ventures')
+  if (jev && safe && lantern) {
+    questions.push({ _id: 'pq-jev', text: 'Are the stories safe for really young kids?', theme: 'Product', bestAnswer: '', answerVersions: [], onDeck: false, createdAt: now - 36e5, updatedAt: now - 36e5, jevSame: { id: safe._id } })
+    asks.push({ _id: 'pa-jev', questionId: 'pq-jev', investorId: lantern, date: today, source: 'notes' })
+  }
+  const hint = notesState === 'probably' ? id('Saltmarsh Angels') : undefined
   const unmatched: UnmatchedNote[] =
-    notesState === 'unmatched'
+    notesState === 'unmatched' || notesState === 'probably'
       ? [
-          { _id: 'pu-0', email: 'rowan@larkspur.example.com', meetingTitle: 'Coffee with Rowan', date: addDays(today, -1), source: 'wispr', createdAt: now - D, text: 'Rowan runs a small angel group.\nAsked how we price the family plan.\nWants the deck.' },
+          { _id: 'pu-0', email: 'rowan@larkspur.example.com', meetingTitle: 'Coffee with Rowan', date: addDays(today, -1), source: 'wispr', createdAt: now - D, text: 'Rowan runs a small angel group.\nAsked how we price the family plan.\nWants the deck.', ...(hint ? { hint: { investorId: hint, p: 0.74 } } : {}) },
           { _id: 'pu-1', meetingTitle: 'Catch-up call', date: today, source: 'agent', createdAt: now - 36e5, text: 'Talked about the market for kids’ audio.\nNo amount yet.' },
         ]
       : []

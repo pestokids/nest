@@ -14,6 +14,7 @@ import { featureModel } from './lib/enrichQueue'
 import { conform, SchemaError } from './lib/jsonSchema'
 import { DRAFT_SYSTEM, draftPrompt, notePrompt, SYSTEM, vNoteAnswer } from './lib/notesPrompt'
 import { READ_STALE_MS, startRead } from './lib/noteRead'
+import { matchNoteLater } from './lib/jevHooks'
 import { acceptOne, insertSuggestion, reopen } from './suggestions'
 import { vNoteSource, vProposal } from './notesSchema'
 import { vModel, vUsage } from './validators'
@@ -303,6 +304,8 @@ export async function addMeetingNotes(
     ) ?? (given ? { investorId: given._id } : null)
     if (!match) {
       const unmatchedId = await ctx.db.insert('unmatchedNotes', { ...(a.email?.trim() ? { email: a.email.trim().toLowerCase() } : {}), meetingTitle, date, text, source: a.source, createdAt: Date.now() })
+      // PST-292: Jev picks among the meeting's investors (attach, or a "Probably …" hint).
+      await matchNoteLater(ctx, unmatchedId, { meetingId: a.meetingId, meetingTitle, date }, meetings)
       return { unmatchedId }
     }
     const investorId = match.investorId as Id<'investors'>
@@ -326,15 +329,31 @@ export const ingestNote = internalMutation({
   handler: addMeetingNotes,
 })
 
-/** "Unmatched notes" on Today: notes nobody could be matched to, newest first. */
+/** "Unmatched notes" on Today: notes nobody could be matched to, newest first. PST-292: with Jev's "Probably …" pick when it made one. */
 export const unmatched = query({
   args: {},
   handler: async (ctx) => {
     await requireUser(ctx)
-    const rows = await ctx.db.query('unmatchedNotes').withIndex('by_created').order('desc').take(50)
-    return rows.filter((u) => !u.noteId && !u.droppedAt)
+    const rows = (await ctx.db.query('unmatchedNotes').withIndex('by_created').order('desc').take(50)).filter((u) => !u.noteId && !u.droppedAt)
+    const out = []
+    for (const u of rows) {
+      const mark = await ctx.db.query('jevMarks').withIndex('by_subject', (q) => q.eq('kind', 'note').eq('subject', u._id)).order('desc').first()
+      const hinted = mark?.target ? await ctx.db.get(mark.target as Id<'investors'>) : null
+      out.push(hinted ? { ...u, hint: { investorId: hinted._id, p: mark!.p } } : u)
+    }
+    return out
   },
 })
+
+/** Unmatched notes become that investor's note, and Nest reads them (Dev's pick, or PST-292: Jev's when it's sure). */
+export async function attachUnmatched(ctx: MutationCtx, u: Doc<'unmatchedNotes'>, investorId: Id<'investors'>) {
+  const at = Date.parse(u.date + 'T00:00:00+05:30')
+  const meeting = (await ctx.db.query('meetings').withIndex('by_start', (q) => q.gte('start', at - DAY_MS).lte('start', at + 2 * DAY_MS)).collect()).find((m) => m.investorIds.includes(investorId))
+  const noteId = await ctx.db.insert('notes', { investorId, date: u.date, text: u.text, title: u.meetingTitle.slice(0, LIMITS.title), source: u.source, ...(meeting ? { meetingId: meeting._id } : {}) })
+  await ctx.db.patch(u._id, { noteId })
+  await startRead(ctx, noteId, { auto: true })
+  return noteId
+}
 
 /** Pick whose notes they are: they become that investor's note, and Nest reads them. */
 export const matchUnmatched = mutation({
@@ -344,12 +363,7 @@ export const matchUnmatched = mutation({
     const u = await ctx.db.get(id)
     if (!u || u.noteId || u.droppedAt) throw new ConvexError('Those notes were already handled.')
     if (!(await ctx.db.get(investorId))) throw new ConvexError('That investor was deleted')
-    const at = Date.parse(u.date + 'T00:00:00+05:30')
-    const meeting = (await ctx.db.query('meetings').withIndex('by_start', (q) => q.gte('start', at - DAY_MS).lte('start', at + 2 * DAY_MS)).collect()).find((m) => m.investorIds.includes(investorId))
-    const noteId = await ctx.db.insert('notes', { investorId, date: u.date, text: u.text, title: u.meetingTitle.slice(0, LIMITS.title), source: u.source, ...(meeting ? { meetingId: meeting._id } : {}) })
-    await ctx.db.patch(id, { noteId })
-    await startRead(ctx, noteId, { auto: true })
-    return noteId
+    return await attachUnmatched(ctx, u, investorId)
   },
 })
 

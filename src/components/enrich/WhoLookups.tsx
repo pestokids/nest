@@ -2,6 +2,8 @@
 // from recent meetings, each looked up by Claude: who they are and their firm, then
 // Add as investor, Add to an investor already in the list, or Not an investor.
 // Shown when AI is set up; otherwise GoogleToday keeps the one-at-a-time card.
+// PST-292: someone Jev's pre-check said probably isn't an investor wasn't looked up:
+// "Probably not an investor", with Look up anyway.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { firmDomain, initials, sourceHost, whoLine, type Fact, type Sender } from '../../lib/enrich'
 import { dayOf, normDomain, timeOf, type Stranger } from '../../lib/google'
@@ -27,6 +29,7 @@ export function WhoLookups({ people }: { people: Stranger[] }) {
   const d = useRaise()
   const [gone, setGone] = useState<ReadonlySet<string>>(() => new Set())
   const senders = useMemo(() => new Map(d.ai.senders.map((s) => [s.email, s])), [d.ai.senders])
+  const prechecked = useMemo(() => new Map(d.ai.prechecked.map((x) => [x.email, x.likely])), [d.ai.prechecked])
   const left = people.filter((p) => !gone.has(p.email))
   if (!left.length) return null
   const hide = (email: string, on: boolean) => setGone((s) => (on ? new Set(s).add(email) : new Set([...s].filter((x) => x !== email))))
@@ -38,17 +41,17 @@ export function WhoLookups({ people }: { people: Stranger[] }) {
         </h2>
         <span className="chip chip--neutral">{left.length} new</span>
       </header>
-      <p className="gwho__lede">New people from your calendar. Nest looked each one up.</p>
+      <p className="gwho__lede">{left.some((p) => prechecked.has(p.email) && !senders.has(p.email)) ? 'New people from your calendar. Nest looked up the likely investors.' : 'New people from your calendar. Nest looked each one up.'}</p>
       <ul className="gwho-list__rows">
         {left.map((p) => (
-          <WhoRow key={p.email} p={p} sender={senders.get(p.email)} onHide={(on) => hide(p.email, on)} />
+          <WhoRow key={p.email} p={p} sender={senders.get(p.email)} prechecked={prechecked.has(p.email)} onHide={(on) => hide(p.email, on)} />
         ))}
       </ul>
     </Card>
   )
 }
 
-function WhoRow({ p, sender, onHide }: { p: Stranger; sender?: Sender; onHide: (on: boolean) => void }) {
+function WhoRow({ p, sender, prechecked, onHide }: { p: Stranger; sender?: Sender; prechecked: boolean; onHide: (on: boolean) => void }) {
   const d = useRaise()
   const ui = useUI()
   const avatar = useRef<HTMLSpanElement>(null)
@@ -81,7 +84,9 @@ function WhoRow({ p, sender, onHide }: { p: Stranger; sender?: Sender; onHide: (
   const today = dayOf(Date.now())
   const meta = 'On the invite “' + p.meeting.title + '” · ' + (day === today ? 'today, ' + timeOf(p.meeting.start) : dayLabel(day, today))
   const line = !run
-    ? 'Not looked up yet.'
+    ? prechecked
+      ? 'Probably not an investor'
+      : 'Not looked up yet.'
     : looking
       ? 'Looking up…'
       : verdict === 'investor'
@@ -157,7 +162,11 @@ function WhoRow({ p, sender, onHide }: { p: Stranger; sender?: Sender; onHide: (
         ) : null}
       </div>
       <span ref={chip} className="gwho-row__chip">
-        {!run ? null : looking ? (
+        {!run ? (
+          prechecked ? (
+            <span className="chip chip--outline">Probably not</span>
+          ) : null
+        ) : looking ? (
           <span className="chip chip--waiting">
             <span className="chip__dot" aria-hidden="true" />
             Looking up
@@ -174,7 +183,7 @@ function WhoRow({ p, sender, onHide }: { p: Stranger; sender?: Sender; onHide: (
       <div className="gwho-row__actions">
         {!run ? (
           <Button variant="secondary" icon="spark" loading={busy === 'lookup'} loadingLabel="Starting…" onClick={lookup}>
-            Look up
+            {prechecked ? 'Look up anyway' : 'Look up'}
           </Button>
         ) : looking ? null : verdict === 'investor' ? (
           <Button variant="primary" loading={busy === 'add'} loadingLabel="Adding…" onClick={add}>

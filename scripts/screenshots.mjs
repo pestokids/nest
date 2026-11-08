@@ -74,6 +74,12 @@ const SCREENS = [
   ['suggestions-agent', '/raise/today?preview&suggestions=agent'],
   ['suggestions-tidy', '/raise/today?preview&suggestions=tidy'],
   ['suggestions-none', '/raise/today?preview&suggestions=none'],
+  // PST-292: Jev
+  ['jev-settings', '/raise/settings?preview&ai=jev'],
+  ['jev-whos-prechecked', '/raise/today?preview&whos=prechecked'],
+  ['jev-suggestions-duplicate', '/raise/today?preview&suggestions=jev'],
+  ['jev-unmatched-probably', '/raise/today?preview&notes=probably'],
+  ['jev-qanda-same', '/raise/qanda?preview&qanda=jev'],
   // PST-282: Materials and the public viewer
   ['materials-library', '/raise/materials?preview'],
   ['materials-empty', '/raise/materials?preview&materials=empty'],

@@ -100,6 +100,7 @@ export function ConvexData({ children }: { children: ReactNode }) {
   const aiAddPerson = useMutation(api.enrich.addPerson)
   const aiSetPrimary = useMutation(api.enrich.setPrimary)
   const aiSetModel = useMutation(api.enrich.setModel)
+  const aiSetJev = useMutation(api.jev.setJev)
   const aiDo = useMemo(
     () => ({
       enrich: (id: string, model?: Model) => aiEnrich({ investorId: id as Id<'investors'>, model }),
@@ -116,8 +117,9 @@ export function ConvexData({ children }: { children: ReactNode }) {
       addPerson: (investorId: string, p: { name: string; title?: string; email?: string }) => aiAddPerson({ investorId: investorId as Id<'investors'>, ...p }),
       setPrimary: (personId: string) => aiSetPrimary({ personId: personId as Id<'people'> }),
       setModel: (feature: Feature | null, model: Model | null) => aiSetModel({ ...(feature ? { feature } : {}), model }),
+      setJev: (patch: { on?: boolean; capUsd?: number }) => aiSetJev(patch),
     }),
-    [aiEnrich, aiEnrichMany, aiLookup, aiStop, aiKeep, aiDismiss, aiUndo, aiKeepAll, aiDismissAll, aiSetAuto, aiAddSender, aiAddPerson, aiSetPrimary, aiSetModel],
+    [aiEnrich, aiEnrichMany, aiLookup, aiStop, aiKeep, aiDismiss, aiUndo, aiKeepAll, aiDismissAll, aiSetAuto, aiAddSender, aiAddPerson, aiSetPrimary, aiSetModel, aiSetJev],
   )
   const agentRows = useQuery(api.agents.list)
   const agents = useMemo(() => (agentRows ? { loaded: true, ...agentRows } : NO_AGENTS), [agentRows])

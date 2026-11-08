@@ -2,6 +2,7 @@
 // galaxy-s25-ultra/qanda.png). The facts row, theme chips, the new questions
 // from meetings that need an answer, the most asked questions with the best
 // answer and its slide, and the deck-gaps list.
+// PST-292: a new question Jev marked "Same as …" one in the bank offers Merge or Not the same.
 import { useMemo, useState } from 'react'
 import { todayIST } from '../../lib/dates'
 import { pop, usePop } from '../../lib/motion'
@@ -114,6 +115,8 @@ function Facts({ questions, noteCount }: { questions: Question[]; noteCount: num
 
 function NewFromMeetings({ list }: { list: Question[] }) {
   const { investors } = useRaise()
+  const { questions } = useQanda()
+  const acts = useQandaActions()
   const names = useMemo(() => new Map(investors.map((i) => [i._id, i.name])), [investors])
   const today = todayIST()
   const countRef = usePop<HTMLSpanElement>(list.length)
@@ -133,20 +136,35 @@ function NewFromMeetings({ list }: { list: Question[] }) {
       <ul className="qa-new__list">
         {list.map((q) => {
           const last = [...q.asks].sort((a, b) => b.date.localeCompare(a.date))[0]
+          // PST-292: Jev marked it the same as a question already in the bank.
+          const same = q.sameAs ? questions.find((o) => o._id === q.sameAs!.id) : undefined
           return (
             <li key={q._id} className="qa-new__row m-rise">
               <button type="button" className="qa-new__q" onClick={() => openPanel({ kind: 'answer', id: q._id })}>
                 {q.text}
               </button>
-              <span className="qa-new__meta">{last ? askLine(last, names.get(last.investorId) ?? 'Someone', today) : 'Added by hand'}</span>
-              <span className="qa-new__actions">
-                <button type="button" className="qa-textbtn" onClick={() => openPanel({ kind: 'same', id: q._id })}>
-                  Same as another
-                </button>
-                <Button variant="secondary" size="sm" className="qa-new__answer" onClick={() => openPanel({ kind: 'answer', id: q._id })}>
-                  Answer
-                </Button>
+              <span className="qa-new__meta">
+                {same ? 'Same as “' + same.text + '”' : last ? askLine(last, names.get(last.investorId) ?? 'Someone', today) : 'Added by hand'}
               </span>
+              {same ? (
+                <span className="qa-new__actions">
+                  <button type="button" className="qa-textbtn" onClick={() => void acts.notSame(q)}>
+                    Not the same
+                  </button>
+                  <Button variant="secondary" size="sm" className="qa-new__answer" onClick={() => void acts.merge(q, same)}>
+                    Merge
+                  </Button>
+                </span>
+              ) : (
+                <span className="qa-new__actions">
+                  <button type="button" className="qa-textbtn" onClick={() => openPanel({ kind: 'same', id: q._id })}>
+                    Same as another
+                  </button>
+                  <Button variant="secondary" size="sm" className="qa-new__answer" onClick={() => openPanel({ kind: 'answer', id: q._id })}>
+                    Answer
+                  </Button>
+                </span>
+              )}
             </li>
           )
         })}
