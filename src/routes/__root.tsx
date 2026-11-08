@@ -28,6 +28,7 @@ import wispr from '../styles/wispr.css?url'
 import feedback from '../styles/feedback.css?url' // PST-289
 import decisions from '../styles/decisions.css?url' // PST-293
 import introducers from '../styles/introducers.css?url' // PST-294
+import race from '../styles/race.css?url' // PST-295
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
@@ -70,6 +71,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: 'stylesheet', href: feedback }, // PST-289
       { rel: 'stylesheet', href: decisions }, // PST-293
       { rel: 'stylesheet', href: introducers }, // PST-294
+      { rel: 'stylesheet', href: race }, // PST-295
     ],
   }),
   component: () => (

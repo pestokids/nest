@@ -25,12 +25,17 @@ import { PreviewQanda } from '../preview/PreviewQanda'
 import { useAgentsPreview, type PreviewAgents } from '../preview/agentsFixture'
 import { useAskPreview, type PreviewAsk, type PreviewBrief } from '../preview/askFixture'
 import { modelFor } from '../lib/models'
+import { fixtureRace } from '../preview/raceFixture' // PST-295
 import { applyTouch, undoTouchPatch } from '../lib/touch'
 
 type Seed = { round?: Partial<Round>; investors: (Omit<Investor, '_id'> & { slug: string })[] }
 export type PreviewHome = 'default' | 'firstrun' | 'prepdone'
 /** T5 options: `loading` never finishes loading; `mid` is the mid-round fixture; `fail` makes every write fail (save-failed + Retry). */
-export type PreviewExtra = { loading?: boolean; mid?: boolean; fail?: boolean; /** PST-284 `&insights=default|behind`: a month of made-up history for Plan › Insights. */ insights?: 'default' | 'behind' }
+export type PreviewExtra = {
+  loading?: boolean; mid?: boolean; fail?: boolean; /** PST-284 `&insights=default|behind`: a month of made-up history for Plan › Insights. */ insights?: 'default' | 'behind'
+  /** PST-295: a made-up kickoff week for Pipeline › Race (`lead`: two offers, and a lead). */
+  race?: 'race' | 'lead'
+}
 
 /** What the rule checks read in preview: the fixture, its made-up meetings and the Google fixture. */
 const checkInput = (investors: Investor[], acts: Activity[], g: GoogleData, now: number): CheckInput => ({
@@ -113,6 +118,14 @@ export function PreviewData({
         setActs(m.acts)
         return
       }
+      // PST-295
+      if (extra.race) {
+        const m = fixtureRace(t, extra.race === 'lead')
+        setInvestors(m.investors)
+        setRound(m.round)
+        setActs(m.acts)
+        return
+      }
       if (extra.mid) {
         const m = fixtureMid(t)
         setInvestors(m.investors)
@@ -156,7 +169,7 @@ export function PreviewData({
           mergeRound(s.round),
         )
       })
-  }, [source, home, board, todayState, extra.mid, extra.insights, suggestionsState, close])
+  }, [source, home, board, todayState, extra.mid, extra.insights, extra.race, suggestionsState, close])
 
   const latest = useRef(investors)
   const latestActs = useRef(acts)
@@ -274,6 +287,8 @@ export function PreviewData({
           emails: cleanEmails(f.emails, f.email).length ? cleanEmails(f.emails, f.email) : undefined,
           domains: cleanDomains(f.domains).length ? cleanDomains(f.domains) : undefined,
           parkedUntil: f.stage === 'parked' ? f.parkedUntil || undefined : undefined, _creationTime: prev?._creationTime ?? Date.now(),
+          // PST-295: the lead fields aren't on the form (as in convex/investors.ts).
+          canLead: prev?.canLead, leadAskedOn: prev?.leadAskedOn, leadOverride: prev && prev.lead !== f.lead ? f.lead : prev?.leadOverride,
         }
         setInvestors((xs) => (prev ? (xs ?? []).map((i) => (i._id === id ? doc : i)) : [...(xs ?? []), doc]))
         if (logStage) act({ investorId: nid, kind: 'stage', stage: logStage })

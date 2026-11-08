@@ -17,6 +17,7 @@ import { forgetClosing } from './closings'
 import { forgetDrafts } from './drafts'
 import { forgetDecisions } from './decisions' // PST-293
 import { forgetIntros } from './introducers' // PST-294
+import { forgetLead } from './race' // PST-295
 
 export const list = query({
   args: {},
@@ -79,8 +80,12 @@ export async function saveInvestor(ctx: MutationCtx, userId: Id<'users'>, id: Id
   const doc = { ...body, lastTouch, maxStage, updatedAt: Date.now(), updatedBy: userId }
   let investorId: Id<'investors'>
   if (prev) {
+    // PST-295: the lead fields aren't on the form, so keep them. Changing "Can lead or anchor" is Dev's word, like the drawer's switch.
+    const { canLead, leadAskedOn } = prev
+    const leadOverride = prev.lead !== body.lead ? body.lead : prev.leadOverride
+    const lead = Object.fromEntries(Object.entries({ canLead, leadOverride, leadAskedOn }).filter(([, x]) => x !== undefined))
     // replace, so cleared optional fields are removed
-    await ctx.db.replace(prev._id, { ...doc, ...(prev.slug ? { slug: prev.slug } : {}) })
+    await ctx.db.replace(prev._id, { ...doc, ...(prev.slug ? { slug: prev.slug } : {}), ...lead })
     investorId = prev._id
   } else investorId = await ctx.db.insert('investors', doc)
   if (stage) await logStage(ctx, investorId, stage, userId, today)
@@ -232,6 +237,7 @@ export const remove = mutation({
     await forgetDrafts(ctx, id)
     await forgetDecisions(ctx, id) // PST-293
     await forgetIntros(ctx, id) // PST-294
+    await forgetLead(ctx, id) // PST-295
     // Its meetings and email touches lose the match (threads with nobody else go).
     if (prev && addressKey(prev)) await ctx.scheduler.runAfter(0, internal.google.rematch, { rescan: false })
     return acts.length

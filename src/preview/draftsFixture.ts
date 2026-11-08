@@ -9,13 +9,14 @@
 //   nokey     "AI isn't set up here" (no ANTHROPIC_API_KEY): write it yourself, Copy and Send still work
 //   noemail   Send hidden (no RESEND_API_KEY)              copied    after Copy, with "I sent it"
 //   failed    Claude failed (Try again)                    history   the drawer's History with the last drafts
+//   lead      PST-295: "Ask if they'll lead" (Orchard Capital)
 import { DECK_LINK, type AiDraftType, type Draft, type DraftType, type Known, type Tweak } from '../lib/drafts'
 import type { Investor } from '../lib/pipeline'
 import { todayIST } from '../lib/dates' // PST-293
 import { dayMonth } from '../lib/home'
 import { addDays } from '../lib/today'
 
-export const PREVIEW_DRAFTS = ['followup', 'intro', 'blurb', 'nudge', 'thanks', 'dataroom', 'writing', 'nokey', 'noemail', 'copied', 'failed', 'history'] as const
+export const PREVIEW_DRAFTS = ['followup', 'intro', 'blurb', 'nudge', 'thanks', 'dataroom', 'writing', 'nokey', 'noemail', 'copied', 'failed', 'history', 'lead'] as const
 export type PreviewDrafts = (typeof PREVIEW_DRAFTS)[number]
 
 /** People Dev has met or emailed, so warm paths named "Ankur" and "Ria" resolve (Mira's doesn't). */
@@ -38,6 +39,7 @@ export function previewOpen(state: PreviewDrafts, investors: readonly Investor[]
     case 'nudge': return pick('Saltmarsh Angels', 'nudge')
     case 'thanks': return pick('Orchard Capital', 'thanks')
     case 'dataroom': return pick('Orchard Capital', 'dataroom')
+    case 'lead': return pick('Orchard Capital', 'lead')
     default: return pick('Kite Angels', 'followup')
   }
 }
@@ -69,6 +71,11 @@ function base(type: AiDraftType, i: Investor, deck: string, dataRoom: string): {
       return {
         subject: 'Thank you, and the data room',
         paras: [hi, 'Thank you for the yes. It means a lot this early.', 'Here’s the data room for the paperwork side: ' + dataRoom, 'Shall I send the SAFE over for [__] this week?', 'Dev'],
+      }
+    case 'lead':
+      return {
+        subject: 'Pesto · would you lead?',
+        paras: [hi, 'Thanks for the partner meeting. The questions on retention and safety were the right ones.', 'You know consumer and kids at pre-seed better than anyone we’ve met, which is why I’m asking first: would you lead the round, at [__]?', 'If it helps, tell me what you’d need to see to decide, and I’ll get it to you this week.', 'Dev'],
       }
     case 'dataroom':
       return { subject: 'Pesto · data room', paras: [hi, 'Here’s our data room: ' + dataRoom, 'Everything we’ve shared so far is in one place.', 'What would you like to see first?', 'Dev'] }

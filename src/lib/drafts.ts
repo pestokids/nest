@@ -10,18 +10,21 @@ export const DRAFT_TYPES = [
   'decision',
   // PST-294: the forwardable intro (the warm path and Introducers).
   'forwardable',
+  // PST-295: "Ask if they'll lead".
+  'lead',
 ] as const
 export type DraftType = (typeof DRAFT_TYPES)[number]
 export const TYPE_LABEL: Record<DraftType, string> = {
   intro: 'Intro ask', followup: 'Follow-up', nudge: 'Nudge', thanks: 'Thank you', dataroom: 'Data room', confirm: 'Written confirmation', allocation: 'Allocation', decision: 'Yes or no',
   forwardable: 'Forwardable intro', // PST-294
+  lead: 'Ask to lead', // PST-295
 }
 /**
  * The types Claude writes. PST-291: "confirm" (the written confirmation) and
  * "allocation" are fixed templates from Close (src/lib/closeKit.ts): Nest fills
  * in the amount, cap and dates from the records, and Claude never rewrites them.
  */
-export const AI_DRAFT_TYPES = ['intro', 'followup', 'nudge', 'thanks', 'dataroom', 'decision', 'forwardable'] as const
+export const AI_DRAFT_TYPES = ['intro', 'followup', 'nudge', 'thanks', 'dataroom', 'decision', 'forwardable', 'lead'] as const
 export type AiDraftType = (typeof AI_DRAFT_TYPES)[number]
 export const isAiType = (t: DraftType): t is AiDraftType => (AI_DRAFT_TYPES as readonly string[]).includes(t)
 /** PST-294: the Draft dialog's type chips. A forwardable intro needs an introducer, so it opens from the warm path and Introducers. */
@@ -136,6 +139,7 @@ export function draftTitle(type: DraftType, investor: string, warm?: Recipient |
     case 'allocation': return 'Allocation for ' + investor
     case 'decision': return 'Ask ' + investor + ' for a yes or no'
     case 'forwardable': return 'Ask ' + (warm?.name?.split(/\s+/)[0] || 'them') + ' for an intro to ' + investor
+    case 'lead': return 'Ask ' + investor + ' if they’ll lead'
   }
 }
 

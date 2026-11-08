@@ -71,6 +71,8 @@ import type * as prefs from "../prefs.js";
 import type * as prep from "../prep.js";
 import type * as priority from "../priority.js";
 import type * as qanda from "../qanda.js";
+import type * as race from "../race.js";
+import type * as raceSchema from "../raceSchema.js";
 import type * as seed from "../seed.js";
 import type * as settings from "../settings.js";
 import type * as signals from "../signals.js";
@@ -152,6 +154,8 @@ declare const fullApi: ApiFromModules<{
   prep: typeof prep;
   priority: typeof priority;
   qanda: typeof qanda;
+  race: typeof race;
+  raceSchema: typeof raceSchema;
   seed: typeof seed;
   settings: typeof settings;
   signals: typeof signals;

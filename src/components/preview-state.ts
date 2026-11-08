@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react'
+import type { PreviewRace } from '../preview/raceFixture'
 
 // DEV/preview only: which state `?preview` should show (Today, the drawer, and the
 // Investors / Plan / Settings / system states). Null outside preview.
@@ -46,6 +47,8 @@ export type PreviewState = {
   /** `&drawer=warm-path`: the drawer scrolled to its warm path */
   warmPath?: boolean
   /* ---------- end PST-294 ---------- */
+  /** PST-295 `&pipeline=race|race-lead|update` and `&home=race` (see src/preview/raceFixture.ts) */
+  race?: PreviewRace | null
 }
 
 /** PST-279 `&ask=…`: the question ⌘K asks as it opens in Ask mode (empty: just Ask mode). See src/preview/askFixture.ts. */

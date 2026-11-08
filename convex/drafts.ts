@@ -17,6 +17,7 @@ import { randomToken } from './lib/token'
 import { siteOrigin } from './materials'
 import { vDraftType, vTweak } from './draftsSchema'
 import { vModel, vUsage } from './validators'
+import { noteLeadAsked } from './race' // PST-295
 import { blanks, firstLine, isAiType, isEmail, LINK_SLOTS, mainContact, MAX_BODY, MAX_SUBJECT, touchNote, warmPathContact, type Known } from '../src/lib/drafts'
 import { SAFE_LINK } from '../src/lib/closeKit'
 import { confirmationTarget, stampConfirmation } from './closings'
@@ -317,6 +318,7 @@ export const markSent = mutation({
     // PST-291: a written confirmation that went starts the 48-hour offer.
     if (d.type === 'confirm') await stampConfirmation(ctx, userId, d.investorId, at)
     if (d.introId) await markAsked(ctx, d.introId)
+    if (d.type === 'lead') await noteLeadAsked(ctx, d.investorId) // PST-295
     return { logged: true }
   },
 })
@@ -357,6 +359,7 @@ export const sentByEmail = internalMutation({
     if (d.type === 'confirm') await stampConfirmation(ctx, userId, d.investorId, at)
     // PST-294: sending a forwardable intro's ask ticks "Asked" and starts the clock.
     if (d.introId) await markAsked(ctx, d.introId)
+    if (d.type === 'lead') await noteLeadAsked(ctx, d.investorId) // PST-295
   },
 })
 

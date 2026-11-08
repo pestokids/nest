@@ -8,6 +8,7 @@ import { asRank, asType, RANKS } from '../../src/lib/enrich'
 import { TYPES } from '../../src/lib/stages'
 import { toJsonSchema } from './jsonSchema'
 import type { vNewFact } from '../enrichSchema'
+import { vCanLead } from '../raceSchema'
 
 const vText = v.union(v.string(), v.null())
 const vF = v.union(v.object({ value: v.string(), source: v.string(), confidence: v.number() }), v.null())
@@ -22,6 +23,8 @@ export const vResearch = v.object({
     name: vF, website: vF, domain: vF, type: vF, size: vMoneyF, vintage: vF, stage: vF, check: vMoneyF, leads: vF, geography: vF, thesis: vF, recentDeals: vF,
   }),
   partners: v.array(v.object({ name: v.string(), title: vText, rank: vText, covers: vText, linkedin: vText, source: v.string(), confidence: v.number() })),
+  // PST-295: can this fund lead the round? Optional, so an answer without it still counts.
+  canLead: v.optional(vCanLead),
 })
 export type Research = Infer<typeof vResearch>
 export type NewFact = Infer<typeof vNewFact>
@@ -47,6 +50,7 @@ export const SYSTEM = [
   '- partners: the other partners at the fund and what they cover (never the person themselves), at most five.',
   '- verdict: investor if they invest (at a fund, as an angel or a scout), not_investor if they clearly don’t, unknown if you couldn’t tell.',
   '- summary: one plain sentence on who they are, like "Principal at XYZ Ventures, a $40M pre-seed fund." or "Couldn’t find them."',
+  '- canLead: could they lead a pre-seed round (set the terms and write the biggest check)? value is yes, no or unknown; reason is under 80 characters, like "Leads pre-seed rounds of $500K–$1M" or "Only follows a lead". Say unknown unless a page you read shows it.',
   '',
   'Progress: each time you finish one of the numbered steps, write one line on its own, exactly',
   'STEP <number> | <what you found, under 60 characters> | <domain of the main source>',

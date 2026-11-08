@@ -24,6 +24,7 @@ import { useInstant } from './system/useInstant'
 import { addDays, celebrates, stageChange } from '../lib/today'
 import { useRaise } from './data'
 import { InvestorEnrich } from './enrich/InvestorEnrich'
+import { LeadSection } from './race/LeadSection' // PST-295
 import { DrawerMaterials } from './materials/DrawerMaterials'
 import { openDraft } from './drafts/data'
 import { confirmAction, openCloseKit } from './close/openKit'
@@ -562,6 +563,8 @@ function Details({ inv, log, sheet, onDelete, onEdit }: { inv: Investor; log: Ac
     <div className="details">
       {/* PST-293 */}
       <DecisionSection inv={inv} />
+      {/* PST-295: The lead */}
+      <LeadSection inv={inv} />
       <WarmPath inv={inv} /> {/* PST-294 */}
       <InvestorEnrich inv={inv} sheet={sheet} />
       <dl className="details__rows">

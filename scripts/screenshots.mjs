@@ -114,6 +114,10 @@ const SCREENS = [
   ...['panel', 'add', 'ask'].map((s) => [`introducer-${s}`, `/raise/investors?preview&introducer=${s}`]),
   ['draft-forwardable', '/raise/investors?preview&draft=forwardable'],
   ['drawer-warm-path', '/raise/pipeline?preview&drawer=warm-path'],
+  // PST-295: Pipeline › Race and the lead
+  ...['race', 'race-lead', 'update'].map((s) => [`pipeline-${s}`, `/raise/pipeline?preview&pipeline=${s}`]),
+  ['home-race', '/?preview&home=race'],
+  ['drafts-lead', '/raise/today?preview&drafts=lead'],
 ]
 
 /** Sideways scroll, and (phones) visible controls smaller than 44 × 44. */

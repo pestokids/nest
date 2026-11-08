@@ -187,6 +187,8 @@ const FIELD_LABEL: Record<string, string> = {
   cap: 'Valuation cap', minCheck: 'Minimum check', quietDays: 'Gone quiet after (days)',
   // PST-283
   capTable: 'Cap table',
+  // PST-295
+  leadId: 'The lead',
 }
 /** Human label for a change-log path, e.g. `phases.1.targets.2.t` → "Phase 2 · target 3". */
 export function fieldLabel(path: string): string {

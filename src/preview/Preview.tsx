@@ -62,6 +62,11 @@
 //   &introducer=panel|add|ask  one introducer's panel open (Ankur), on phones too; Add introducer; Ask for another intro
 //   &draft=forwardable       the forwardable intro draft: the ask, and the note to forward
 //   &drawer=warm-path        the drawer on Kite Angels, scrolled to the warm path and its steps
+//   PST-295 Race and the lead (see preview/raceFixture.ts; a made-up kickoff week):
+//   &pipeline=race           Pipeline › Race: kickoff week, who's ahead with the slow-down note, no lead yet
+//   &pipeline=race-lead      two offers the same week (the lime card), and Orchard is leading
+//   &pipeline=update         the race, scrolled to Who to update;  &home=race  Home's Raise card with the race
+//   &drafts=lead             the "Ask if they'll lead" draft
 //   &fail                    every write fails (save-failed toast with Retry)
 //   any unknown path         the 404, e.g. /nowhere?preview
 import { useEffect, useRef } from 'react'
@@ -89,6 +94,8 @@ import { saveLocalDensity } from '../lib/density'
 import { useRaise } from '../components/data'
 import { useInstant } from '../components/system/useInstant'
 import { DecisionsProvider } from '../components/decisions/data' // PST-293
+import { RaceProvider } from '../components/race/data' // PST-295
+import { PREVIEW_RACE, type PreviewRace } from './raceFixture' // PST-295
 
 const session = { me: { firstName: 'Dev', name: 'Dev Preview', email: 'dev@example.com' }, signOut: () => {} }
 
@@ -123,9 +130,12 @@ export function Preview() {
   const wispr: WisprPreview = (WISPR_PREVIEW as readonly string[]).includes(q.get('wispr') ?? '') ? (q.get('wispr') as WisprPreview) : 'off'
   // PST-289
   const feedback = (PREVIEW_FEEDBACK as readonly string[]).includes(q.get('feedback') ?? '') ? (q.get('feedback') as FeedbackState) : null
-  const state = { today, drawer, sheet: q.has('sheet'), investors: q.get('investors'), plan: q.get('plan'), settings: q.get('settings'), system: q.get('system'), suggestions, qanda: q.get('qanda'), materials, agents, notes: q.get('notes'), drafts, ask, introducer: q.get('introducer'), draft: q.get('draft'), warmPath }
+  // PST-295
+  const raceParam = q.get('home') === 'race' ? 'home' : q.get('pipeline')
+  const race = (PREVIEW_RACE as readonly string[]).includes(raceParam ?? '') ? (raceParam as PreviewRace) : null
+  const state = { today, drawer, sheet: q.has('sheet'), investors: q.get('investors'), plan: q.get('plan'), settings: q.get('settings'), system: q.get('system'), suggestions, qanda: q.get('qanda'), materials, agents, notes: q.get('notes'), drafts, ask, introducer: q.get('introducer'), draft: q.get('draft'), warmPath, race }
   const insights = q.get('insights')
-  const extra = { loading: state.system === 'loading', mid: state.plan === 'mid', fail: q.has('fail'), insights: insights === 'default' || insights === 'behind' ? (insights as 'default' | 'behind') : undefined }
+  const extra = { loading: state.system === 'loading', mid: state.plan === 'mid', fail: q.has('fail'), insights: insights === 'default' || insights === 'behind' ? (insights as 'default' | 'behind') : undefined, race: race ? (race === 'race-lead' ? ('lead' as const) : ('race' as const)) : undefined }
   const google: PreviewGoogle = (PREVIEW_GOOGLE as readonly string[]).includes(q.get('google') ?? '') ? (q.get('google') as PreviewGoogle) : drawer === 'emails' || q.get('qanda') === 'prep' || ask === 'prep' ? 'connected' : 'none'
   const ai: PreviewAI = (PREVIEW_AI as readonly string[]).includes(q.get('ai') ?? '') ? (q.get('ai') as PreviewAI) : 'default'
   /* ---------- PST-293: &signal=auto|decide and &pipeline=maybes ---------- */
@@ -158,6 +168,8 @@ export function Preview() {
               <DraftsProvider>
                 {/* PST-293 */}
                 <DecisionsProvider>
+                {/* PST-295 */}
+                <RaceProvider>
                 <PreviewWispr state={wispr} fail={extra.fail}>
                   {/* PST-289 */}
                   <PreviewFeedback state={feedback} fail={extra.fail}>
@@ -168,6 +180,7 @@ export function Preview() {
                     </AppShell>
                   </PreviewFeedback>
                 </PreviewWispr>
+                </RaceProvider>
                 </DecisionsProvider>
               </DraftsProvider>
               </IntroducersProvider>

@@ -11,6 +11,7 @@ import { rise, usePop } from '../../lib/motion'
 import { money } from '../../lib/money'
 import { totals } from '../../lib/pipeline'
 import type { Round } from '../../lib/round'
+import { RaceStats } from '../../components/race/RaceStats' // PST-295
 
 export const Route = createFileRoute('/_app/')({ component: Home })
 
@@ -86,12 +87,8 @@ function RaiseCard({ round: r, roundExists, today }: { round: Round; roundExists
         </span>
       </p>
       <dl className="raise-card__stats">
-        {/* PST-295 fills three slots here, before "intros out": "in the race", "offers" (n / m) and "lead" ("None" yet in orange).
-            They stay out until it ships: no placeholder values. */}
-        <div>
-          <dt>in conversation</dt>
-          <dd className="num">{s.inConversation}</dd>
-        </div>
+        {/* PST-295: in the race, offers (n / 2) and the lead ("None" yet, in orange). */}
+        <RaceStats />
         <div>
           <dt>intros out</dt>
           <dd className="num">{s.introsOut}</dd>

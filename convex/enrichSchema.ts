@@ -4,6 +4,7 @@ import { defineTable } from 'convex/server'
 import { v } from 'convex/values'
 import { RANKS } from '../src/lib/enrich'
 import { runModelFields, vModel } from './validators'
+import { vCanLead } from './raceSchema' // PST-295
 
 const lit = <T extends string>(xs: readonly T[]) => v.union(...xs.map((x) => v.literal(x)))
 
@@ -84,6 +85,8 @@ export const enrichTables = {
     summary: v.optional(v.string()),
     /** PST-273: set when the run was a one-off on another model (Redo with Sonnet), else when it ran. */
     ...runModelFields,
+    /** PST-295: whether they can lead, as this run found it (copied with a cached run). */
+    canLead: v.optional(vCanLead),
   })
     .index('by_investor', ['investorId', 'startedAt'])
     .index('by_email', ['email', 'startedAt'])

@@ -220,7 +220,7 @@ App-wide, in the shell: the ⌘K palette (`openCommandPalette()`, `src/component
 
 `/` is the company overview (PST-289, `round5/home-company-overview.png`). It greets you by time of day (Asia/Kolkata), then shows three cards from the same data as `/raise`:
 
-- **Raise**: committed of the target, days to close, in conversation (intro made and on) and intros out (intro asked). PST-295 adds "in the race", offers and the lead in the marked slot in `src/routes/_app/index.tsx`; until then they aren't shown.
+- **Raise**: committed of the target, days to close, in conversation (intro made and on) and intros out (intro asked). PST-295 adds "in the race", offers and the lead in the marked slot in `src/routes/_app/index.tsx` (see Pipeline › Race and the lead).
 - **Inbox**: the top 4 rows from Today's own lists (Waiting on you, Due today, Gone quiet, then Suggested fixes), one row per investor, through `inboxPreview()` in `src/lib/inbox.ts`. A row opens that investor on Today. PST-297 replaces it with the real Inbox.
 - **This week**: the next five working days with investor meetings, dated next steps and phase starts and ends (`thisWeek()` in `src/lib/home.ts`).
 
@@ -255,6 +255,22 @@ An `intros` row joins one introducer (or committed investor) to one investor and
 
 Preview: see the PST-294 line under Local setup.
 <!-- end PST-294 -->
+
+<!-- PST-295: Pipeline › Race and the lead -->
+## Pipeline › Race and the lead
+
+Pipeline has three views, switched with V or the tabs above it: Board, Race and Maybes (PST-293's `src/components/pipeline/Maybes.tsx`, with its count on the tab; `src/components/pipeline/views.ts`). The view is in the URL (`/raise/pipeline?view=race`, `?view=maybes`). Race follows `round5/pipeline-race.png`; the rules are pure functions in `src/lib/race.ts`.
+
+- **Kickoff week**: the dates of the round plan's Kickoff phase (a phase named "Kickoff"); outside it, the same numbers for this week, labelled "This week". Intros out, 1st meetings in the window, firms in the race (Booked through Verbal), partner meetings, offers (Verbal) against two in the same week, and meetings per day from the synced calendar. At two offers the card turns lime.
+- **Who's ahead**: a lane per firm in the race, 1st meeting → partner → diligence → offer, with PST-293's decide-by date in effect (Dev's own, else 7 days after the 1st meeting) and its latest signal from `useDecisions().latestSignal` (the next step when there's none). When the leader is past the 1st meeting and a stage ahead of everyone else, the "slow down" note suggests holding it for three working days so the next two can catch up.
+- **The lead**: the round's lead is `leadId` on the round settings row; "They're leading" in the drawer sets it (Undo in the toast). Can lead comes from enrichment (`canLead`: yes, no or unknown, and a short reason), but Dev's switch in the drawer (`leadOverride`) always wins, and the existing "Can lead or anchor" box counts as Dev's word too. Enrichment isn't re-run for anyone: new and refreshed enrichments fill it, and a refresh that can't tell keeps the earlier answer. Steps: asked to lead (ticked when an "Ask to lead" draft is marked sent, or by "I already asked") → partner meeting → offer → leading. "Ask if they'll lead" is a draft type (`lead`) and a ⌘K action.
+- **Get to a no**: under the race, PST-293's Maybes card, as in the design.
+- **Who to update**: in the race, maybes (PST-293's Maybe status), committed, and passed but warm, each with Copy emails, plus Copy all. Nest never sends these: Dev writes the update from their own email and clicks Mark sent, which adds an `investorUpdates` row so the card shows when the last one went out.
+
+Home's Raise card shows in the race, offers and the lead in PST-289's slot (`src/components/race/RaceStats.tsx`).
+
+Code: `convex/race.ts` and `convex/raceSchema.ts`; the UI in `src/components/race/` and `src/styles/race.css`. Preview: `/raise/pipeline?preview&pipeline=race` (or `race-lead`, `update`), `/?preview&home=race` and `&drafts=lead`.
+<!-- end PST-295 -->
 
 ## Seed
 
