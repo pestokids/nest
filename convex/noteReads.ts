@@ -9,7 +9,7 @@ import { action, internalAction, internalMutation, internalQuery, mutation, quer
 import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
 import { requireUser } from './lib/access'
-import { AIError, complete, extractJson, hasAIKey, NoAIKey, usageRow, type RunUsage } from './lib/anthropic'
+import { AIError, complete, errorTag, extractJson, hasAIKey, NoAIKey, usageRow, type RunUsage } from './lib/anthropic'
 import { featureModel } from './lib/enrichQueue'
 import { conform, SchemaError } from './lib/jsonSchema'
 import { DRAFT_SYSTEM, draftPrompt, notePrompt, SYSTEM, vNoteAnswer } from './lib/notesPrompt'
@@ -174,6 +174,7 @@ export const execute = internalAction({
     let usage: RunUsage | undefined
     let found = 0
     let status = 'ready'
+    let failure = ''
     try {
       const out = await complete({ model: job.model, system: SYSTEM, prompt: job.prompt, maxTokens: 3000 })
       cost = out.costUsd
@@ -183,10 +184,11 @@ export const execute = internalAction({
       await ctx.runMutation(internal.noteReads.finish, { readId, summary, proposals: proposals as ProposalDoc[], costUsd: cost, model: job.model, usage })
     } catch (e) {
       status = 'failed'
+      failure = ' error=' + errorTag(e)
       const error = e instanceof NoAIKey ? NO_AI_KEY : e instanceof AIError || e instanceof SchemaError ? e.message.slice(0, 200) : 'Something went wrong while reading the notes.'
       await ctx.runMutation(internal.noteReads.fail, { readId, error, costUsd: cost, model: job.model, usage })
     }
-    console.log('notes read=' + readId + ' status=' + status + ' proposals=' + found + ' cost=$' + cost.toFixed(4) + ' model=' + job.model + ' secs=' + Math.round((Date.now() - t0) / 1000))
+    console.log('notes read=' + readId + ' status=' + status + ' proposals=' + found + ' cost=$' + cost.toFixed(4) + ' model=' + job.model + ' secs=' + Math.round((Date.now() - t0) / 1000) + failure)
   },
 })
 
@@ -406,13 +408,14 @@ export const draftAnswer = action({
     if (!job.prompt) throw new ConvexError('Nothing to draft from yet: no past answers or notes for this one.')
     const model = await ctx.runQuery(internal.enrich.modelOf, { feature: 'drafts' })
     try {
-      const out = await complete({ model, system: DRAFT_SYSTEM, prompt: job.prompt, maxTokens: 600 })
+      const out = await complete({ model, system: DRAFT_SYSTEM, prompt: job.prompt, maxTokens: 1500 })
       const text = out.text.trim().replace(/^["“]+|["”]+$/g, '').slice(0, LIMITS.answer)
-      if (!text) throw new AIError(200, 'answered with nothing')
+      if (!text) throw new AIError(200, 'answered with nothing', 'empty')
       console.log('notes draft question=' + questionId + ' cost=$' + out.costUsd.toFixed(5))
       return { text, costUsd: out.costUsd, from: job.from }
     } catch (e) {
       if (e instanceof NoAIKey) throw noKey()
+      console.warn('notes draft question=' + questionId + ' failed error=' + errorTag(e))
       if (e instanceof AIError) throw new ConvexError(e.message)
       throw e
     }

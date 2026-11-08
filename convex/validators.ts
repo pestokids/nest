@@ -142,7 +142,7 @@ export const vQuestionMerge = v.object({
 /** PST-273: a Claude model Nest runs on, and the AI features that each pick one in Settings › AI. */
 export const vModel = lit(MODELS)
 export const vFeature = lit(FEATURES)
-/** What one run used (src/lib/models.ts RunUsage): tokens in and out, cache reads and writes, web searches. */
-export const vUsage = v.object({ input: v.number(), output: v.number(), cacheRead: v.number(), cacheWrite: v.number(), webSearches: v.number() })
+/** What one run used (src/lib/models.ts RunUsage): tokens in and out (and how many out were thinking), cache reads and writes, web searches. */
+export const vUsage = v.object({ input: v.number(), output: v.number(), thinking: v.optional(v.number()), cacheRead: v.number(), cacheWrite: v.number(), webSearches: v.number() })
 /** Every AI run's row: the model it ran on and what it used. Optional, so rows from before PST-273 stay valid. */
 export const runModelFields = { model: v.optional(vModel), usage: v.optional(vUsage) }

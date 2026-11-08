@@ -8,7 +8,7 @@ import { internalAction, internalMutation, internalQuery, mutation, query, type 
 import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
 import { requireUser } from './lib/access'
-import { AIError, extractJson, hasAIKey, NoAIKey, PRICES, research, usageRow, type RunUsage } from './lib/anthropic'
+import { AIError, errorTag, extractJson, hasAIKey, NoAIKey, PRICES, research, usageRow, type RunUsage } from './lib/anthropic'
 import { conform, SchemaError } from './lib/jsonSchema'
 import { factsFrom, investorPrompt, parseStep, senderPrompt, SYSTEM, vResearch } from './lib/research'
 import { aiSettings, CACHE_DAYS, capLeft, featureModel, modelChoice, pump, queue, syncReview } from './lib/enrichQueue'
@@ -549,6 +549,7 @@ export const execute = internalAction({
     let found = 0
     let cost = 0
     let usage: RunUsage | undefined
+    let failure = ''
     try {
       const out = await research({ model: job.model, system: SYSTEM, prompt: job.prompt, hooks: { onText, onToolUse, signal: ctl.signal } })
       cost = out.costUsd
@@ -559,10 +560,11 @@ export const execute = internalAction({
       await ctx.runMutation(internal.enrich.finish, { runId, facts, verdict: answer.verdict, summary: answer.summary.trim().slice(0, 200), costUsd: cost, model: job.model, usage })
     } catch (e) {
       status = stopped ? 'stopped' : 'failed'
+      if (!stopped) failure = ' error=' + errorTag(e)
       cost = Math.max(cost, searches * PRICES.webSearch)
       const error = stopped ? undefined : e instanceof NoAIKey ? NO_AI_KEY : e instanceof AIError || e instanceof SchemaError ? e.message.slice(0, 200) : 'Something went wrong while looking this up.'
       await ctx.runMutation(internal.enrich.end, { runId, status, error, costUsd: cost, usage })
     }
-    console.log('enrich run=' + runId + ' what=' + job.what + ' status=' + status + ' facts=' + found + ' cost=$' + cost.toFixed(4) + ' model=' + job.model + ' secs=' + Math.round((Date.now() - t0) / 1000))
+    console.log('enrich run=' + runId + ' what=' + job.what + ' status=' + status + ' facts=' + found + ' cost=$' + cost.toFixed(4) + ' model=' + job.model + ' secs=' + Math.round((Date.now() - t0) / 1000) + failure)
   },
 })

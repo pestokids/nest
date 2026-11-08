@@ -38,6 +38,8 @@ export const PRICES: Record<Model, Rates & { long?: Rates }> & { webSearch: numb
 export type Usage = {
   input_tokens?: number
   output_tokens?: number
+  /** How many of output_tokens were thinking (already counted in output_tokens). */
+  output_tokens_details?: { thinking_tokens?: number | null } | null
   cache_creation_input_tokens?: number
   cache_read_input_tokens?: number
   cache_creation?: { ephemeral_5m_input_tokens?: number; ephemeral_1h_input_tokens?: number }
@@ -48,7 +50,9 @@ export type Usage = {
  * What one request cost, in dollars: tokens at the model's prices plus web
  * searches. A prompt past LONG_PROMPT is billed at the model's long-prompt
  * prices; `long` overrides that for a request whose usage adds up several
- * steps that were each shorter (research with server tools).
+ * steps that were each shorter (research with server tools). Thinking tokens
+ * are billed as output and already part of output_tokens
+ * (output_tokens_details.thinking_tokens says how many), so they're never added again.
  */
 export function costOf(u: Usage, model: Model, long = (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) > LONG_PROMPT): number {
   const base = PRICES[model]
@@ -60,12 +64,16 @@ export function costOf(u: Usage, model: Model, long = (u.input_tokens ?? 0) + (u
   return tokens / 1e6 + (u.server_tool_use?.web_search_requests ?? 0) * PRICES.webSearch
 }
 
-/** A run's usage as its row stores it (enrichRuns, noteReads, drafts, askRuns, briefs), so real costs can be checked later. */
-export type RunUsage = { input: number; output: number; cacheRead: number; cacheWrite: number; webSearches: number }
+/**
+ * A run's usage as its row stores it (enrichRuns, noteReads, drafts, askRuns, briefs), so real costs can be checked later.
+ * `thinking` is the part of `output` that was thinking (rows from before it was stored don't have it).
+ */
+export type RunUsage = { input: number; output: number; thinking?: number; cacheRead: number; cacheWrite: number; webSearches: number }
 
 export const usageRow = (u: Usage): RunUsage => ({
   input: u.input_tokens ?? 0,
   output: u.output_tokens ?? 0,
+  thinking: u.output_tokens_details?.thinking_tokens ?? 0,
   cacheRead: u.cache_read_input_tokens ?? 0,
   cacheWrite: u.cache_creation_input_tokens ?? 0,
   webSearches: u.server_tool_use?.web_search_requests ?? 0,
@@ -73,7 +81,7 @@ export const usageRow = (u: Usage): RunUsage => ({
 
 /** Two runs' usage added up (a draft rewritten). */
 export const addRunUsage = (a: RunUsage, b: RunUsage): RunUsage => ({
-  input: a.input + b.input, output: a.output + b.output, cacheRead: a.cacheRead + b.cacheRead, cacheWrite: a.cacheWrite + b.cacheWrite, webSearches: a.webSearches + b.webSearches,
+  input: a.input + b.input, output: a.output + b.output, thinking: (a.thinking ?? 0) + (b.thinking ?? 0), cacheRead: a.cacheRead + b.cacheRead, cacheWrite: a.cacheWrite + b.cacheWrite, webSearches: a.webSearches + b.webSearches,
 })
 
 /* ---------- features, and which model each runs on ---------- */

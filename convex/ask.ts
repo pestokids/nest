@@ -8,7 +8,7 @@ import { ConvexError, v } from 'convex/values'
 import { internalAction, internalMutation, internalQuery, mutation, query } from './_generated/server'
 import { internal } from './_generated/api'
 import { requireUser } from './lib/access'
-import { AIError, hasAIKey, NoAIKey, usageRow, type RunUsage } from './lib/anthropic'
+import { AIError, errorTag, hasAIKey, NoAIKey, usageRow, type RunUsage } from './lib/anthropic'
 import { featureModel } from './lib/enrichQueue'
 import { askLoop, askSystem, type ToolResult } from './lib/ask'
 import { vAskStatus, vSources } from './askSchema'
@@ -112,6 +112,7 @@ export const execute = internalAction({
       return { content: JSON.stringify(out.data) }
     }
     let status: 'done' | 'failed' = 'done'
+    let failure = ''
     try {
       const out = await askLoop({
         model: job.model,
@@ -126,6 +127,10 @@ export const execute = internalAction({
           text = ''
           return save(true)
         },
+        onRetry: () => {
+          text = ''
+          return save(true)
+        },
         onCost: (usd, u) => {
           cost = usd
           usage = usageRow(u)
@@ -136,9 +141,10 @@ export const execute = internalAction({
       cost = out.costUsd
     } catch (e) {
       status = 'failed'
+      failure = ' error=' + errorTag(e)
       const error = e instanceof NoAIKey ? 'AI isn’t set up here.' : e instanceof AIError ? e.message.slice(0, 200) : 'Something went wrong while answering. Try again.'
       await ctx.runMutation(internal.ask.finish, { runId, status, text: '', tools: calls, sources: { investors: 0, threads: 0, meetings: 0 }, costUsd: cost, error, model: job.model, usage })
     }
-    console.log('ask run=' + runId + ' status=' + status + ' tools=' + (calls.join(',') || '-') + ' cost=$' + cost.toFixed(4) + ' model=' + job.model + ' secs=' + Math.round((Date.now() - t0) / 1000))
+    console.log('ask run=' + runId + ' status=' + status + ' tools=' + (calls.join(',') || '-') + ' cost=$' + cost.toFixed(4) + ' model=' + job.model + ' secs=' + Math.round((Date.now() - t0) / 1000) + failure)
   },
 })

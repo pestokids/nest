@@ -45,7 +45,18 @@ function turn(parts: Part[]): Response {
   return sse(events)
 }
 
-type Body = { model: string; stream: boolean; tools: { name: string; cache_control?: unknown }[]; tool_choice: { type: string }; system: { text: string; cache_control?: unknown }[]; messages: { role: string; content: unknown }[] }
+/** A turn that thinks until max_tokens and writes nothing else. */
+const cutOff = () =>
+  sse([
+    { type: 'message_start', message: { usage: { input_tokens: TURN_USAGE.input_tokens, output_tokens: 1 } } },
+    { type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '' } },
+    { type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: 'Which moves matter most today?' } },
+    { type: 'content_block_stop', index: 0 },
+    { type: 'message_delta', delta: { stop_reason: 'max_tokens' }, usage: { output_tokens: 4000, output_tokens_details: { thinking_tokens: 4000 } } },
+    { type: 'message_stop' },
+  ])
+
+type Body = { model: string; max_tokens: number; stream: boolean; tools: { name: string; cache_control?: unknown }[]; tool_choice: { type: string }; system: { text: string; cache_control?: unknown }[]; messages: { role: string; content: unknown }[] }
 let claude: { bodies: Body[]; reply: (body: Body, n: number) => Response }
 const calls = () => claude.bodies.length
 
@@ -155,6 +166,32 @@ describe('the tool loop', () => {
     expect(run.text).toBe(DONT_KNOW)
   })
 
+  it('leaves room to think, and asks for the answer again when a turn thinks until max_tokens', async () => {
+    const s = await setup()
+    claude.reply = (_b, n) => (n === 1 ? cutOff() : turn([{ text: 'Kite Angels.' }]))
+    const { id, run } = await ask(s, 'Who should I chase today?')
+    expect(run.status).toBe('done')
+    expect(run.text).toBe('Kite Angels.')
+    expect(claude.bodies[0].max_tokens).toBe(4000)
+    // The cut-off turn is dropped; the next one must answer with what it has.
+    expect(claude.bodies.map((b) => b.tool_choice.type)).toEqual(['auto', 'none'])
+    expect(claude.bodies[1].messages).toHaveLength(1)
+    expect((await s.t.run((ctx) => ctx.db.get(id)))?.usage).toMatchObject({ input: 4000, output: 4100, thinking: 4000 })
+  })
+
+  it('fails with the reason in the log line when the answer runs out of room too', async () => {
+    const s = await setup()
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    claude.reply = () => cutOff()
+    const { id, run } = await ask(s, 'Who should I chase today?')
+    expect(run.status).toBe('failed')
+    expect(claude.bodies).toHaveLength(2)
+    const logged = log.mock.calls.flat().join('\n')
+    expect(logged).toContain(`ask run=${id} status=failed`)
+    expect(logged).toContain('error=AIError reason=max_tokens')
+    expect(logged).not.toMatch(/chase|Which/)
+  })
+
   it('drops a turn’s preamble once it turns out to be calling tools', async () => {
     const s = await setup()
     claude.reply = (_b, n) => (n === 1 ? turn([{ text: 'Let me check Nest.' }, { tool: 'round_totals' }]) : turn([{ text: '**$100K** is verbal.' }]))
@@ -257,7 +294,7 @@ describe('costs', () => {
     expect(run.model).toBe(HAIKU)
     // PST-273: the row keeps what the run used, both turns added up.
     const row = await s.t.run((ctx) => ctx.db.get(id))
-    expect(row?.usage).toEqual({ input: 4000, output: 200, cacheRead: 0, cacheWrite: 0, webSearches: 0 })
+    expect(row?.usage).toEqual({ input: 4000, output: 200, thinking: 0, cacheRead: 0, cacheWrite: 0, webSearches: 0 })
     expect(log.mock.calls.flat().join('\n')).toMatch(new RegExp(`ask run=${id} status=done tools=todays_moves cost=\\$${cost.toFixed(4).replace('.', '\\.')}`))
     // The log line never carries the question or the answer.
     expect(log.mock.calls.flat().join('\n')).not.toMatch(/chase|Kite/)

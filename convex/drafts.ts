@@ -9,7 +9,7 @@ import { action, internalMutation, internalQuery, mutation, query, type Mutation
 import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
 import { firstName, requireUser } from './lib/access'
-import { AIError, complete, hasAIKey, NoAIKey, usageRow } from './lib/anthropic'
+import { AIError, complete, errorTag, hasAIKey, NoAIKey, usageRow } from './lib/anthropic'
 import { draftPrompt, DRAFT_SYSTEM, parseDraft, type DraftContext, type LinkedMaterial } from './lib/draftPrompt'
 import { emailReady, sendEmail } from './lib/email'
 import { randomToken } from './lib/token'
@@ -173,7 +173,7 @@ export const generate = action({
       out = { ...parseDraft(r.text), costUsd: r.costUsd, usage: usageRow(r.usage) }
     } catch (e) {
       if (e instanceof NoAIKey) throw noKey()
-      console.warn('drafts.generate failed', a.investorId, e instanceof AIError ? e.message : 'error')
+      console.warn('drafts.generate failed', a.investorId, 'error=' + errorTag(e))
       throw new ConvexError(e instanceof AIError ? 'Couldn’t write it: ' + e.message + '. Try again.' : 'Couldn’t write it. Try again.')
     }
     const saved: { draftId: Id<'drafts'>; costUsd: number } = await ctx.runMutation(internal.drafts.saveGenerated, {

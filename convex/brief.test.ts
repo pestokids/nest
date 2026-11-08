@@ -15,7 +15,7 @@ const modules = import.meta.glob('./**/*.ts')
 const USAGE = { input_tokens: 1500, output_tokens: 120 }
 const REASONS = ['They read the deck for four minutes, longest on page 6.', 'Their reply is waiting on you.', 'They asked for $93K more.']
 
-type Body = { model: string; max_tokens: number; stream?: boolean; tools?: unknown; system: string; messages: { content: string }[] }
+type Body = { model: string; max_tokens: number; thinking?: unknown; stream?: boolean; tools?: unknown; system: string; messages: { content: string }[] }
 let claude: { bodies: Body[]; reply: () => Response }
 const message = (text: string) =>
   new Response(JSON.stringify({ content: [{ type: 'text', text }], usage: USAGE, stop_reason: 'end_turn' }), { status: 200, headers: { 'content-type': 'application/json' } })
@@ -113,7 +113,9 @@ describe('the morning brief', () => {
     const [call] = claude.bodies
     expect(claude.bodies).toHaveLength(1)
     expect(call.model).toBe(HAIKU)
-    expect(call.max_tokens).toBe(400)
+    expect(call.max_tokens).toBe(1000)
+    // Haiku 5.5 thinks by default, and thinking used up the room for the reasons: it's off for this call.
+    expect(call.thinking).toEqual({ type: 'disabled' })
     expect(call.tools).toBeUndefined()
     // Only the facts: the moves, the investors' fields and what happened since yesterday.
     const prompt = call.messages[0].content
@@ -164,15 +166,35 @@ describe('the morning brief', () => {
 
   it('falls back the same way when Claude fails or answers nonsense', async () => {
     const s = await setup()
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
     claude.reply = () => new Response(JSON.stringify({ error: { type: 'overloaded_error' } }), { status: 529 })
     await s.t.action(internal.brief.run, {})
     expect((await s.as.query(api.brief.today, {}))!.moves.every((m) => !m.reason)).toBe(true)
+    expect(log.mock.calls.flat().join('\n')).toContain('reasons=failed cost=$0.00000 error=AIError status=529 type=overloaded_error')
     await s.t.run(async (ctx) => {
       for (const b of await ctx.db.query('briefs').collect()) await ctx.db.delete(b._id)
     })
     claude.reply = () => message('Sure! Here are some thoughts.')
     await s.t.action(internal.brief.run, {})
     expect((await s.as.query(api.brief.today, {}))!.moves.every((m) => !m.reason)).toBe(true)
+  })
+
+  it('when Claude runs out of room, logs why and keeps Today’s own whys', async () => {
+    const s = await setup()
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    claude.reply = () =>
+      new Response(
+        JSON.stringify({ content: [{ type: 'thinking', thinking: 'Working out each move first.' }], usage: { input_tokens: 1500, output_tokens: 1000, output_tokens_details: { thinking_tokens: 1000 } }, stop_reason: 'max_tokens' }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      )
+    await s.t.action(internal.brief.run, {})
+    const b = (await s.as.query(api.brief.today, {}))!
+    expect(b.moves).toHaveLength(3)
+    expect(b.moves.every((m) => m.reason === undefined && m.why)).toBe(true)
+    const logged = log.mock.calls.flat().join('\n')
+    expect(logged).toContain('reasons=failed cost=$0.00000 error=AIError reason=max_tokens')
+    // Never the prompt or the answer.
+    expect(logged).not.toMatch(/Kite|Orchard|Antler|Working out/)
   })
 
   it('doesn’t come with the toggle off', async () => {

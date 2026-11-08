@@ -5,7 +5,7 @@
 // can report progress while Claude works, and prices every run from its usage.
 // PST-273: every call names its model (Settings › AI picks it; src/lib/models.ts has the prices).
 // The key is ANTHROPIC_API_KEY in the Convex env; nothing here logs it or puts it in an error.
-import { costOf, type Model, type Usage } from '../../src/lib/models'
+import { costOf, HAIKU, OPUS, SONNET, type Model, type Usage } from '../../src/lib/models'
 
 export { AI_MODEL, costOf, HAIKU, OPUS, PRICES, SONNET, usageRow, type Model, type RunUsage, type Usage } from '../../src/lib/models'
 
@@ -30,14 +30,39 @@ export class NoAIKey extends Error {
   }
 }
 
-/** Anything else the API refused or broke on. Never includes the key or the request. */
+/**
+ * Anything else the API refused or broke on. Never includes the key or the request.
+ * `reason` is short and safe to log: the stop reason or what was wrong with an
+ * answer (status 200), else the API's error type.
+ */
 export class AIError extends Error {
   constructor(
     public status: number,
     what: string,
+    public reason = 'unknown',
   ) {
     super('Claude ' + what + ' (' + status + ')')
   }
+}
+
+/** A caught AI error for the log line: its class and short reason (`AIError reason=max_tokens`, `AIError status=400 type=invalid_request_error`). Never the prompt or the answer. */
+export function errorTag(e: unknown): string {
+  if (e instanceof AIError) return 'AIError ' + (e.status === 200 ? 'reason=' + e.reason : 'status=' + e.status + ' type=' + e.reason)
+  return e instanceof Error ? e.constructor.name || e.name : typeof e
+}
+
+export type Thinking = { type: 'adaptive' } | { type: 'disabled' } | { type: 'between_tools' }
+
+/**
+ * How each model is told not to think before answering
+ * (platform.claude.com/docs/en/build-with-claude/thinking). Haiku 5.5 thinks by
+ * default and takes "disabled"; Sonnet 5.5 refuses "disabled" and takes
+ * "between_tools" instead; Opus 5.5 always thinks and refuses both, so it's left unset.
+ */
+export const NO_THINKING: Record<Model, Thinking | undefined> = {
+  [HAIKU]: { type: 'disabled' },
+  [SONNET]: { type: 'between_tools' },
+  [OPUS]: undefined,
 }
 
 export const hasAIKey = () => !!process.env.ANTHROPIC_API_KEY?.trim()
@@ -51,6 +76,7 @@ export function addUsage(a: Usage, b: Usage): Usage {
   return {
     input_tokens: n(a.input_tokens, b.input_tokens),
     output_tokens: n(a.output_tokens, b.output_tokens),
+    output_tokens_details: { thinking_tokens: n(a.output_tokens_details?.thinking_tokens ?? 0, b.output_tokens_details?.thinking_tokens ?? 0) },
     cache_creation_input_tokens: n(a.cache_creation_input_tokens, b.cache_creation_input_tokens),
     cache_read_input_tokens: n(a.cache_read_input_tokens, b.cache_read_input_tokens),
     cache_creation: {
@@ -89,7 +115,7 @@ async function streamed(body: Record<string, unknown>, hooks: Hooks) {
   })
   if (!res.ok || !res.body) {
     const j = (await res.json().catch(() => ({}))) as { error?: { type?: string } }
-    throw new AIError(res.status, j.error?.type ? 'refused the request: ' + j.error.type : 'request failed')
+    throw new AIError(res.status, j.error?.type ? 'refused the request: ' + j.error.type : 'request failed', j.error?.type)
   }
   return await readStream(res.body, hooks)
 }
@@ -97,7 +123,9 @@ async function streamed(body: Record<string, unknown>, hooks: Hooks) {
 /**
  * One research turn: Claude with web search and web fetch, streamed. Pauses
  * (stop_reason pause_turn) are continued. Returns all of Claude's text, the
- * summed usage, and the cost (each request priced on its own).
+ * summed usage, and the cost (each request priced on its own). Claude thinks
+ * between steps, and that thinking counts toward max_tokens, so the cap leaves
+ * it room: a request cut off at max_tokens can't be continued and fails the run.
  */
 export async function research(o: { model: Model; system: string; prompt: string; maxTokens?: number; hooks?: Hooks }): Promise<{ text: string; usage: Usage; costUsd: number }> {
   const messages: Message[] = [{ role: 'user', content: o.prompt }]
@@ -105,16 +133,16 @@ export async function research(o: { model: Model; system: string; prompt: string
   let costUsd = 0
   let text = ''
   for (let round = 0; ; round++) {
-    const r = await streamed({ model: o.model, max_tokens: o.maxTokens ?? 8000, system: cachedSystem(o.system), messages, tools: TOOLS }, o.hooks ?? {})
+    const r = await streamed({ model: o.model, max_tokens: o.maxTokens ?? 16000, system: cachedSystem(o.system), messages, tools: TOOLS }, o.hooks ?? {})
     usage = addUsage(usage, r.usage)
     // Each step reads at most the instructions and what TOOLS allows (under 50K), so never the long-prompt price, however far the steps add up.
     costUsd += costOf(r.usage, o.model, false)
     text += r.blocks.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('')
     if (r.stop !== 'pause_turn') {
-      if (r.stop === 'max_tokens') throw new AIError(200, 'ran out of room before answering')
+      if (r.stop === 'max_tokens') throw new AIError(200, 'ran out of room before answering', 'max_tokens')
       return { text, usage, costUsd }
     }
-    if (round >= MAX_CONTINUATIONS) throw new AIError(200, 'kept pausing without an answer')
+    if (round >= MAX_CONTINUATIONS) throw new AIError(200, 'kept pausing without an answer', 'pause_turn')
     messages.push({ role: 'assistant', content: r.blocks })
   }
 }
@@ -126,30 +154,35 @@ export type Message = { role: 'user' | 'assistant'; content: unknown }
 /**
  * PST-279: one streamed turn with Nest's own tools and no server tools (Ask Nest).
  * The caller runs any tool_use blocks and goes on; `toolChoice: 'none'` makes
- * Claude answer with what it has.
+ * Claude answer with what it has. Claude may think first, which counts toward
+ * max_tokens: the cap leaves room for that on top of a short answer.
  */
 export async function converse(o: { model: Model; system: string; messages: Message[]; tools: ToolDef[]; toolChoice?: 'auto' | 'none'; maxTokens?: number; hooks?: Hooks }) {
   return await streamed(
-    { model: o.model, max_tokens: o.maxTokens ?? 2000, system: cachedSystem(o.system), messages: o.messages, tools: o.tools, tool_choice: { type: o.toolChoice ?? 'auto' } },
+    { model: o.model, max_tokens: o.maxTokens ?? 4000, system: cachedSystem(o.system), messages: o.messages, tools: o.tools, tool_choice: { type: o.toolChoice ?? 'auto' } },
     o.hooks ?? {},
   )
 }
 
 /**
  * PST-277: one plain turn, no tools and no streaming (reading meeting notes,
- * drafting an answer). Returns Claude's text and the usage with its cost.
+ * drafting an answer, the brief's reasons). Returns Claude's text and the usage
+ * with its cost. These are short writing jobs, so Claude doesn't think first
+ * (NO_THINKING) unless `thinking` says otherwise: thinking counts toward
+ * max_tokens and cut the brief's reasons off.
  */
-export async function complete(o: { model: Model; system: string; prompt: string; maxTokens?: number }): Promise<{ text: string; usage: Usage; costUsd: number }> {
+export async function complete(o: { model: Model; system: string; prompt: string; maxTokens?: number; thinking?: Thinking }): Promise<{ text: string; usage: Usage; costUsd: number }> {
   const key = process.env.ANTHROPIC_API_KEY?.trim()
   if (!key) throw new NoAIKey()
+  const thinking = o.thinking ?? NO_THINKING[o.model]
   const res = await fetch(API, {
     method: 'POST',
     headers: { 'x-api-key': key, 'anthropic-version': VERSION, 'content-type': 'application/json' },
-    body: JSON.stringify({ model: o.model, max_tokens: o.maxTokens ?? 4000, system: o.system, messages: [{ role: 'user', content: o.prompt }] }),
+    body: JSON.stringify({ model: o.model, max_tokens: o.maxTokens ?? 4000, ...(thinking ? { thinking } : {}), system: o.system, messages: [{ role: 'user', content: o.prompt }] }),
   })
   const j = (await res.json().catch(() => ({}))) as { content?: Block[]; usage?: Usage; stop_reason?: string; error?: { type?: string } }
-  if (!res.ok) throw new AIError(res.status, j.error?.type ? 'refused the request: ' + j.error.type : 'request failed')
-  if (j.stop_reason === 'max_tokens') throw new AIError(200, 'ran out of room before answering')
+  if (!res.ok) throw new AIError(res.status, j.error?.type ? 'refused the request: ' + j.error.type : 'request failed', j.error?.type)
+  if (j.stop_reason === 'max_tokens') throw new AIError(200, 'ran out of room before answering', 'max_tokens')
   const usage = j.usage ?? {}
   const text = (j.content ?? []).filter((b) => b.type === 'text').map((b) => b.text ?? '').join('')
   return { text, usage, costUsd: costOf(usage, o.model) }
@@ -173,7 +206,7 @@ async function readStream(body: ReadableStream<Uint8Array>, hooks: Hooks) {
       usage?: Usage
       error?: { type?: string }
     }
-    if (e.type === 'error') throw new AIError(500, 'stream failed: ' + (e.error?.type ?? 'error'))
+    if (e.type === 'error') throw new AIError(500, 'stream failed: ' + (e.error?.type ?? 'error'), e.error?.type)
     if (e.type === 'message_start') usage = { ...usage, ...e.message?.usage }
     else if (e.type === 'message_delta') {
       usage = { ...usage, ...Object.fromEntries(Object.entries(e.usage ?? {}).filter(([, x]) => x !== null && x !== undefined)) }
@@ -196,7 +229,11 @@ async function readStream(body: ReadableStream<Uint8Array>, hooks: Hooks) {
     } else if (e.type === 'content_block_stop' && e.index !== undefined && blocks[e.index]) {
       const b = blocks[e.index]
       if (b._json !== undefined) {
-        b.input = b._json ? JSON.parse(b._json) : (b.input ?? {})
+        try {
+          b.input = b._json ? JSON.parse(b._json) : (b.input ?? {})
+        } catch {
+          b.input = {}
+        }
         delete b._json
       }
     }
@@ -240,5 +277,5 @@ export function extractJson(text: string): unknown {
       }
     }
   }
-  throw new AIError(200, 'answered without readable JSON')
+  throw new AIError(200, 'answered without readable JSON', 'no_json')
 }
