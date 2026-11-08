@@ -18,7 +18,7 @@ import { DEFAULT_CHOICE, estimate, HAIKU, OPUS, SONNET, type Feature, type Model
 import { JEV_OFF, type JevStatus } from '../lib/jev'
 
 /** PST-292: Jev this month: 214 calls and 31 answers from the cache, about 1.4¢. */
-const JEV_ON: JevStatus = { connected: true, on: true, capUsd: 0.5, monthUsd: 0.0137, calls: 214, cached: 31 }
+const JEV_ON: JevStatus = { connected: true, on: true, capUsd: 4, monthUsd: 0.0137, calls: 214, cached: 31 }
 const PRECHECKED = 'mina@fieldnote.example.com'
 
 export const PREVIEW_AI = ['default', 'enriching', 'review', 'nokey', 'bulk', 'models', 'spend', 'jev', 'prechecked'] as const

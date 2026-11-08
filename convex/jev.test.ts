@@ -169,7 +169,7 @@ describe('askJev', () => {
     const s = await setup()
     await askJev(s.ctx, { feature: 'whos_this', state: 'x', questions: whoQuestions() })
     const ai = await s.as.query(api.enrich.data, {})
-    expect(ai.jev).toMatchObject({ connected: true, on: true, capUsd: 0.5, calls: 1 })
+    expect(ai.jev).toMatchObject({ connected: true, on: true, capUsd: 4, calls: 1 })
     expect(ai.jev.monthUsd).toBeCloseTo(0.000042, 12)
     expect(ai.month.usd).toBeCloseTo(0.000042, 12)
   })

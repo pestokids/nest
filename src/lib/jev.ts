@@ -9,7 +9,7 @@ export const JEV_API = 'https://api.typesafe.ai/v1/systemone'
 /** Dollars per million input tokens (docs.typesafe.ai/models). Output tokens are free. */
 export const JEV_PRICE_IN = 0.042
 /** The monthly cap when Settings › AI hasn't set one. */
-export const JEV_DEFAULT_CAP = 0.5
+export const JEV_DEFAULT_CAP = 4
 /** The most Settings › AI accepts as a monthly cap. */
 export const JEV_MAX_CAP = 10
 /** Context is 64K tokens a request and 32K a question; Nest keeps every state well under that. */

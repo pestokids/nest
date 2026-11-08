@@ -42,7 +42,7 @@ export const aiSettingsFields = {
   /** PST-273: the default model (left out = AI_MODEL, Haiku), and the features that have their own. */
   model: v.optional(vModel),
   models: v.optional(v.object({ enrich: v.optional(vModel), notes: v.optional(vModel), drafts: v.optional(vModel), ask: v.optional(vModel), brief: v.optional(vModel) })),
-  /** PST-292: Jev on or off (left out = on), and its monthly cap in dollars (left out = JEV_DEFAULT_CAP, $0.50). */
+  /** PST-292: Jev on or off (left out = on), and its monthly cap in dollars (left out = JEV_DEFAULT_CAP, $4.00). */
   jev: v.optional(v.boolean()),
   jevCapUsd: v.optional(v.number()),
 }
