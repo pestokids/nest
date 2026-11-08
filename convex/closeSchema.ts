@@ -28,8 +28,36 @@ export const vCapTable = v.object({
   safes: v.optional(v.array(v.object({ name: v.string(), amount: v.number(), cap: v.number(), mfn: v.optional(v.boolean()) }))),
 })
 
-/** Added to the round settings row; empty until someone fills in the Cap table card. */
-export const roundCapTableField = { capTable: v.optional(vCapTable) }
+/**
+ * Added to the round settings row; empty until someone fills in the Cap table card.
+ * PST-291: also tranche 2's post-money cap, once Dev sets it up (src/lib/closeKit.ts Tranche2).
+ */
+export const roundCapTableField = { capTable: v.optional(vCapTable), tranche2: v.optional(v.object({ cap: v.number() })) }
+
+/* ---------- PST-291: the same-day close kit and allocation ---------- */
+
+export const vQuestionnaire = v.union(v.literal('sent'), v.literal('received'))
+
+/** On each closing record, all optional (src/lib/close.ts ClosingKit): the tranche (absent = 1), the confirmation and acceptance (epoch ms), the questionnaire. */
+export const closingKitFields = {
+  tranche: v.optional(v.number()),
+  confirmationSentAt: v.optional(v.number()),
+  acceptedAt: v.optional(v.number()),
+  questionnaire: v.optional(vQuestionnaire),
+}
+
+export const closeKitTables = {
+  // Allocation when the round is oversubscribed: one row per investor (enforced in code). `gets` absent = the suggested cut.
+  allocations: defineTable({
+    investorId: v.id('investors'),
+    gets: v.optional(v.number()),
+    why: v.string(),
+    updatedAt: v.number(),
+    updatedBy: v.id('users'),
+  }).index('by_investor', ['investorId']),
+}
+
+/* ---------- end PST-291 ---------- */
 
 export const closeTables = {
   // One per investor (enforced in code). Steps are ticked by hand: signing happens outside Nest.
@@ -37,6 +65,7 @@ export const closeTables = {
     investorId: v.id('investors'),
     ...closingTermFields,
     steps: v.array(v.object({ key: vStepKey, at: v.string() })),
+    ...closingKitFields,
     updatedAt: v.number(),
     updatedBy: v.id('users'),
   }).index('by_investor', ['investorId']),

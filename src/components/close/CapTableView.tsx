@@ -4,6 +4,7 @@
 import { Link } from '@tanstack/react-router'
 import { useMemo } from 'react'
 import { capTableAfter, capTableCsv, hasCapTable, ladder, pct, shares, stepMap, type CloseRow } from '../../lib/close'
+import { trancheCap } from '../../lib/closeKit'
 import { todayIST } from '../../lib/dates'
 import { longDay } from '../../lib/investorView'
 import { money } from '../../lib/money'
@@ -20,7 +21,8 @@ export function CapTableView() {
   const { toast } = useUI()
   const l = useMemo(() => ladder(d.investors, c.closings), [d.investors, c.closings])
   const commitments = l.rows.filter((r) => r.rung !== 'soft' && r.amount > 0)
-  const capOf = (r: CloseRow) => r.closing?.cap ?? d.round.cap
+  // PST-291: each commitment at its tranche's cap.
+  const capOf = (r: CloseRow) => trancheCap(r.closing, d.round, c.tranche2)
   const priced = commitments.filter((r) => capOf(r))
   const unpriced = commitments.length - priced.length
   const table = useMemo(

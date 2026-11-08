@@ -4,6 +4,7 @@ import type { Investor } from '../lib/pipeline'
 import { play } from '../lib/sound'
 import { WARM, type Stage, type TouchKind } from '../lib/stages'
 import { errorMessage, useRaise } from './data'
+import { confirmAction } from './close/openKit'
 import { Chip, type ChipTone, type ToastInput } from './ui'
 
 /* ---------- toast + drawer opener ---------- */
@@ -69,7 +70,8 @@ export function useAdvance(toast: UI['toast'], fail: UI['fail']) {
     async (i: Investor) => {
       try {
         const r = await advance(i._id)
-        if (r) toast(`${i.name} → ${r.label}. Set the next step.`)
+        // PST-291: a verbal yes gets the Close kit's written confirmation offered.
+        if (r) toast(r.stage === 'verbal' ? { message: `${i.name} → ${r.label}. Confirm it in writing today.`, action: confirmAction(i._id) } : `${i.name} → ${r.label}. Set the next step.`)
       } catch (e) {
         fail(e)
       }

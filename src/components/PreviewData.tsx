@@ -146,7 +146,7 @@ export function PreviewData({
     // The real seed file only exists locally; deployed previews always use the fixture.
     const withSuggestions = suggestionsState !== 'none' && suggestionsState !== 'tidy'
     if (source === 'fixture' || !import.meta.env.DEV)
-      return load([...fixtureInvestors(t), ...(board ? fixtureBoardExtras(t) : []), ...(withSuggestions ? fixtureSuggestionInvestors(t, suggestionsState === 'jev') : []), ...(close ? fixtureCloseInvestors(t, close) : [])], fixtureRound(t))
+      return load([...fixtureInvestors(t), ...(board ? fixtureBoardExtras(t) : []), ...(withSuggestions ? fixtureSuggestionInvestors(t, suggestionsState === 'jev') : []), ...(close ? fixtureCloseInvestors(t, close) : [])], close ? { ...fixtureRound(t), cap: 16000000 } : fixtureRound(t))
     fetch('/internal/seed.json')
       .then((r) => r.json() as Promise<Seed>)
       .then((s) => {

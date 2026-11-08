@@ -1,6 +1,6 @@
 // PST-278: the prompt for Drafts. Claude writes as Dev from what Nest knows
 // about the investor, and nothing else: no web tools, no made-up numbers.
-import { BLANK, DATA_ROOM_LINK, DECK_LINK, MAX_BODY, MAX_SUBJECT, normBlanks, stripFiller, type DraftType, type Recipient, type Tweak } from '../../src/lib/drafts'
+import { BLANK, DATA_ROOM_LINK, DECK_LINK, MAX_BODY, MAX_SUBJECT, normBlanks, stripFiller, type AiDraftType, type Recipient, type Tweak } from '../../src/lib/drafts'
 import { AIError, extractJson } from './anthropic'
 
 export const DRAFT_SYSTEM = [
@@ -18,7 +18,7 @@ export const DRAFT_SYSTEM = [
   'Answer with only a JSON object: {"subject": "...", "body": "..."}. The body uses \\n for line breaks.',
 ].join('\n')
 
-const WHAT: Record<DraftType, (c: DraftContext) => string> = {
+const WHAT: Record<AiDraftType, (c: DraftContext) => string> = {
   intro: (c) =>
     c.warm
       ? 'An intro ask to ' + c.warm.name + ' (' + c.warm.email + '), who knows ' + c.investor.name + '. Ask them to introduce Dev. Say who ' + c.investor.name + ' is in a few words and why it’s a fit in two lines, from the facts below, so they can forward it as it is.'
@@ -63,7 +63,7 @@ const material = (what: string, m: LinkedMaterial | null, slot: string) =>
   m ? [what + ': ' + m.title + ' v' + m.version + (m.note ? ' (' + m.note + ')' : ''), m.url ? 'Their link: ' + m.url : 'They have no link yet: write ' + slot + ' where it goes.'] : []
 
 /** The user turn: what to write, then the input. */
-export function draftPrompt(c: DraftContext, type: DraftType, o: { tweak?: Tweak; current?: { subject: string; body: string } } = {}): string {
+export function draftPrompt(c: DraftContext, type: AiDraftType, o: { tweak?: Tweak; current?: { subject: string; body: string } } = {}): string {
   const i = c.investor
   const who = [
     'Name: ' + i.name + (i.firm && i.firm !== i.name ? ' (' + i.firm + ')' : ''),

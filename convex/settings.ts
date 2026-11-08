@@ -30,8 +30,8 @@ export const update = mutation({
     const { round: before } = await loadRound(ctx)
     const changes = diffRound(before, next)
     const row = await getRoundRow(ctx)
-    // PST-283: keep the cap table, which the round form never sends.
-    if (row) await ctx.db.replace(row._id, { key: 'round', ...next, ...(row.capTable ? { capTable: row.capTable } : {}) })
+    // PST-283: keep the cap table, which the round form never sends (PST-291: nor tranche 2).
+    if (row) await ctx.db.replace(row._id, { key: 'round', ...next, ...(row.capTable ? { capTable: row.capTable } : {}), ...(row.tranche2 ? { tranche2: row.tranche2 } : {}) })
     else await ctx.db.insert('settings', { key: 'round', ...next })
     const at = Date.now()
     for (const c of changes) await ctx.db.insert('settingsLog', { userId, at, ...c })

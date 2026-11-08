@@ -26,6 +26,7 @@ import { useRaise } from './data'
 import { InvestorEnrich } from './enrich/InvestorEnrich'
 import { DrawerMaterials } from './materials/DrawerMaterials'
 import { openDraft } from './drafts/data'
+import { confirmAction, openCloseKit } from './close/openKit'
 import { DraftHistory } from './drafts/DraftHistory'
 import { Egg, EggCracking, EggHatching } from './illustrations'
 import { NotesTab } from './qanda/NotesTab'
@@ -430,6 +431,11 @@ function HeadActions({ inv, sheet, busy, mode, onAdvance, onTouch, onReopen }: {
       <Button variant="secondary" icon="spark" onClick={() => openDraft({ investorId: inv._id })} disabled={busy} className="drawer__draft">
         Draft
       </Button>
+      {inv.stage === 'verbal' || inv.stage === 'signed' ? (
+        <Button variant="secondary" onClick={() => openCloseKit(inv._id)} disabled={busy} className="drawer__kit">
+          Close kit
+        </Button>
+      ) : null}
     </div>
   )
 }
@@ -761,7 +767,7 @@ function EditForm({ inv, onDone, onCelebrate }: { inv: Investor | null; onDone: 
         const how = stageChange(inv.stage, body.stage)
         if (celebrates(inv.stage, body.stage)) {
           hatchSounds()
-          ui.toast({ tone: 'hatch', message: `${body.name} moved to ${STAGE_TILE[body.stage]}.` })
+          ui.toast({ tone: 'hatch', message: `${body.name} moved to ${STAGE_TILE[body.stage]}.`, ...(body.stage === 'verbal' ? { action: confirmAction(inv._id) } : {}) })
           onCelebrate?.()
         } else {
           if (body.stage === 'parked') play('park')
@@ -910,7 +916,7 @@ function AdvancePanel({ inv, to: target, onDone, onPass, onPark }: { inv: Invest
           if (win) confetti(eggRef.current)
         }, 1000),
         setTimeout(() => {
-          ui.toast(win ? { tone: 'win', message: `${to === 'signed' ? 'Signed!' : 'Money in!'} ${inv.name} is in.` } : { tone: 'hatch', message: `${inv.name} moved to ${STAGE_TILE[to]}.` })
+          ui.toast(win ? { tone: 'win', message: `${to === 'signed' ? 'Signed!' : 'Money in!'} ${inv.name} is in.` } : { tone: 'hatch', message: `${inv.name} moved to ${STAGE_TILE[to]}.`, ...(to === 'verbal' ? { action: confirmAction(inv._id) } : {}) })
           onDone()
         }, 1900),
       )

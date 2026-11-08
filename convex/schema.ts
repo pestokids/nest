@@ -4,6 +4,7 @@ import { v } from 'convex/values'
 import { aiSettingsFields, enrichTables } from './enrichSchema'
 import { materialsTables } from './materialsSchema'
 import { closeTables, roundCapTableField } from './closeSchema'
+import { closeKitTables } from './closeSchema'
 import { agentTables } from './agentsSchema'
 import { notesReadTables, vNoteSource } from './notesSchema'
 import { draftTables } from './draftsSchema'
@@ -278,4 +279,8 @@ export default defineSchema({
   /* ---------- PST-292: Jev (jevRuns, jevCache, jevMarks; see jevSchema.ts) ---------- */
   ...jevTables,
   /* ---------- end PST-292 ---------- */
+
+  /* ---------- PST-291: close kit and allocation (allocations; closings and the round row gain optional fields; see closeSchema.ts) ---------- */
+  ...closeKitTables,
+  /* ---------- end PST-291 ---------- */
 })

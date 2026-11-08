@@ -9,6 +9,7 @@ import { play } from '../../lib/sound'
 import type { Stage } from '../../lib/stages'
 import { errorMessage, useRaise } from '../data'
 import { useToast } from '../ui'
+import { confirmAction } from '../close/openKit'
 
 export function useMoveCard() {
   const { move, undoMove } = useRaise()
@@ -44,6 +45,8 @@ export function useMoveCard() {
             },
           },
         })
+      // PST-291: a verbal yes gets the Close kit's written confirmation offered.
+      if (to === 'verbal' && m.kind !== 'back') toast({ tone: 'info', message: `Confirm ${inv.name} in writing today.`, action: confirmAction(inv._id) })
       return m
     },
     [move, undoMove, toast],

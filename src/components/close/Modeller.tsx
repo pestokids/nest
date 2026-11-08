@@ -3,6 +3,7 @@
 // The maths, with the formulas written out, is in src/lib/close.ts.
 import { useMemo, useState, type CSSProperties } from 'react'
 import { capTableAfter, compareCaps, dilution, isAngel, ladder, pct, scenarioSafes, usd, type Safe } from '../../lib/close'
+import { trancheLine, trancheOf } from '../../lib/closeKit'
 import { money } from '../../lib/money'
 import { useInView } from '../../lib/motion'
 import { useRaise } from '../data'
@@ -20,13 +21,18 @@ export function Modeller() {
     () =>
       l.rows
         .filter((r) => r.rung !== 'soft' && r.amount > 0)
-        .map((r) => ({ id: r.investor._id, name: r.investor.name, amount: r.amount, angel: isAngel(r.investor.type), proRata: r.closing?.proRata ?? false, mfn: r.closing?.mfn ?? false })),
-    [l.rows],
+        .map((r) => ({
+          id: r.investor._id, name: r.investor.name, amount: r.amount, angel: isAngel(r.investor.type), proRata: r.closing?.proRata ?? false, mfn: r.closing?.mfn ?? false,
+          // PST-291: tranche-2 commitments keep tranche 2's cap; the scenario's cap is tranche 1's.
+          ...(c.tranche2 && trancheOf(r.closing) === 2 ? { cap: c.tranche2.cap } : {}),
+        })),
+    [l.rows, c.tranche2],
   )
+  const inTwo = commitments.filter((x) => x.cap !== undefined)
   const savedCap = d.round.cap ?? c.closings[0]?.cap ?? 10_000_000
   const earlier: Safe[] = (c.capTable?.safes ?? []).map((s, i) => ({ id: `earlier-${i}`, name: s.name, amount: s.amount, cap: s.cap, mfn: s.mfn }))
   const startPool = useMemo(() => {
-    const t = c.capTable && capTableAfter(c.capTable, commitments.map((x) => ({ ...x, cap: savedCap })))
+    const t = c.capTable && capTableAfter(c.capTable, commitments.map((x) => ({ ...x, cap: x.cap ?? savedCap })))
     return t ? Math.round(t.rows.find((r) => r.kind === 'Reserved')!.after.pct * 1000) / 10 : 10
   }, [c.capTable, commitments, savedCap])
 
@@ -143,7 +149,7 @@ export function Modeller() {
                   <tr key={s.id} className={s.id === 'gap' ? 'is-gap' : earlierSafe ? 'is-earlier' : ''}>
                     <th scope="row">
                       {s.name}
-                      {earlierSafe ? <small>Earlier SAFE · {money(s.cap)} cap</small> : s.terms.cap !== s.cap ? <small>MFN: converts at {money(s.terms.cap)}</small> : null}
+                      {earlierSafe ? <small>Earlier SAFE · {money(s.cap)} cap</small> : s.terms.cap !== s.cap ? <small>MFN: converts at {money(s.terms.cap)}</small> : inTwo.some((x) => x.id === s.id) ? <small>Tranche 2 · {money(s.cap)} cap</small> : null}
                     </th>
                     <td className="num">{usd(s.amount)}</td>
                     <td>{f ? <Toggle aria-label={`${s.name} has pro-rata rights`} checked={!!f.proRata} onChange={(e) => set('proRata', e.target.checked)} /> : '–'}</td>
@@ -154,6 +160,11 @@ export function Modeller() {
               })}
             </tbody>
           </table>
+          {c.tranche2 ? (
+            <p className="close-model__note">
+              Tranche 2 at {money(c.tranche2.cap)} post: {inTwo.length ? `${inTwo.map((x) => x.name).join(', ')} keep${inTwo.length === 1 ? 's' : ''} that cap whatever you try above.` : 'nobody is in it yet.'} {trancheLine(capN, c.tranche2.cap)}
+            </p>
+          ) : null}
           {withFlags.some((x) => x.proRata) ? (
             <p className="close-model__note">Pro-rata: {withFlags.filter((x) => x.proRata).map((x) => x.name).join(', ')} can buy into the next round to keep their share.</p>
           ) : null}
