@@ -63,8 +63,9 @@ describe('estimates', () => {
 
   it('stores usage the way the API reports it', () => {
     expect(usageRow({ input_tokens: 10, output_tokens: 2, cache_read_input_tokens: 3, cache_creation_input_tokens: 4, server_tool_use: { web_search_requests: 1 } })).toEqual({
-      input: 10, output: 2, cacheRead: 3, cacheWrite: 4, webSearches: 1,
+      input: 10, output: 2, thinking: 0, cacheRead: 3, cacheWrite: 4, webSearches: 1,
     })
-    expect(usageRow({})).toEqual(run(0, 0))
+    expect(usageRow({ input_tokens: 10, output_tokens: 391, output_tokens_details: { thinking_tokens: 311 } })).toMatchObject({ output: 391, thinking: 311 })
+    expect(usageRow({})).toEqual({ ...run(0, 0), thinking: 0 })
   })
 })

@@ -40,7 +40,7 @@ const answer = (o: Record<string, unknown> = {}) => ({
   ...o,
 })
 
-type Call = { body: { model: string; tools?: unknown; stream?: boolean; system: string; messages: { content: string }[] } }
+type Call = { body: { model: string; max_tokens?: number; thinking?: unknown; tools?: unknown; stream?: boolean; system: string; messages: { content: string }[] } }
 let claude: { calls: Call[]; reply: () => Response }
 const message = (text: string) =>
   new Response(JSON.stringify({ content: [{ type: 'text', text }], usage: { input_tokens: 3000, output_tokens: 600 }, stop_reason: 'end_turn' }), { status: 200, headers: { 'content-type': 'application/json' } })
@@ -350,8 +350,22 @@ describe('Draft from past answers', () => {
     expect(d).toMatchObject({ text: 'Week-4 retention is 62%, and week-8 numbers land in two weeks.', from: 1 })
     expect(d.costUsd).toBeCloseTo((3000 * 0.1 + 600 * 0.5) / 1e6, 12)
     expect(claude.calls[0].body.model).toBe('claude-haiku-5-5')
+    expect(claude.calls[0].body.max_tokens).toBe(1500)
+    expect(claude.calls[0].body.thinking).toEqual({ type: 'disabled' })
     expect(claude.calls[0].body.messages[0].content).toContain('Week-4 retention is 62%.')
     expect((await s.t.run((ctx) => ctx.db.get(id)))?.bestAnswer).toBe('')
+  })
+})
+
+describe('thinking', () => {
+  it('complete() asks each model not to think first, unless the caller says otherwise', async () => {
+    claude.reply = () => message('Fine.')
+    await complete({ model: 'claude-haiku-5-5', system: 's', prompt: 'p' })
+    await complete({ model: 'claude-sonnet-5-5', system: 's', prompt: 'p' })
+    await complete({ model: 'claude-opus-5-5', system: 's', prompt: 'p' })
+    await complete({ model: 'claude-haiku-5-5', system: 's', prompt: 'p', thinking: { type: 'adaptive' } })
+    // Sonnet 5.5 refuses "disabled" and takes "between_tools"; Opus 5.5 always thinks and refuses both.
+    expect(claude.calls.map((c) => c.body.thinking)).toEqual([{ type: 'disabled' }, { type: 'between_tools' }, undefined, { type: 'adaptive' }])
   })
 })
 

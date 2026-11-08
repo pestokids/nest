@@ -9,7 +9,7 @@ import { internalAction, internalMutation, internalQuery, mutation, query } from
 import { internal } from './_generated/api'
 import type { Id } from './_generated/dataModel'
 import { requireUser } from './lib/access'
-import { complete, hasAIKey, usageRow, type Model, type RunUsage } from './lib/anthropic'
+import { complete, errorTag, hasAIKey, usageRow, type Model, type RunUsage } from './lib/anthropic'
 import { parseReasons, reasonsPrompt, REASONS_SYSTEM, sinceLines, type MoveFacts } from './lib/brief'
 import { aiSettings } from './lib/enrichQueue'
 import { movesNow } from './mcp'
@@ -90,21 +90,23 @@ export const run = internalAction({
     let cost = 0
     let used: { model: Model; usage: RunUsage } | undefined
     let ai = 'none'
+    let failure = ''
     if (hasAIKey() && job.facts.length) {
       const model = await ctx.runQuery(internal.enrich.modelOf, { feature: 'brief' })
       try {
-        const out = await complete({ model, system: REASONS_SYSTEM, prompt: reasonsPrompt(job.facts), maxTokens: 400 })
+        const out = await complete({ model, system: REASONS_SYSTEM, prompt: reasonsPrompt(job.facts), maxTokens: 1000 })
         cost = out.costUsd
         used = { model, usage: usageRow(out.usage) }
         const reasons = parseReasons(out.text, job.facts)
         moves = moves.map((m, i) => (reasons[i] ? { ...m, reason: reasons[i] } : m))
         ai = reasons.filter(Boolean).length + '/' + moves.length
-      } catch {
+      } catch (e) {
         ai = 'failed'
+        failure = ' error=' + errorTag(e)
       }
     }
     const id = await ctx.runMutation(internal.brief.save, { day: job.day, builtAt: now, since: job.since, moves, costUsd: cost, ...used })
-    console.log('brief day=' + job.day + ' id=' + id + ' moves=' + moves.length + ' reasons=' + ai + ' cost=$' + cost.toFixed(5))
+    console.log('brief day=' + job.day + ' id=' + id + ' moves=' + moves.length + ' reasons=' + ai + ' cost=$' + cost.toFixed(5) + failure)
     return id
   },
 })

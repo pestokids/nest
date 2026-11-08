@@ -97,7 +97,7 @@ export function draftPrompt(c: DraftContext, type: DraftType, o: { tweak?: Tweak
 /** Claude's answer as a subject and body: blanks kept as [__], filler openers dropped. */
 export function parseDraft(text: string): { subject: string; body: string } {
   const j = extractJson(text) as { subject?: unknown; body?: unknown }
-  if (typeof j?.subject !== 'string' || typeof j?.body !== 'string' || !j.body.trim()) throw new AIError(200, 'answered without a draft')
+  if (typeof j?.subject !== 'string' || typeof j?.body !== 'string' || !j.body.trim()) throw new AIError(200, 'answered without a draft', 'no_draft')
   return {
     subject: normBlanks(j.subject).trim().replace(/\s+/g, ' ').slice(0, MAX_SUBJECT),
     body: stripFiller(normBlanks(j.body.replace(/\r\n/g, '\n'))).replace(/\n{3,}/g, '\n\n').trim().slice(0, MAX_BODY),

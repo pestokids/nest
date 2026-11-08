@@ -58,8 +58,9 @@ function markLatest(messages: Message[]) {
 
 /**
  * Ask one question. Text streams through onText; when a turn turns out to call
- * tools, onTool says so (that turn's text was only a preamble). Returns the
- * answer, the read tools it called and what it cost.
+ * tools, onTool says so (that turn's text was only a preamble). A turn cut off
+ * at max_tokens (thinking can use up the room) is dropped and asked once more,
+ * to answer with what it has. Returns the answer, the read tools it called and what it cost.
  */
 export async function askLoop(o: {
   model: Model
@@ -69,6 +70,8 @@ export async function askLoop(o: {
   onText?: (delta: string) => unknown
   /** A turn is calling tools (its text so far was only a preamble). */
   onTool?: (name: string) => unknown
+  /** A turn ran out of room (max_tokens) and is asked again: drop its text so far. */
+  onRetry?: () => unknown
   /** The cost and usage so far, after every turn (so a run that fails later still logs them). */
   onCost?: (usd: number, usage: Usage) => unknown
 }): Promise<{ text: string; calls: string[]; usage: Usage; costUsd: number }> {
@@ -76,13 +79,19 @@ export async function askLoop(o: {
   const calls: string[] = []
   let usage: Usage = {}
   let costUsd = 0
+  let cutOff = false
   for (;;) {
-    const last = calls.length >= MAX_TOOL_CALLS
+    const last = cutOff || calls.length >= MAX_TOOL_CALLS
     const r = await converse({ model: o.model, system: o.system, messages, tools: ASK_TOOLS, toolChoice: last ? 'none' : 'auto', hooks: { onText: o.onText } })
     usage = addUsage(usage, r.usage)
     costUsd += costOf(r.usage, o.model)
     await o.onCost?.(costUsd, usage)
-    if (r.stop === 'max_tokens') throw new AIError(200, 'ran out of room before answering')
+    if (r.stop === 'max_tokens') {
+      if (last) throw new AIError(200, 'ran out of room before answering', 'max_tokens')
+      cutOff = true
+      await o.onRetry?.()
+      continue
+    }
     const uses = r.blocks.filter((b) => b.type === 'tool_use')
     if (!uses.length || last) {
       const text = r.blocks.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('').trim()

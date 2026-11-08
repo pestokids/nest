@@ -7,7 +7,7 @@ import { api, internal } from './_generated/api'
 import type { Id } from './_generated/dataModel'
 import schema from './schema'
 import { autoLookup, DAILY_AUTO_CAP } from './lib/enrichQueue'
-import { AI_MODEL, costOf, extractJson, HAIKU, NoAIKey, OPUS, PRICES, research, SONNET, TOOLS } from './lib/anthropic'
+import { addUsage, AI_MODEL, costOf, extractJson, HAIKU, NoAIKey, OPUS, PRICES, research, SONNET, TOOLS, usageRow } from './lib/anthropic'
 import { cardState, NO_AI_KEY } from '../src/lib/enrich'
 import { estimate, type Feature } from '../src/lib/models'
 
@@ -456,6 +456,16 @@ describe('cost', () => {
     expect(costOf({ cache_creation_input_tokens: 1_000_000 }, SONNET)).toBeCloseTo(2.5, 10)
     expect(costOf({ cache_creation: { ephemeral_1h_input_tokens: 1_000_000 }, cache_creation_input_tokens: 1_000_000 }, SONNET)).toBeCloseTo(4, 10)
     expect(costOf({ server_tool_use: { web_fetch_requests: 10 } }, HAIKU)).toBe(0)
+  })
+
+  it('prices thinking once: it is already part of output_tokens, and the row stores how much of it there was', () => {
+    const p = PRICES[HAIKU]
+    const u = { input_tokens: 1_000, output_tokens: 391, output_tokens_details: { thinking_tokens: 311 } }
+    expect(costOf(u, HAIKU)).toBeCloseTo((1_000 * p.input + 391 * p.output) / 1e6, 12)
+    expect(costOf(u, HAIKU)).toBe(costOf({ input_tokens: 1_000, output_tokens: 391 }, HAIKU))
+    expect(usageRow(u)).toEqual({ input: 1_000, output: 391, thinking: 311, cacheRead: 0, cacheWrite: 0, webSearches: 0 })
+    expect(usageRow({ input_tokens: 1_000, output_tokens: 90 })).toMatchObject({ output: 90, thinking: 0 })
+    expect(usageRow(addUsage(u, { input_tokens: 500, output_tokens: 90, output_tokens_details: { thinking_tokens: 40 } }))).toMatchObject({ input: 1_500, output: 481, thinking: 351 })
   })
 
   it('what Settings › AI says about Haiku holds: lookups and enrichment about 2–5¢, notes and Ask under 1¢', () => {
