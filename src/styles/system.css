@@ -327,3 +327,48 @@
 @media (pointer: coarse) {
   .toast__action { min-height: 44px; }
 }
+
+/* ---------- PST-290: keyboard (system-shortcuts.png, system-cmdk-actions.png) ---------- */
+.sys-modal__panel.keys-sheet { width: min(1040px, 100%); padding: 0; display: flex; flex-direction: column; overflow: hidden; }
+.keys-sheet__head { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 32px 32px 10px; }
+.keys-sheet__eyebrow { margin: 0; color: var(--brand-leaf); }
+.keys-sheet__title { margin: 0; padding-right: 48px; font: 700 28px/1.15 var(--font-display); color: var(--text-primary); }
+.keys-sheet__close { position: absolute; top: 24px; right: 24px; display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 12px; background: transparent; color: var(--text-primary); cursor: pointer; }
+.keys-sheet__close:hover { background: var(--surface-mint); }
+.keys-sheet__close:focus-visible { outline: 3px solid var(--brand-lime); outline-offset: 0; }
+.keys-sheet__groups { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 40px; padding: 20px 32px 28px; }
+.keys-sheet__label { margin: 0 0 6px; font: 600 12px/1 var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
+.keys-sheet__rows { margin: 0; }
+.keys-sheet__row { display: grid; grid-template-columns: 110px minmax(0, 1fr); align-items: center; min-height: 40px; }
+.keys-sheet__keys { display: flex; gap: 6px; }
+.keys-sheet__row dd { margin: 0; font: 400 15px/1.35 var(--font-ui); color: var(--text-primary); }
+.keys-sheet__foot { margin: 0; padding: 20px 32px 24px; border-top: 1px solid var(--line-default); font: 400 14px/1.4 var(--font-ui); color: var(--text-muted); }
+.cmdk-foot__key { display: inline-flex; align-items: center; gap: 6px; margin-right: 10px; }
+@media (max-width: 720px) {
+  .keys-sheet__head { padding: 22px 20px 6px; }
+  .keys-sheet__title { font-size: 24px; }
+  .keys-sheet__close { top: 14px; right: 12px; }
+  .keys-sheet__groups { grid-template-columns: minmax(0, 1fr); gap: 20px; padding: 14px 20px 20px; }
+  .keys-sheet__foot { padding: 14px 20px 20px; }
+}
+
+/* ← and → in the drawer swap the investor in place. */
+.drawer.drawer--swap, .scrim.scrim--swap { animation: none; }
+
+/* Density (⇧D): comfortable 64 px rows, compact 44 px, on Investors, the Pipeline cards and Today's lists. */
+[data-density='comfortable'] .inv-row:not(.inv-row--head) { min-height: 64px; }
+[data-density='compact'] .inv-row:not(.inv-row--head) { min-height: 44px; }
+[data-density='compact'] .inv-row.is-quiet,
+[data-density='compact'] .inv-row.is-selected { min-height: 44px; margin-top: 2px; }
+[data-density='compact'] .inv-row .c-name small { display: none; }
+[data-density='compact'] .pb-card:not(.pb-card--phone) { padding: 8px 12px 2px; }
+[data-density='compact'] .pb-card:not(.pb-card--phone) .pb-card__sub,
+[data-density='compact'] .pb-card:not(.pb-card--phone) .pb-card__chip { display: none; }
+[data-density='compact'] .pb-card:not(.pb-card--phone) .pb-card__foot { margin-top: 6px; }
+[data-density='compact'] .due-row__main { min-height: 44px; padding-top: 4px; padding-bottom: 4px; }
+[data-density='compact'] .quiet-row { min-height: 44px; }
+[data-density='compact'] :is(.due-row, .quiet-row) :is(.row__text, .quiet-row__main) { flex-direction: row; align-items: baseline; gap: 10px; }
+[data-density='compact'] :is(.due-row, .quiet-row) .row__name { flex: none; }
+[data-density='compact'] :is(.due-row, .quiet-row) .row__sub { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* /PST-290 */
+

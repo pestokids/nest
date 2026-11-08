@@ -38,9 +38,14 @@
 //   &feedback=<state>        Send feedback (PST-289): open (the ⌘. dialog), sent (the "Sent as PST-301" toast), unsent (saved,
 //                            not sent: the toast, and Settings › Feedback with rows waiting and no Linear key)
 //   &home=default            Home, the company overview (PST-289); firstrun and prepdone as above
+//   PST-290 keyboard:
+//   &system=shortcuts        the ? sheet;  &system=cmdk-actions  ⌘K acting on "orch dd"
+//   &system=list-focus       the J/K focus ring on a list's second row (Investors, Pipeline, Today)
+//   &system=undo             a logged touch's toast with Undo
+//   &density=compact|comfortable  list density (⇧D), kept on this device
 //   &fail                    every write fails (save-failed toast with Retry)
 //   any unknown path         the 404, e.g. /nowhere?preview
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { AppShell } from '../components/AppShell'
 import { useSaveAction } from '../components/system/useSaveAction'
 import { PreviewData, type PreviewHome } from '../components/PreviewData'
@@ -60,6 +65,9 @@ import { PREVIEW_ASK, PREVIEW_BRIEF, type PreviewAsk, type PreviewBrief } from '
 import { PreviewWispr } from './wisprFixture'
 import { WISPR_PREVIEW, type WisprPreview } from '../lib/wispr'
 import { PREVIEW_FEEDBACK, PreviewFeedback, type PreviewFeedback as FeedbackState } from './feedbackFixture' // PST-289
+import { saveLocalDensity } from '../lib/density'
+import { useRaise } from '../components/data'
+import { useInstant } from '../components/system/useInstant'
 
 const session = { me: { firstName: 'Dev', name: 'Dev Preview', email: 'dev@example.com' }, signOut: () => {} }
 
@@ -70,6 +78,9 @@ export function Preview() {
   if (q.has('pipeline')) sessionStorage.setItem('nest_preview_board', '1')
   else if (q.has('preview')) sessionStorage.removeItem('nest_preview_board')
   rememberClosePreview(q)
+  // PST-290
+  const density = q.get('density')
+  if (density === 'compact' || density === 'comfortable') saveLocalDensity(density)
   const signin = q.get('signin') as SignInState | null
   if (signin && SIGN_IN_STATES.includes(signin))
     return (
@@ -119,6 +130,7 @@ export function Preview() {
                   <PreviewFeedback state={feedback} fail={extra.fail}>
                     <AppShell>
                       {state.system === 'savefailed' ? <FailOnce /> : null}
+                      {state.system === 'undo' ? <UndoOnce /> : null}
                       <OpenToasts />
                     </AppShell>
                   </PreviewFeedback>
@@ -130,6 +142,20 @@ export function Preview() {
       </SessionContext.Provider>
     </LocalSounds>
   )
+}
+
+/** PST-290 &system=undo: a touch logged the instant way, so its toast with Undo shows. */
+function UndoOnce() {
+  const d = useRaise()
+  const instant = useInstant()
+  const done = useRef(false)
+  useEffect(() => {
+    const inv = d.investors.find((i) => i.name === 'Kite Angels') ?? d.investors[0]
+    if (!d.loaded || !inv || done.current) return
+    done.current = true
+    instant.logTouch(inv, 'Call about the deck.', { touch: 'call' }, 'Call logged.')
+  }, [d.loaded, d.investors, instant])
+  return null
 }
 
 /** &system=savefailed: one write that fails, so the toast with Retry shows. */

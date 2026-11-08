@@ -11,6 +11,7 @@ import { EggHatching, NestSleeping, NestWithEggs } from '../../../components/ill
 import { PhaseBar } from '../../../components/PhaseBar'
 import { usePreviewState } from '../../../components/preview-state'
 import { openOnKey, useUI } from '../../../components/raise-ui'
+import { useListKeys } from '../../../components/system/useListKeys'
 import { Badge, Button, buttonClass, Card, Checkbox, Chip, Icon, KpiCard } from '../../../components/ui'
 import { dayDiff, todayIST } from '../../../lib/dates'
 import { dayMonth } from '../../../lib/home'
@@ -82,6 +83,10 @@ function Today() {
     return () => clearTimeout(t)
   }, [previewWin]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // PST-290: J, K, ↵ and D through Due today, then Gone quiet.
+  const lists = useRef<HTMLDivElement>(null)
+  useListKeys(lists)
+
   return (
     <section className="today" aria-label="Today">
       <MorningBrief />
@@ -92,7 +97,7 @@ function Today() {
       <GoogleToday today={today} />
       <UnmatchedNotes />
       <MaterialOpens />
-      <div className="today__lists">
+      <div className="today__lists" ref={lists}>
         <DueToday today={today} />
         <GoneQuiet today={today} />
       </div>
@@ -304,7 +309,7 @@ function DueToday({ today }: { today: string }) {
             return (
               <li key={i._id} className={`due-row${leaving.has(i._id) ? ' due-row--leaving' : ''}`}>
                 <Checkbox className="due-row__tick" checked={leaving.has(i._id)} onChange={() => void tick(i)} aria-label={`Done: ${i.name}, ${i.nextStep || 'next step'}`} />
-                <div className="due-row__main" role="button" tabIndex={0} onClick={() => ui.open(i._id)} onKeyDown={openOnKey(() => ui.open(i._id))} aria-label={`Open ${i.name}`}>
+                <div className="due-row__main" role="button" tabIndex={0} data-nav-id={i._id} onClick={() => ui.open(i._id)} onKeyDown={openOnKey(() => ui.open(i._id))} aria-label={`Open ${i.name}`}>
                   <span className="row__text">
                     <span className="row__name">{i.name}</span>
                     <span className="row__sub">
@@ -379,7 +384,7 @@ function GoneQuiet({ today }: { today: string }) {
             const quietFor = n === null ? 'Never touched' : `${n} days quiet`
             return (
               <li key={i._id} className="quiet-row">
-                <div className="quiet-row__main" role="button" tabIndex={0} onClick={() => ui.open(i._id)} onKeyDown={openOnKey(() => ui.open(i._id))} aria-label={`Open ${i.name}`}>
+                <div className="quiet-row__main" role="button" tabIndex={0} data-nav-id={i._id} onClick={() => ui.open(i._id)} onKeyDown={openOnKey(() => ui.open(i._id))} aria-label={`Open ${i.name}`}>
                   <span className="row__name">{i.name}</span>
                   <span className="row__sub only-desk">
                     {STAGE_TILE[i.stage]} · {i.nextStep || quietFor.toLowerCase()}

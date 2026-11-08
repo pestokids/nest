@@ -1,5 +1,6 @@
 // One way to move a card, shared by drag and drop, the [ and ] keys and the
-// phone swipe: sounds, confetti on a win, the save, and a toast with Undo.
+// phone swipe (PST-290: and the drawer's M and N keys and ⌘K): sounds, confetti
+// on a win, the save, and a toast with Undo. Uses the app-wide toast, so ⌘K can too.
 import { useCallback } from 'react'
 import { classifyMove, moveSounds, moveToast, type Move, type MoveRecord } from '../../lib/board'
 import { confetti } from '../../lib/motion'
@@ -7,11 +8,11 @@ import type { Investor } from '../../lib/pipeline'
 import { play } from '../../lib/sound'
 import type { Stage } from '../../lib/stages'
 import { errorMessage, useRaise } from '../data'
-import { useUI } from '../raise-ui'
+import { useToast } from '../ui'
 
 export function useMoveCard() {
   const { move, undoMove } = useRaise()
-  const { toast } = useUI()
+  const toast = useToast()
   return useCallback(
     (inv: Investor, to: Stage, opts: { from?: Element | null } = {}): Move => {
       const m = classifyMove(inv.stage, to)

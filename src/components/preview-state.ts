@@ -16,7 +16,7 @@ export type PreviewState = {
   plan?: string | null
   /** `&settings=errors` */
   settings?: string | null
-  /** `&system=cmdk|cmdk-empty|cmdk-none|offline|savefailed|loading` */
+  /** `&system=cmdk|cmdk-empty|cmdk-none|offline|savefailed|loading`; PST-290 `shortcuts|cmdk-actions|list-focus|undo` */
   system?: string | null
   /** PST-275 `&suggestions=all|tidy|none|agent` */
   suggestions?: string | null

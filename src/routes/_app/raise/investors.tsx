@@ -9,6 +9,7 @@ import { InvestorList, type SortKey } from '../../../components/investors/Invest
 import { NoResults } from '../../../components/investors/NoResults'
 import { exportInvestors } from '../../../components/investors/exportCsv'
 import { useUI } from '../../../components/raise-ui'
+import { useListKeys } from '../../../components/system/useListKeys'
 import { usePreviewState } from '../../../components/preview-state'
 import { todayIST } from '../../../lib/dates'
 import { titleCase } from '../../../lib/palette'
@@ -138,6 +139,19 @@ function Investors() {
     })
   }, [inv])
 
+  // PST-290: J, K, ↵, D, X and ⇧X.
+  const list = useRef<HTMLDivElement>(null)
+  useListKeys(list, {
+    onToggle: (id) =>
+      setSelected((sel) => {
+        const n = new Set(sel)
+        if (n.has(id)) n.delete(id)
+        else n.add(id)
+        return n
+      }),
+    onRange: (ids) => setSelected((sel) => new Set([...sel, ...ids])),
+  })
+
   const shown = rows.slice(0, limit)
   const filtered = !!(q || s.stage || s.type || s.wave || s.warmth || s.geo || s.tier || only)
   const clearAll = () => {
@@ -183,7 +197,7 @@ function Investors() {
       />
       <FilterChips s={s} set={setSearch} onClear={clearAll} only={only ? only.size : 0} clearOnly={() => setOnly(null)} />
       {byPriority ? <p className="inv-hint">{PRIORITY_FORMULA}</p> : null}
-      <div className={`inv-card${rows.length ? '' : ' is-empty'}`}>
+      <div className={`inv-card${rows.length ? '' : ' is-empty'}`} ref={list}>
         <InvestorList
           rows={shown}
           today={today}

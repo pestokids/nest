@@ -15,9 +15,12 @@ import { money } from '../lib/money'
 import { fieldsOf, NEW_INVESTOR, quietList, type Activity, type Investor, type InvestorFields } from '../lib/pipeline'
 import { play } from '../lib/sound'
 import {
-  advanceConfirm, ALL, GEOS, IDX, STAGE_RULE, STAGE_SHORT, STAGE_TILE, STAGES, TIERS, TOUCH_LABEL, TOUCH_PICK, TYPES, WARM, WAVES,
+  advanceConfirm, ALL, GEOS, IDX, nextStage, STAGE_RULE, STAGE_SHORT, STAGE_TILE, STAGES, TIERS, TOUCH_LABEL, TOUCH_PICK, TYPES, WARM, WAVES,
   type PipelineStage, type Stage, type TouchKind, type Wave,
 } from '../lib/stages'
+import { neighbour } from '../lib/listOrder'
+import { KEYS, matches, singleKeyOk, type KeyName } from '../lib/shortcuts'
+import { useInstant } from './system/useInstant'
 import { addDays, celebrates, stageChange } from '../lib/today'
 import { useRaise } from './data'
 import { InvestorEnrich } from './enrich/InvestorEnrich'
@@ -145,7 +148,10 @@ export function Drawer({ id, start = 'view', forceSheet, onClose }: { id: string
   const inv = id ? d.investors.find((i) => i._id === id) : undefined
   const isNew = !id
   const startTab: Tab = ui.opening.tab ?? (start === 'history' || start === 'emails' || start === 'materials' || start === 'notes' ? start : 'details')
-  const [mode, setMode] = useState<Mode>(isNew ? 'edit' : startTab !== 'details' ? 'view' : (start as Mode))
+  const [mode, setMode] = useState<Mode>(isNew ? 'edit' : startTab !== 'details' ? 'view' : start === 'view' && ui.opening.mode ? ui.opening.mode : (start as Mode))
+  /** PST-290: Y opens the Verbal step, which may be more than one stage on. */
+  const [advanceTo, setAdvanceTo] = useState<PipelineStage | null>(null)
+  const instant = useInstant()
   const [tab, setTab] = useState<Tab>(startTab)
   const [closing, setClosing] = useState(false)
   /** A touch was just logged: History slides its newest entry in. */
@@ -189,6 +195,47 @@ export function Drawer({ id, start = 'view', forceSheet, onClose }: { id: string
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [mode, close])
+  // PST-290: the drawer's keys (src/lib/shortcuts.ts), on an investor you're looking at, never while typing.
+  useEffect(() => {
+    if (!inv || mode !== 'view' || closing) return
+    const nope = () => {
+      play('nope')
+      shake(stageChip.current)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (!singleKeyOk(e) || document.querySelector('.sys-modal')) return
+      const is = (k: KeyName) => matches(e, KEYS[k])
+      const next = nextStage(inv.stage)
+      if (is('nextStage')) {
+        if (!next) nope()
+        else {
+          instant.move(inv, next, { from: stageChip.current })
+          requestAnimationFrame(() => shine(stageChip.current))
+        }
+      } else if (is('logTouch')) setMode('touch')
+      else if (is('askNumber')) instant.ask(inv)
+      else if (is('yes')) {
+        // Until decisions land (PST-293), yes is the Verbal step.
+        if ((IDX[inv.stage] ?? -1) >= IDX.verbal!) nope()
+        else {
+          setAdvanceTo('verbal')
+          setMode('advance')
+        }
+      } else if (is('no')) {
+        if (inv.stage === 'passed') nope()
+        else instant.pass(inv, stageChip.current)
+      } else if (is('draft')) openDraft({ investorId: inv._id })
+      else if (is('prevInvestor') || is('nextInvestor')) {
+        const id = neighbour(inv._id, is('nextInvestor') ? 1 : -1)
+        if (id) ui.open(id, { swap: true })
+        else nope()
+      } else return
+      e.preventDefault()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [inv, mode, closing, instant, ui])
+
   // No page scroll behind the drawer.
   useEffect(() => {
     const prev = document.body.style.overflow
@@ -231,13 +278,14 @@ export function Drawer({ id, start = 'view', forceSheet, onClose }: { id: string
   const headerBusy = mode === 'edit' || mode === 'park'
   return (
     <>
-      <div className={`scrim${closing ? ' scrim--leaving' : ''}`} onClick={close} aria-hidden="true" />
+      <div className={`scrim${closing ? ' scrim--leaving' : ''}${ui.opening.swap ? ' scrim--swap' : ''}`} onClick={close} aria-hidden="true" />
       <div
         ref={box}
-        className={['drawer', sheet ? 'drawer--sheet' : 'drawer--side', closing ? 'drawer--leaving' : '', mode === 'delete' ? 'drawer--confirming' : ''].filter(Boolean).join(' ')}
+        className={['drawer', sheet ? 'drawer--sheet' : 'drawer--side', closing ? 'drawer--leaving' : '', mode === 'delete' ? 'drawer--confirming' : '', ui.opening.swap && !closing ? 'drawer--swap' : ''].filter(Boolean).join(' ')}
         role="dialog"
         aria-modal="true"
         aria-labelledby={`${uid}-title`}
+        aria-keyshortcuts="M L A Y N D ArrowLeft ArrowRight Escape"
         tabIndex={-1}
       >
         <div className="drawer__top" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
@@ -245,7 +293,7 @@ export function Drawer({ id, start = 'view', forceSheet, onClose }: { id: string
           <header className="drawer__head">
             <div className="drawer__eyebrow eyebrow-mono">{inv ? `Investor · ${inv.type}` : 'Add to the nest'}</div>
             <div className="drawer__tools">
-              {inv && !sheet ? <MoreMenu inv={inv} onPick={(m) => (m === 'pass' ? void pass(inv) : setMode(m))} /> : null}
+              {inv && !sheet ? <MoreMenu inv={inv} onPick={(m) => (m === 'pass' ? pass(inv) : setMode(m))} /> : null}
               <button type="button" className="drawer__icon" aria-label="Close" onClick={close}>
                 <Icon name="close" size={22} />
               </button>
@@ -272,7 +320,7 @@ export function Drawer({ id, start = 'view', forceSheet, onClose }: { id: string
                   </Chip>
                   {inv.stage === 'parked' && inv.parkedUntil ? <Chip tone="muted" dot={false}>Until {dayMonth(inv.parkedUntil)}</Chip> : null}
                 </div>
-                <HeadActions inv={inv} sheet={sheet} busy={headerBusy} mode={mode} onAdvance={() => setMode('advance')} onTouch={() => setMode('touch')} onReopen={() => void reopen(inv)} />
+                <HeadActions inv={inv} sheet={sheet} busy={headerBusy} mode={mode} onAdvance={() => { setAdvanceTo(null); setMode('advance') }} onTouch={() => setMode('touch')} onReopen={() => void reopen(inv)} />
                 <StageProgress inv={inv} labels={!sheet} />
               </>
             ) : (
@@ -307,9 +355,9 @@ export function Drawer({ id, start = 'view', forceSheet, onClose }: { id: string
           ) : !inv ? null : mode === 'edit' ? (
             <EditForm inv={inv} onDone={() => setMode('view')} onCelebrate={shineStage} />
           ) : mode === 'advance' ? (
-            <AdvancePanel inv={inv} onDone={() => { setMode('view'); shineStage() }} onPass={() => void pass(inv)} onPark={() => setMode('park')} />
+            <AdvancePanel inv={inv} to={advanceTo ?? undefined} onDone={() => { setMode('view'); shineStage() }} onPass={() => pass(inv)} onPark={() => setMode('park')} />
           ) : mode === 'touch' ? (
-            <TouchPanel inv={inv} onDone={() => { setMode('view'); setTab('history'); setFresh(true) }} />
+            <TouchPanel inv={inv} kind={ui.opening.touch} onDone={() => { setMode('view'); setTab('history'); setFresh(true) }} />
           ) : mode === 'park' ? (
             <ParkPanel inv={inv} onDone={() => setMode('view')} />
           ) : tab === 'history' ? (
@@ -327,16 +375,13 @@ export function Drawer({ id, start = 'view', forceSheet, onClose }: { id: string
             <Details inv={inv} log={log} sheet={sheet} onDelete={() => setMode('delete')} onEdit={() => setMode('edit')} />
           )}
         </div>
-        <Footer mode={isNew ? 'new' : mode} sheet={sheet} onCancel={isNew ? close : () => setMode('view')} onDelete={() => setMode('delete')} onEdit={() => setMode('edit')} inv={inv} />
+        <Footer mode={isNew ? 'new' : mode} advanceTo={advanceTo} sheet={sheet} onCancel={isNew ? close : () => setMode('view')} onDelete={() => setMode('delete')} onEdit={() => setMode('edit')} inv={inv} />
         {inv && mode === 'delete' ? (
           <DeleteConfirm
             boxRef={confirmBox}
             inv={inv}
             onCancel={() => setMode('view')}
-            onPass={() => {
-              setMode('view')
-              void pass(inv)
-            }}
+            onPass={() => pass(inv)}
             onDelete={() => {
               ui.remove(inv)
               onClose()
@@ -347,14 +392,10 @@ export function Drawer({ id, start = 'view', forceSheet, onClose }: { id: string
     </>
   )
 
-  async function pass(i: Investor) {
-    try {
-      await d.save(i._id, { ...fieldsOf(i), stage: 'passed' })
-      setMode('view')
-      ui.toast({ tone: 'info', icon: 'check', message: `Marked ${i.name} as passed.` })
-    } catch (e) {
-      ui.fail(e)
-    }
+  /** PST-290: shows at once, with Undo. */
+  function pass(i: Investor) {
+    setMode('view')
+    instant.pass(i, stageChip.current)
   }
   async function reopen(i: Investor) {
     const back: Stage = i.maxStage && i.maxStage !== 'todo' ? i.maxStage : 'ask'
@@ -368,11 +409,6 @@ export function Drawer({ id, start = 'view', forceSheet, onClose }: { id: string
 }
 
 /* ---------- header pieces ---------- */
-
-function nextStage(s: Stage): PipelineStage | null {
-  const ix = IDX[s]
-  return ix === undefined || ix >= STAGES.length - 1 ? null : STAGES[ix + 1].k
-}
 
 function HeadActions({ inv, sheet, busy, mode, onAdvance, onTouch, onReopen }: { inv: Investor; sheet: boolean; busy: boolean; mode: Mode; onAdvance: () => void; onTouch: () => void; onReopen: () => void }) {
   const next = nextStage(inv.stage)
@@ -455,7 +491,7 @@ function MoreMenu({ inv, onPick }: { inv: Investor; onPick: (m: 'park' | 'delete
   )
 }
 
-function Footer({ mode, sheet, inv, onCancel, onDelete, onEdit }: { mode: Mode | 'new'; sheet: boolean; inv?: Investor; onCancel: () => void; onDelete: () => void; onEdit: () => void }) {
+function Footer({ mode, advanceTo, sheet, inv, onCancel, onDelete, onEdit }: { mode: Mode | 'new'; advanceTo: PipelineStage | null; sheet: boolean; inv?: Investor; onCancel: () => void; onDelete: () => void; onEdit: () => void }) {
   if (mode === 'view' || mode === 'delete') {
     if (sheet || !inv) return null
     return (
@@ -469,7 +505,7 @@ function Footer({ mode, sheet, inv, onCancel, onDelete, onEdit }: { mode: Mode |
       </footer>
     )
   }
-  const submit = { new: 'Add to the nest', edit: 'Save changes', advance: inv ? `Move to ${STAGE_TILE[nextStage(inv.stage) ?? inv.stage]}` : 'Move', touch: 'Log touch', park: 'Park' }[mode]
+  const submit = { new: 'Add to the nest', edit: 'Save changes', advance: inv ? `Move to ${STAGE_TILE[advanceTo ?? nextStage(inv.stage) ?? inv.stage]}` : 'Move', touch: 'Log touch', park: 'Park' }[mode]
   return (
     <footer className="drawer__foot drawer__foot--form">
       <button type="button" className="drawer__textbtn" onClick={onCancel}>
@@ -833,10 +869,10 @@ function hatchSounds(win = false) {
 
 /* ---------- advance stage ---------- */
 
-function AdvancePanel({ inv, onDone, onPass, onPark }: { inv: Investor; onDone: () => void; onPass: () => void; onPark: () => void }) {
+function AdvancePanel({ inv, to: target, onDone, onPass, onPark }: { inv: Investor; /** PST-290: Y asks for Verbal, whatever comes next. */ to?: PipelineStage; onDone: () => void; onPass: () => void; onPark: () => void }) {
   const d = useRaise()
   const ui = useUI()
-  const to = nextStage(inv.stage)
+  const to = target ?? nextStage(inv.stage)
   const [ok, setOk] = useState(false)
   const [step, setStep] = useState('')
   const [by, setBy] = useState(() => addDays(todayIST(), 3))
@@ -859,8 +895,11 @@ function AdvancePanel({ inv, onDone, onPass, onPark }: { inv: Investor; onDone: 
       return
     }
     try {
-      const r = await d.advance(inv._id, step.trim() ? { step: step.trim(), date: by || undefined } : undefined)
-      if (!r) return onDone()
+      const nextStep = step.trim() ? { step: step.trim(), date: by || undefined } : undefined
+      if (to === nextStage(inv.stage)) {
+        const r = await d.advance(inv._id, nextStep)
+        if (!r) return onDone()
+      } else await d.save(inv._id, { ...fieldsOf(inv), stage: to, ...(nextStep ? { nextStep: nextStep.step, nextDate: nextStep.date } : {}) })
       if (notes.trim()) await d.logNote(inv._id, notes.trim(), { touch: to === 'm1' || to === 'm2' ? 'meeting' : 'note' })
       const win = to === 'signed' || to === 'wired'
       hatchSounds(win)
@@ -916,17 +955,16 @@ function AdvancePanel({ inv, onDone, onPass, onPark }: { inv: Investor; onDone: 
 
 /* ---------- log a touch ---------- */
 
-function TouchPanel({ inv, onDone }: { inv: Investor; onDone: () => void }) {
+function TouchPanel({ inv, kind: startKind, onDone }: { inv: Investor; kind?: TouchKind; onDone: () => void }) {
   const d = useRaise()
-  const ui = useUI()
+  const instant = useInstant()
   const today = todayIST()
-  const [kind, setKind] = useState<TouchKind>('call')
+  const [kind, setKind] = useState<TouchKind>(startKind ?? 'call')
   const [what, setWhat] = useState('')
   const [when, setWhen] = useState(today)
   const [setNext, setSetNext] = useState(true)
   const [step, setStep] = useState(inv.nextStep)
   const [due, setDue] = useState(inv.nextDate && inv.nextDate >= today ? inv.nextDate : addDays(today, 3))
-  const [busy, setBusy] = useState(false)
   const whatRef = useRef<HTMLTextAreaElement>(null)
   const quiet = useMemo(() => quietList([inv], today, d.round.quietDays).length > 0, [inv, today, d.round.quietDays])
   const days = Array.from({ length: 7 }, (_, n) => addDays(today, -n))
@@ -939,19 +977,12 @@ function TouchPanel({ inv, onDone }: { inv: Investor; onDone: () => void }) {
       whatRef.current?.focus()
       return
     }
-    setBusy(true)
-    try {
-      await d.logNote(inv._id, what.trim(), { touch: kind, date: when, next: setNext ? { step: step.trim(), date: due || undefined } : undefined })
-      ui.toast({ message: `${TOUCH_LABEL[kind]} logged.` })
-      onDone()
-    } catch (err) {
-      ui.fail(err)
-    } finally {
-      setBusy(false)
-    }
+    // PST-290: shows at once, saves behind, with Undo.
+    instant.logTouch(inv, what.trim(), { touch: kind, date: when, next: setNext ? { step: step.trim(), date: due || undefined } : undefined }, `${TOUCH_LABEL[kind]} logged.`)
+    onDone()
   }
   return (
-    <form id="drawer-form" className="dform" onSubmit={submit} aria-busy={busy || undefined}>
+    <form id="drawer-form" className="dform" onSubmit={submit}>
       <div className="field">
         <span className="field__label" id="touch-kind">What kind of touch?</span>
         <Segmented label="What kind of touch?" value={kind} onChange={setKind} options={TOUCH_PICK.map((k) => ({ value: k, label: TOUCH_LABEL[k] }))} />
@@ -984,19 +1015,15 @@ function TouchPanel({ inv, onDone }: { inv: Investor; onDone: () => void }) {
 function ParkPanel({ inv, onDone }: { inv: Investor; onDone: () => void }) {
   const d = useRaise()
   const ui = useUI()
+  const instant = useInstant()
   const [until, setUntil] = useState(inv.parkedUntil ?? addDays(todayIST(), 14))
   const [note, setNote] = useState('')
-  async function submit(e: FormEvent) {
+  function submit(e: FormEvent) {
     e.preventDefault()
-    try {
-      await d.save(inv._id, { ...fieldsOf(inv), stage: 'parked', parkedUntil: until || undefined })
-      if (note.trim()) await d.logNote(inv._id, note.trim(), { touch: 'note' })
-      play('park')
-      ui.toast(until ? `Parked until ${dayMonth(until)}. ${firstName(inv.name)} comes back to Due today then.` : `${inv.name} is parked.`)
-      onDone()
-    } catch (err) {
-      ui.fail(err)
-    }
+    // PST-290: shows at once, saves behind, with Undo.
+    instant.park(inv, until || null)
+    if (note.trim()) d.logNote(inv._id, note.trim(), { touch: 'note' }).catch(ui.fail)
+    onDone()
   }
   return (
     <form id="drawer-form" className="dform" onSubmit={submit}>

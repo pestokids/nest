@@ -23,6 +23,7 @@ export const DealCard = forwardRef<HTMLDivElement, Props>(function DealCard({ in
       role="button"
       tabIndex={0}
       data-card={inv._id}
+      data-nav-id={inv._id}
       aria-roledescription="Draggable card"
       aria-keyshortcuts="[ ]"
       aria-label={`${inv.name}. ${t.foot}. Press ] or [ to move it a stage.`}
