@@ -2,9 +2,9 @@
 // manual timeline): each step is a tick with a date, ticked by hand. A side
 // panel on desktop, a bottom sheet on phones.
 import { useState } from 'react'
-import { checkTick, checkUntick, reminderKind, STEP_KEYS, STEPS, stepMap, termsLine, termsOf, usd, type CloseRow, type Closing, type StepKey } from '../../lib/close'
-import { dayDiff, todayIST } from '../../lib/dates'
-import { longDay } from '../../lib/investorView'
+import { checkTick, checkUntick, reminderKind, STEP_KEYS, STEPS, stepMap, termsLine, termsOf, type CloseRow, type Closing, type StepKey } from '../../lib/close'
+import { dayDiff, formatDay, todayIST } from '../../lib/dates'
+import { money } from '../../lib/money'
 import { play } from '../../lib/sound'
 import { useRaise } from '../data'
 import { useUI } from '../raise-ui'
@@ -35,7 +35,7 @@ export function ClosingPanel({ row, onClose, onRecord, onRemind }: { row: CloseR
         </button>
         <h2 id={id}>{investor.name}</h2>
         <p className="close-panel__sub">
-          {usd(row.amount)}
+          {money(row.amount)}
           {closing ? ` · ${termsLine({ ...closing, sideLetter: undefined })}` : ''}
           {closing?.sideLetter ? ` · side letter: ${closing.sideLetter}` : ''}
         </p>
@@ -134,7 +134,7 @@ function Timeline({ closing, name, me }: { closing: Closing; name: string; me: s
         const prev = STEPS[k].after ? s[STEPS[k].after!] : undefined
         const waiting = k === now && prev ? dayDiff(today, prev) : 0
         const sub = at
-          ? [longDay(at), k === 'sent' && closing.signerEmail ? closing.signerEmail : ''].filter(Boolean).join(' · ')
+          ? [formatDay(at), k === 'sent' && closing.signerEmail ? closing.signerEmail : ''].filter(Boolean).join(' · ')
           : k === now && waiting > 0
             ? `Waiting ${waiting} day${waiting === 1 ? '' : 's'}. ${todo[k]}`
             : todo[k]

@@ -67,3 +67,10 @@
 /* Settings › Calendar and Gmail: an old gmail.metadata grant. */
 .set-google__bodies { display: flex; align-items: center; justify-content: space-between; gap: 8px 20px; flex-wrap: wrap; margin-top: 12px; padding: 4px 16px 4px 16px; border-radius: 12px; background: var(--surface-peach); border: 1px solid var(--line-peach); }
 .set-google__bodies p { flex: 1 1 260px; margin: 8px 0; font-size: 14px; line-height: 1.4; color: var(--text-orange-deep); }
+
+/* PST-298 phone pass: 44 px tap targets without changing how they look. */
+@media (max-width: 720px) {
+  .decision__chip, .decision__clear { position: relative; }
+  .decision__chip::after { content: ''; position: absolute; inset: -6px -3px; }
+  .decision__clear::after { content: ''; position: absolute; inset: -13px 0; }
+}

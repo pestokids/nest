@@ -62,7 +62,7 @@
   opacity: 0;
   transform: translateY(-4px);
   pointer-events: none;
-  transition: opacity 150ms ease, transform 150ms ease;
+  transition: opacity 150ms var(--ease-out), transform 150ms var(--ease-out);
   transition-delay: 0ms;
 }
 .topbar__tip .kbd { background: var(--brand-forest-2); border-color: var(--brand-forest-2); color: var(--text-on-dark); }
@@ -159,6 +159,22 @@
 }
 .raise-view { padding-top: 24px; }
 
+/* PST-298: one scroll per page. The tabs, each view's filter row (.raise-sticky, height published
+   by stickyHeight()) and table header rows stick under the top bar, so only the list scrolls. */
+.raise {
+  --stick-tabs: calc(var(--topbar-h) + env(safe-area-inset-top, 0px) + 1px);
+  --stick-top: calc(var(--stick-tabs) + 47px);
+  --stick-list: calc(var(--stick-top) + var(--stick-filters, 0px));
+}
+.raise > .subtabs { position: sticky; top: var(--stick-tabs); z-index: 30; background: var(--surface-cream); }
+.raise-sticky { position: sticky; top: var(--stick-top); z-index: 20; display: flow-root; margin-top: -12px; padding-top: 12px; background: var(--surface-cream); }
+.raise :is(.inv-row--head, .intro-row--head, .close-tr--head) { position: sticky; top: var(--stick-list); z-index: 3; }
+.raise :is(.intro-row--head, .close-tr--head) { background: var(--surface-white); }
+.raise .inbox__head { position: sticky; top: var(--stick-top); z-index: 3; padding-bottom: 4px; background: var(--surface-white); }
+@media (max-width: 720px) {
+  .raise .pb-chips { position: sticky; top: var(--stick-top); z-index: 20; background: var(--surface-cream); }
+}
+
 .fab {
   display: none;
   position: fixed;
@@ -173,7 +189,7 @@
   box-shadow: 0 4px 0 var(--brand-forest);
   place-items: center;
   z-index: 30;
-  transition: transform 100ms ease, box-shadow 100ms ease, bottom 220ms var(--ease-out-back);
+  transition: transform 150ms var(--ease-out), box-shadow 150ms var(--ease-out), bottom 200ms var(--ease-out);
 }
 /* A toast is showing (ToastProvider sets --toast-lift): sit above it, never under it. */
 .fab { bottom: calc(20px + env(safe-area-inset-bottom, 0px) + var(--toast-lift, 0px)); }

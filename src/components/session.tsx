@@ -47,8 +47,15 @@ function DensityProvider({ density, set, children }: DensityPref & { children: R
 /** Sounds (and PST-290's density) stored per user in Convex; local storage until it loads (and for new users). */
 export function ConvexSounds({ children }: { children: ReactNode }) {
   const prefs = useQuery(api.prefs.get)
-  const save = useMutation(api.prefs.setSounds)
-  const saveDensity = useMutation(api.prefs.setDensity)
+  // PST-298: the switch answers at once (the saved preference wins over the local one).
+  const save = useMutation(api.prefs.setSounds).withOptimisticUpdate((store, { on }) => {
+    const p = store.getQuery(api.prefs.get, {})
+    if (p) store.setQuery(api.prefs.get, {}, { ...p, sounds: on })
+  })
+  const saveDensity = useMutation(api.prefs.setDensity).withOptimisticUpdate((store, { density }) => {
+    const p = store.getQuery(api.prefs.get, {})
+    if (p) store.setQuery(api.prefs.get, {}, { ...p, density })
+  })
   const [localD, setLocalD] = useState(localDensity)
   const density = prefs?.density ?? localD
   const setDensity = useCallback(

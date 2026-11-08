@@ -1,7 +1,7 @@
 // PST-282: Materials. The library (materials with versions), per-investor share
 // links and what the viewer at /d/<token> records. Pure functions over plain
 // data, shared by the UI and Convex.
-import { todayIST } from './dates'
+import { formatDay, todayIST } from './dates'
 
 export const MATERIAL_KINDS = ['deck', 'memo', 'one-pager', 'model', 'data-room', 'other'] as const
 export type MaterialKind = (typeof MATERIAL_KINDS)[number]
@@ -201,13 +201,6 @@ export function embedUrl(url: string): string | null {
   return null
 }
 
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-/** "Tue 3 Nov" (IST). */
-export function dayOfMs(ms: number): string {
-  const d = new Date(todayIST(ms) + 'T00:00:00Z')
-  return `${WEEKDAYS[d.getUTCDay()]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`
-}
 /** "just now", "12m ago", "2h ago", "Yesterday", "Mon 2 Nov". */
 export function whenOf(ms: number, now: number): string {
   const mins = Math.round((now - ms) / 6e4)
@@ -215,7 +208,7 @@ export function whenOf(ms: number, now: number): string {
   if (mins < 60) return `${mins}m ago`
   if (todayIST(ms) === todayIST(now)) return `${Math.round(mins / 60)}h ago`
   if (todayIST(ms) === todayIST(now - DAY_MS)) return 'Yesterday'
-  return dayOfMs(ms)
+  return formatDay(ms)
 }
 
 /* ---------- reading the views ---------- */

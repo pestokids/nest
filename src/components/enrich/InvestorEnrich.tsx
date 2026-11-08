@@ -6,9 +6,10 @@
 import { Link } from '@tanstack/react-router'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
-  asRank, cardState, cents, factOrder, fieldLabel, fit, initials, investorWrite, RANK_LABEL, shortDay, sourceHost, timeLeft,
+  asRank, cardState, cents, factOrder, fieldLabel, fit, initials, investorWrite, RANK_LABEL, sourceHost, timeLeft,
   type Fact, type Person, type Run,
 } from '../../lib/enrich'
+import { formatDay } from '../../lib/dates'
 import { estimate, MODEL_INFO, modelFor, MODELS, type Model } from '../../lib/models'
 import { pop, replay, rise, shine, useCountUp, wobble } from '../../lib/motion'
 import type { Investor, InvestorFields } from '../../lib/pipeline'
@@ -444,7 +445,7 @@ function FundCard({ inv, facts, people, run, sheet, busy, onRefresh }: { inv: In
       <div className="enrich-fund__foot">
         <span className="enrich-eyebrow eyebrow-mono">
           <Icon name="spark" size={16} className="enrich-spark" />
-          Found by Nest{at ? ' · ' + shortDay(at) : ''}
+          Found by Nest{at ? ' · ' + formatDay(at) : ''}
           {!sheet && sources ? ' · ' + plural(sources, 'source') : ''}
         </span>
         <span className="enrich-fund__redo">

@@ -40,7 +40,8 @@
 .set-feedback__what span { font-size: 14px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .set-feedback__issue { flex: none; font: 600 14px/1 var(--font-mono); color: var(--brand-leaf); }
 .set-feedback__wait { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: 1 0 100%; }
-.set-feedback__empty { margin: 16px 0 0; font-size: 14px; color: var(--text-muted); }
+.set-feedback__empty { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; margin: 16px 0 0; font-size: 14px; color: var(--text-muted); }
+.set-feedback__empty p { margin: 0; }
 
 @media (max-width: 720px) {
   .sys-modal__panel.feedback { padding-top: 28px; }
@@ -49,4 +50,10 @@
   .feedback__foot { margin: 20px -20px 0; padding: 18px 20px 0; }
   .feedback__keys { display: none; }
   .feedback__foot .btn { flex: 1; }
+}
+
+/* PST-298 phone pass: 44 px tap targets without changing how they look. */
+@media (max-width: 720px) {
+  .set-feedback__issue { position: relative; }
+  .set-feedback__issue::after { content: ''; position: absolute; inset: -15px -6px; }
 }

@@ -9,8 +9,9 @@
 import { useState } from 'react'
 import { JEV_MAX_CAP } from '../../lib/jev'
 import { cents, type AIData, type AISettings, type RecentRun } from '../../lib/enrich'
-import { todayIST } from '../../lib/dates'
+import { formatDay, todayIST } from '../../lib/dates'
 import { timeOf } from '../../lib/google'
+import { exactMoney } from '../../lib/money'
 import { estimate, FEATURE_LABEL, FEATURES, MODEL_INFO, modelFor, modelName, MODELS, monthPace, PRICES, type Feature, type Model } from '../../lib/models'
 import { useRaise } from '../data'
 import { useUI } from '../raise-ui'
@@ -19,7 +20,7 @@ import { Chip, Icon, Select, Toggle } from '../ui'
 const plural = (n: number, one: string) => n + ' ' + one + (n === 1 ? '' : 's')
 /** "≈ 4¢", or "<0.1¢" as it is. */
 const approx = (usd: number) => (cents(usd).startsWith('<') ? cents(usd) : '≈ ' + cents(usd))
-const perMTok = (usd: number) => '$' + (usd < 1 ? usd.toFixed(2) : String(usd))
+const perMTok = (usd: number) => exactMoney(usd, !Number.isInteger(usd))
 
 /** What one run of a feature costs on its model now, from its real runs once it has enough. */
 const runCost = (ai: AIData, f: Feature) => estimate(f, modelFor(ai.models, f), ai.features[f].real)
@@ -28,7 +29,7 @@ function when(at: number) {
   const day = todayIST(at)
   if (day === todayIST()) return timeOf(at)
   if (day === todayIST(Date.now() - 864e5)) return 'Yesterday'
-  return new Date(day + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+  return formatDay(day)
 }
 
 function runText(r: RecentRun) {
@@ -111,7 +112,7 @@ export function AICard() {
         <div className="set-ai__spend">
           <div>
             <span className="set-ai__k">Used this month</span>
-            <strong className="set-ai__usd num">{'$' + ai.month.usd.toFixed(2)}</strong>
+            <strong className="set-ai__usd num">{exactMoney(ai.month.usd, true)}</strong>
           </div>
           <span className="set-ai__counts">
             {plural(ai.month.lookups, 'lookup')} · {plural(ai.month.enrichments, 'enrichment')}
@@ -167,8 +168,6 @@ export function AICard() {
   )
 }
 
-const dollars = (usd: number) => '$' + usd.toFixed(2)
-
 /**
  * PST-292: Jev, for quick yes/no checks: on/off, this month's spend of the cap, and the
  * cap (Jev stops for the month when it's reached; everything works as before without it).
@@ -212,7 +211,7 @@ function JevSection({ ai }: { ai: AIData }) {
             </span>
             <span className="set-ai__sub">Asks whether a new person is likely an investor before a lookup, whose notes are whose, and spots duplicate firms and repeat questions.</span>
             <span className="set-ai__sub set-ai__jev-month">
-              {off ? 'Not set up: add TYPESAFE_API_KEY to this Convex deployment.' : 'This month ' + dollars(j.monthUsd) + ' of ' + dollars(j.capUsd) + (j.monthUsd >= j.capUsd ? ' · paused until next month' : '')}
+              {off ? 'Not set up: add TYPESAFE_API_KEY to this Convex deployment.' : 'This month ' + exactMoney(j.monthUsd, true) + ' of ' + exactMoney(j.capUsd, true) + (j.monthUsd >= j.capUsd ? ' · paused until next month' : '')}
             </span>
           </div>
           <Toggle aria-labelledby="set-ai-jev-on" checked={!off && j.on} disabled={off || busy === 'on'} onChange={(e) => void save('on', { on: e.target.checked })} />

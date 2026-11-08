@@ -9,9 +9,9 @@
 //   4. Signed by both         countersign the same day as their signature
 //   5. Wire in                10 business days after they accept
 // Business days skip Saturdays and Sundays only (no holiday calendar).
-import { isAngel, stepMap, suggestCut, usd, type Closing, type CloseRow, type ClosingTerms } from './close'
-import { pad, todayIST } from './dates'
-import { money } from './money'
+import { isAngel, stepMap, suggestCut, type Closing, type CloseRow, type ClosingTerms } from './close'
+import { formatDay, pad, todayIST, weekdayOf } from './dates'
+import { exactMoney, money } from './money'
 import type { Activity, Investor } from './pipeline'
 import { COMMIT } from './stages'
 
@@ -19,8 +19,6 @@ export const OFFER_HOURS = 48
 export const WIRE_BUSINESS_DAYS = 10
 const HOUR = 3600_000
 const IST_OFFSET_MS = 330 * 60 * 1000
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 /* ---------- days and times (IST) ---------- */
 
@@ -44,22 +42,14 @@ export function addBusinessDays(iso: string, n: number): string {
 export const endOfDayIST = (iso: string) => Date.parse(iso + 'T23:59:00+05:30')
 
 /** A moment in IST: the day, weekday, "15:40". */
-export function istParts(ms: number): { iso: string; weekday: string; day: number; month: string; time: string } {
+export function istParts(ms: number): { iso: string; weekday: string; time: string } {
   const d = new Date(ms + IST_OFFSET_MS)
-  return { iso: d.toISOString().slice(0, 10), weekday: WEEKDAYS[d.getUTCDay()], day: d.getUTCDate(), month: MONTHS[d.getUTCMonth()], time: `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}` }
+  const iso = d.toISOString().slice(0, 10)
+  return { iso, weekday: weekdayOf(iso), time: `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}` }
 }
 
 /** "Tue 10 Nov at 15:40 IST": how the confirmation states the offer's end. */
-export function offerUntil(ms: number): string {
-  const p = istParts(ms)
-  return `${p.weekday} ${p.day} ${p.month} at ${p.time} IST`
-}
-
-/** "Tue 24 Nov". */
-export function dayLabel(iso: string): string {
-  const [, m, d] = iso.split('-').map(Number)
-  return `${WEEKDAYS[weekday(iso)]} ${d} ${MONTHS[m - 1]}`
-}
+export const offerUntil = (ms: number) => `${formatDay(ms)} at ${istParts(ms).time} IST`
 
 /* ---------- the steps ---------- */
 
@@ -129,7 +119,7 @@ export function dueText(r: KitRow, now: number): string {
   if (!r.projected && r.dueAt < now) return 'Overdue'
   const p = istParts(r.dueAt)
   if (!r.projected && p.iso === todayIST(now)) return `Due ${p.time}`
-  return r.key === 'accept' ? `by ${p.weekday} ${p.time}` : `by ${dayLabel(p.iso)}`
+  return r.key === 'accept' ? `by ${p.weekday} ${p.time}` : `by ${formatDay(p.iso)}`
 }
 
 /** The day (and, from the server's records, the moment) an investor last moved to Verbal. */
@@ -242,7 +232,7 @@ export function confirmText({ company = 'Pesto', investorName, contactName, term
       hello(contactName),
       `${verbalToday ? 'Thanks for today.' : 'Thanks again for the yes.'} Confirming what we discussed:`,
       [
-        `• ${terms.amount ? usd(terms.amount) : BLANK} on ${instrumentPhrase(terms)}`,
+        `• ${terms.amount ? exactMoney(terms.amount) : BLANK} on ${instrumentPhrase(terms)}`,
         `• This offer stands for ${OFFER_HOURS} hours, until ${offerUntil(now + OFFER_HOURS * HOUR)}`,
         `• Once you accept, funding within ${WIRE_BUSINESS_DAYS} business days`,
       ].join('\n'),
@@ -320,9 +310,9 @@ export function allocationText({ company = 'Pesto', contactName, row, terms, wir
     body: [
       hello(contactName),
       full
-        ? `Thank you for backing ${company}. You get the full ${usd(row.gets)} you asked for, on ${instrumentPhrase(terms)}.`
-        : `Thank you for backing ${company}. The round came in above the room we have, so we’ve had to allocate: you get ${usd(row.gets)} of the ${usd(row.wants)} you asked for, on ${instrumentPhrase(terms)}.`,
-      `Your SAFE: ${SAFE_LINK}\nPlease wire by ${dayLabel(wireBy)}, within ${WIRE_BUSINESS_DAYS} business days.`,
+        ? `Thank you for backing ${company}. You get the full ${exactMoney(row.gets)} you asked for, on ${instrumentPhrase(terms)}.`
+        : `Thank you for backing ${company}. The round came in above the room we have, so we’ve had to allocate: you get ${exactMoney(row.gets)} of the ${exactMoney(row.wants)} you asked for, on ${instrumentPhrase(terms)}.`,
+      `Your SAFE: ${SAFE_LINK}\nPlease wire by ${formatDay(wireBy)}, within ${WIRE_BUSINESS_DAYS} business days.`,
       me.trim() || 'Dev',
     ].join('\n\n'),
   }

@@ -4,6 +4,12 @@
 *::after {
   box-sizing: border-box;
 }
+/* Tabular figures everywhere, so numbers line up. On every element, because the font shorthand resets an inherited value. */
+*,
+*::before,
+*::after {
+  font-variant-numeric: tabular-nums !important;
+}
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;

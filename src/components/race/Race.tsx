@@ -1,27 +1,29 @@
 // PST-295: Pipeline › Race (round5/pipeline-race.png): kickoff week, who's
 // ahead with the "slow down" note, the lead, and who to update. The numbers come
 // from src/lib/race.ts; motion and sounds follow interactions-batch-1.png.
-import { useEffect, useMemo, useRef, type CSSProperties } from 'react'
+import { Link } from '@tanstack/react-router'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { initials } from '../../lib/enrich'
-import { dayMonth } from '../../lib/home'
-import { confetti, replay } from '../../lib/motion'
+import { confetti, MOMENT_MS, momentEase, prefersReducedMotion, usePop } from '../../lib/motion'
+import { isOwnMove } from '../../lib/ownMove'
 import type { Investor } from '../../lib/pipeline'
 import {
-  askNext, canLeadOf, countWord, emailList, kickoff, LANE_STOPS, lastUpdateLine, laneCaption, leadCandidates, leadLine, leadSteps, OFFER_TARGET, raceLanes, slowDown,
+  askNext, canLeadOf, countWord, emailList, kickoff, LANE_STOPS, lastUpdateLine, laneCaption, leadCandidates, leadLine, leadSteps, OFFER_TARGET, raceLanes, secondOfferCheer, slowDown,
   updateGroups, updateEmail, windowEyebrow, type Kickoff, type Lane, type RaceInput,
 } from '../../lib/race'
 import { play } from '../../lib/sound'
 import { signalLine } from '../../lib/signals'
 import { STAGE_TILE } from '../../lib/stages'
-import { todayIST } from '../../lib/dates'
+import { formatDay, todayIST } from '../../lib/dates'
 import { useRaise } from '../data'
 import { openDraft } from '../drafts/data'
 import { useDecisions } from '../decisions/data'
+import { EggCracking, EggHatching } from '../illustrations'
 import { Maybes } from '../pipeline/Maybes'
 import { usePreviewState } from '../preview-state'
 import { openOnKey, useUI } from '../raise-ui'
 import { useListKeys } from '../system/useListKeys'
-import { Button, Card, Chip, Icon } from '../ui'
+import { Button, buttonClass, Card, Chip, Icon } from '../ui'
 import { useRace } from './data'
 
 const first = (name: string) => name.trim().split(/\s+/)[0] || name
@@ -69,15 +71,15 @@ export function Race() {
 function KickoffCard({ k }: { k: Kickoff }) {
   const ref = useRef<HTMLElement>(null)
   const two = k.offers >= OFFER_TARGET
-  // The second offer of the week, while you're looking: lime, one confetti burst, target-hit.
+  // The second offer of the week, by your own move: lime, one confetti burst, target-hit. A sync or a page load only turns it lime.
   const prev = useRef(k.offers)
   useEffect(() => {
-    if (prev.current < OFFER_TARGET && two) {
+    if (secondOfferCheer(prev.current, k.offers, isOwnMove('verbal'))) {
       play('target-hit')
       confetti(ref.current)
     }
     prev.current = k.offers
-  }, [k.offers, two])
+  }, [k.offers])
   const max = Math.max(3, ...k.perDay.map((b) => b.n))
   const stats: [string, string, boolean?][] = [
     [`${k.intros.out} / ${k.intros.of}`, 'intros out'],
@@ -119,7 +121,7 @@ function KickoffCard({ k }: { k: Kickoff }) {
                 {LETTER[new Date(b.day + 'T00:00:00Z').getUTCDay()]}
               </span>
               <span className="sr-only">
-                {dayMonth(b.day)}: {plural(b.n, 'meeting')}
+                {formatDay(b.day)}: {plural(b.n, 'meeting')}
               </span>
             </li>
           ))}
@@ -172,7 +174,12 @@ function WhosAhead({ lanes, today }: { lanes: Lane[]; today: string }) {
           ))}
         </div>
       ) : (
-        <p className="race-empty">Nobody’s in the race yet. A firm joins it when its 1st meeting is booked.</p>
+        <div className="race-empty">
+          <p>Nobody’s in the race yet. A firm joins it when its 1st meeting is booked.</p>
+          <Link to="/raise/pipeline" search={{}} className={buttonClass({ variant: 'secondary' })}>
+            Open the board
+          </Link>
+        </div>
       )}
     </Card>
   )
@@ -192,7 +199,7 @@ function LaneRow({ lane: l, today, ahead, signal }: { lane: Lane; today: string;
       data-nav-id={i._id}
       onClick={go}
       onKeyDown={openOnKey(go)}
-      aria-label={`${i.name}: ${STAGE_TILE[l.stage]}${l.decideBy ? `, decide by ${dayMonth(l.decideBy)}` : ''}`}
+      aria-label={`${i.name}: ${STAGE_TILE[l.stage]}${l.decideBy ? `, decide by ${formatDay(l.decideBy)}` : ''}`}
     >
       <span className="race-lane__who">
         <span className={`avatar race-avatar${cl.on ? '' : ' race-avatar--pale'}`} aria-hidden="true">
@@ -220,7 +227,7 @@ function LaneRow({ lane: l, today, ahead, signal }: { lane: Lane; today: string;
         </span>
         <span className="race-lane__caption">{signal || laneCaption(l, today)}</span>
       </span>
-      <span className={`race-lane__decide${late ? ' is-late' : ''}`}>{l.decideBy ? dayMonth(l.decideBy) : '–'}</span>
+      <span className={`race-lane__decide${late ? ' is-late' : ''}`}>{l.decideBy ? formatDay(l.decideBy) : '–'}</span>
       <Icon name="chevron-right" size={18} className="race-lane__go" />
     </div>
   )
@@ -236,14 +243,22 @@ function LeadCard({ investors }: { investors: readonly Investor[] }) {
   const lead = leadId ? investors.find((i) => i._id === leadId) : undefined
   const next = askNext(candidates, leadId)
   const racing = candidates.filter((c) => c._id !== leadId).length
-  // A firm agrees to lead: the card flips to forest.
+  // A firm agrees to lead: the card flips to forest and the egg cracks open.
   const prev = useRef(leadId)
+  const [egg, setEgg] = useState<'cracking' | 'hatched' | null>(null)
   useEffect(() => {
-    if (leadId && leadId !== prev.current) replay(ref.current, 'race-lead--flip')
+    const flipped = !!leadId && leadId !== prev.current
     prev.current = leadId
+    if (!flipped) return
+    const turn = prefersReducedMotion() ? [{ opacity: 0 }, { opacity: 1 }] : [{ transform: 'perspective(900px) rotateY(-80deg)' }, { transform: 'perspective(900px) rotateY(0)' }]
+    ref.current?.animate?.(turn, { duration: MOMENT_MS, easing: momentEase() })
+    setEgg('cracking')
+    const t = setTimeout(() => setEgg('hatched'), 500)
+    return () => clearTimeout(t)
   }, [leadId])
   return (
     <Card ref={ref} tone={lead ? 'forest' : 'white'} riseIndex={2} className="race-lead" aria-labelledby="race-lead-title">
+      {lead && egg ? <span className={'race-lead__egg race-lead__egg--' + egg} aria-hidden="true">{egg === 'hatched' ? <EggHatching size={44} /> : <EggCracking size={40} />}</span> : null}
       <p className="eyebrow-mono race-lead__eyebrow">The lead</p>
       <h2 id="race-lead-title" className="race-card__title">
         {lead ? `${first(lead.name)} is leading` : 'No lead yet'}
@@ -293,6 +308,16 @@ function LeadCard({ investors }: { investors: readonly Investor[] }) {
 
 /* ---------- who to update ---------- */
 
+/** A group's count pops when someone lands in it (Mark as no slides them into Passed, but warm). */
+function Count({ n }: { n: number }) {
+  const ref = usePop<HTMLSpanElement>(n)
+  return (
+    <span ref={ref} className="num">
+      {n}
+    </span>
+  )
+}
+
 function namesOf(xs: Investor[]) {
   const names = xs.map((i) => i.name)
   return names.length <= 2 ? names.join(' and ') : names.slice(0, 2).join(', ') + ` and ${names.length - 2} more`
@@ -303,7 +328,8 @@ function UpdateCard({ investors, today }: { investors: readonly Investor[]; toda
   const race = useRace()
   const { decisions } = useDecisions()
   const maybe = new Set(decisions.filter((x) => x.status === 'maybe').map((x) => x.investorId))
-  const groups = updateGroups(investors, (i) => maybe.has(i._id))
+  const no = new Set(decisions.filter((x) => x.status === 'no').map((x) => x.investorId))
+  const groups = updateGroups(investors, (i) => maybe.has(i._id), (i) => no.has(i._id))
   const everyone = groups.flatMap((g) => g.investors)
   const all = [...new Set(groups.flatMap((g) => g.emails))]
 
@@ -349,7 +375,7 @@ function UpdateCard({ investors, today }: { investors: readonly Investor[]; toda
         {groups.map((g) => (
           <li key={g.key} className="race-groups__row">
             <b>{g.label}</b>
-            <span className="num">{g.investors.length}</span>
+            <Count n={g.investors.length} />
             <button type="button" className="race-link" disabled={!g.emails.length} onClick={() => void copy(g.investors, g.emails)} aria-label={`Copy the emails of ${g.label.toLowerCase()}`}>
               Copy emails
             </button>
@@ -364,7 +390,7 @@ function UpdateCard({ investors, today }: { investors: readonly Investor[]; toda
           Mark sent
         </Button>
       </div>
-      <p className="race-update__note">Nest never sends these. Write the update from your own email, then mark it sent.</p>
+      <p className="race-update__note">{everyone.length ? 'Nest never sends these. Write the update from your own email, then mark it sent.' : 'Nobody to update yet. Firms show up here once they’re in the race, a maybe, committed or passed but warm.'}</p>
     </Card>
   )
 }

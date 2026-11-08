@@ -15,7 +15,7 @@
   position: absolute;
   inset: 0;
   background: rgb(0 63 46 / 0.42);
-  animation: m-fade 200ms ease-out;
+  animation: m-fade 200ms var(--ease-out);
 }
 .sys-modal__panel {
   position: relative;
@@ -70,6 +70,7 @@
 }
 .sys-menu__item:hover,
 .sys-menu__item:focus-visible { background: var(--surface-mint); outline: none; }
+.sys-menu__item:focus-visible { box-shadow: inset 0 0 0 3px var(--brand-lime); }
 .sys-menu__item.is-danger { color: var(--state-error); }
 .sys-menu__item.is-danger:hover { background: var(--state-error-bg); }
 .sys-menu__item:disabled { opacity: 0.45; cursor: not-allowed; }
@@ -134,7 +135,7 @@
   color: var(--text-primary);
   font: 500 14px/1.3 var(--font-ui);
   cursor: pointer;
-  animation: m-rise 240ms var(--ease-out) both;
+  animation: m-rise 200ms var(--ease-out) both;
   animation-delay: calc(var(--i, 0) * 30ms);
 }
 .cmdk-item.is-active { background: #e7edd9; font-weight: 600; }
@@ -164,7 +165,7 @@
 .sys-offline {
   background: var(--surface-peach);
   border-bottom: 1px solid var(--line-peach);
-  animation: sys-offline-in 240ms var(--ease-out);
+  animation: sys-offline-in 200ms var(--ease-out);
 }
 @keyframes sys-offline-in {
   from { opacity: 0; transform: translateY(-100%); }
@@ -267,6 +268,21 @@
 .sk-row { display: flex; align-items: center; gap: 28px; padding: 18px 20px; border-bottom: 1px solid var(--line-default); }
 .sk-row__name { display: flex; flex-direction: column; gap: 8px; width: 200px; }
 .sk-field { display: flex; flex-direction: column; gap: 8px; }
+/* PST-298: skeletons shaped like Today's Inbox, the board, the race, Close and the drawer's lists. */
+.sk-row__go { margin-left: auto; }
+.sk-head { display: flex; flex-direction: column; gap: 12px; padding: 22px 20px 14px; }
+.sk-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.sk-inbox { display: grid; grid-template-columns: minmax(0, 1fr) 416px; align-items: start; gap: 24px; }
+.sk-inbox__side { display: flex; flex-direction: column; gap: 20px; }
+.sk-board { display: grid; grid-template-columns: repeat(5, minmax(230px, 1fr)); gap: 10px; min-height: 420px; }
+.sk-col { display: flex; flex-direction: column; gap: 10px; padding: 14px 10px; border-radius: var(--radius-column); background: var(--board-column); }
+.sk-col > .sk { background: #ddd8c9; }
+.sk-col > .sk:nth-child(2) { margin-bottom: 4px; }
+.sk-card--deal { gap: 10px; padding: 14px; border-radius: var(--radius-deal); }
+.sk-hero--race { height: 214px; }
+.sk-hero--close { height: 216px; border-radius: var(--radius-tile); }
+.sk-rows { gap: 0; }
+.sk-rows .sk-row { padding: 14px 0; }
 
 /* ---------- Phones ---------- */
 @media (max-width: 720px) {
@@ -276,7 +292,7 @@
     max-height: calc(100dvh - 40px - env(safe-area-inset-top, 0px));
     border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
     padding: 28px max(20px, env(safe-area-inset-left, 0px)) calc(24px + env(safe-area-inset-bottom, 0px));
-    animation: sys-sheet-in 280ms var(--ease-out-quart);
+    animation: sys-sheet-in 200ms var(--ease-out);
   }
   @keyframes sys-sheet-in {
     from { transform: translateY(40px); opacity: 0; }
@@ -315,6 +331,11 @@
   .sk-hero { height: 180px; }
   .sk-row { gap: 14px; }
   .sk-row > .sk:nth-child(n + 4) { display: none; }
+  .sk-inbox { grid-template-columns: minmax(0, 1fr); }
+  .sk-inbox__side { display: none; }
+  .sk-board { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+  .sk-col:nth-child(n + 2) { display: none; }
+  .sk-head .sk-chips { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -367,3 +388,14 @@
 [data-density='compact'] .pb-card:not(.pb-card--phone) .pb-card__foot { margin-top: 6px; }
 /* /PST-290 */
 
+
+/* PST-298: under reduced motion, movement here becomes a fade (these win over the keyframes above). */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes sys-in { from { opacity: 0; } }
+  @keyframes cmdk-in { from { opacity: 0; } }
+  @keyframes sys-offline-in { from { opacity: 0; } }
+  @keyframes sys-sheet-in { from { opacity: 0; } }
+  @keyframes sys-drift {}
+  @keyframes sys-sway {}
+  @keyframes sk-sweep {}
+}

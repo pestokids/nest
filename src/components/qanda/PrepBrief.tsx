@@ -4,9 +4,8 @@
 // questions they or investors like them asked most). Opening it plays prep-done
 // once per meeting (interactions.png).
 import { useEffect, useState } from 'react'
-import { todayIST } from '../../lib/dates'
+import { formatDay, todayIST } from '../../lib/dates'
 import { timeOf, type SyncedMeeting } from '../../lib/google'
-import { dayMonth } from '../../lib/home'
 import { money } from '../../lib/money'
 import { lastTouches, needsAnswer, prepQuestions, startsIn, whoTheyAre } from '../../lib/qanda'
 import { STAGE_TILE } from '../../lib/stages'
@@ -121,7 +120,7 @@ export function PrepBrief({ meetingId, level, onClose }: { meetingId: string; le
           <section className="qa-sec">
             <h3 className="qa-sec__h">Open next step</h3>
             <ul className="qa-dots qa-dots--open">
-              <li>{step ? `${step.replace(/[.\s]+$/, '')}.${inv.nextDate ? ` ${inv.nextDate < today ? 'Was due' : 'Due'} ${dayMonth(inv.nextDate)}.` : ''}` : 'No next step set. Agree one before you hang up.'}</li>
+              <li>{step ? `${step.replace(/[.\s]+$/, '')}.${inv.nextDate ? ` ${inv.nextDate < today ? 'Was due' : 'Due'} ${formatDay(inv.nextDate)}.` : ''}` : 'No next step set. Agree one before you hang up.'}</li>
               {open.map((q) => (
                 <li key={q._id}>{q.text} No answer saved yet.</li>
               ))}

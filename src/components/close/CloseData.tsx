@@ -13,6 +13,7 @@ import { COMMIT, type Stage } from '../../lib/stages'
 import { closePreview, fixtureCloseStore } from '../../preview/closeFixture'
 import { useRaise } from '../data'
 import { usePreviewState } from '../preview-state'
+import { hideClosing, showAllocation, showCapTable, showCloseSave, showKit, showTick, showTranche2 } from './optimistic'
 
 export type TickResult = { to: Stage | null; firstMoney: boolean }
 
@@ -60,14 +61,15 @@ export function CloseProvider({ children }: { children: ReactNode }) {
 
 function ConvexClose({ children }: { children: ReactNode }) {
   const data = useQuery(api.closings.data)
-  const save = useMutation(api.closings.save)
-  const tick = useMutation(api.closings.tick)
-  const remove = useMutation(api.closings.remove)
-  const setCapTable = useMutation(api.closings.setCapTable)
+  // PST-298: every write shows at once (./optimistic.ts); a reminder email waits for Resend.
+  const save = useMutation(api.closings.save).withOptimisticUpdate((store, a) => showCloseSave(store, a))
+  const tick = useMutation(api.closings.tick).withOptimisticUpdate((store, a) => showTick(store, a))
+  const remove = useMutation(api.closings.remove).withOptimisticUpdate((store, { id }) => hideClosing(store, id))
+  const setCapTable = useMutation(api.closings.setCapTable).withOptimisticUpdate((store, { capTable }) => showCapTable(store, capTable))
   const emailReminder = useAction(api.closings.emailReminder)
-  const setKit = useMutation(api.closings.setKit)
-  const setTranche2 = useMutation(api.closings.setTranche2)
-  const setAllocation = useMutation(api.closings.setAllocation)
+  const setKit = useMutation(api.closings.setKit).withOptimisticUpdate((store, a) => showKit(store, a))
+  const setTranche2 = useMutation(api.closings.setTranche2).withOptimisticUpdate((store, { cap }) => showTranche2(store, cap))
+  const setAllocation = useMutation(api.closings.setAllocation).withOptimisticUpdate((store, a) => showAllocation(store, a))
   const value = useMemo<CloseData>(
     () => ({
       loaded: !!data,

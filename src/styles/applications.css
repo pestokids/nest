@@ -35,7 +35,7 @@
 .history__fix { align-self: flex-start; min-height: 32px; font-weight: 600; text-decoration-color: currentColor; }
 
 /* ---------- board card: the ⋯ menu and the application chip ---------- */
-.pb-card__menu { flex: none; display: grid; place-items: center; width: 28px; height: 28px; margin: -6px -8px -6px -2px; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--text-secondary); cursor: pointer; opacity: 0; transition: opacity 150ms ease; }
+.pb-card__menu { flex: none; display: grid; place-items: center; width: 28px; height: 28px; margin: -6px -8px -6px -2px; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--text-secondary); cursor: pointer; opacity: 0; transition: opacity 150ms var(--ease-out); }
 .pb-card:hover .pb-card__menu, .pb-card:focus-within .pb-card__menu, .pb-card__menu[aria-expanded='true'] { opacity: 1; }
 .pb-card__menu:hover { background: var(--surface-mint); color: var(--text-primary); }
 .pb-card__menu:focus-visible { opacity: 1; outline: 3px solid var(--brand-lime); outline-offset: 0; }
@@ -67,4 +67,10 @@
   .app-edit { padding: 18px 16px 10px; }
   .app-edit__fields { grid-template-columns: 1fr 1fr; }
   .app-edit__fields > :first-child { grid-column: 1 / -1; }
+}
+
+/* PST-298 phone pass: 44 px tap targets without changing how they look. */
+@media (max-width: 720px) {
+  .drawer__stagebtn { position: relative; }
+  .drawer__stagebtn::after { content: ''; position: absolute; inset: -8px -2px; }
 }

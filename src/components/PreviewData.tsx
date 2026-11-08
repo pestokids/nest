@@ -71,6 +71,7 @@ export function PreviewData({
   children: ReactNode
 }) {
   const correction = usePreviewState()?.stage === 'correction' // PST-302
+  const drawerLoading = usePreviewState()?.system === 'loading-drawer' // PST-298: the drawer's lists as skeletons
   const [investors, setInvestors] = useState<Investor[] | null>(null)
   const [acts, setActs] = useState<Activity[]>([])
   const [round, setRound] = useState<Round>(DEFAULT_ROUND)
@@ -365,7 +366,7 @@ export function PreviewData({
         setRoundExists(true)
         return ch.length
       }),
-      useLog: (id) => acts.filter((a) => a.investorId === id),
+      useLog: (id) => (drawerLoading ? undefined : acts.filter((a) => a.investorId === id)),
       useSettingsLog: () => log,
       usePrepTicks: (k) => (k ? ticks[k] ?? [] : undefined),
       setPrepTick: async (k, item, done) =>
@@ -458,7 +459,7 @@ export function PreviewData({
         patchInv(i._id, { maxStage: max })
       }),
     }
-  }, [investors, acts, round, roundExists, log, ticks, extra.fail, extra.loading, google, suggestions, emptyList])
+  }, [investors, acts, round, roundExists, log, ticks, extra.fail, extra.loading, google, suggestions, emptyList, drawerLoading])
 
   // `&ai=…`: made-up enrichment; Keep writes through the preview's own save.
   const { keptFacts, ...enrich } = useAIPreview(aiState, investors, value.save, !!extra.fail)

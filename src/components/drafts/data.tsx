@@ -15,6 +15,7 @@ import { normEmail } from '../../lib/google'
 import { linkState, shareUrl, type MaterialKind } from '../../lib/materials'
 import { PREVIEW_KNOWN, previewDraftText, previewHistory, previewOpen, type PreviewDrafts } from '../../preview/draftsFixture'
 import { useRaise } from '../data'
+import { showDraft } from '../optimistic'
 import { useMaterials } from '../materials/data'
 import { usePreviewState } from '../preview-state'
 import { DraftDialog } from './DraftDialog'
@@ -85,9 +86,12 @@ const ids = (d: DraftInput) => ({ ...d, draftId: d.draftId as Id<'drafts'> | und
 
 function ConvexDrafts({ children }: { children: ReactNode }) {
   const generate = useAction(api.drafts.generate)
-  const save = useMutation(api.drafts.save)
+  // PST-298: keeping a draft and "I sent it" show at once; Copy waits for the text with its links filled in.
+  const save = useMutation(api.drafts.save).withOptimisticUpdate((store, a) => {
+    if (a.draftId) showDraft(store, { draftId: a.draftId, subject: a.subject, body: a.body, to: a.to })
+  })
   const copied = useMutation(api.drafts.copied)
-  const markSent = useMutation(api.drafts.markSent)
+  const markSent = useMutation(api.drafts.markSent).withOptimisticUpdate((store, { draftId }) => showDraft(store, { draftId, sent: true }))
   const send = useAction(api.drafts.send)
   const saveMany = useMutation(api.drafts.saveMany)
   const value = useMemo<DraftsValue>(

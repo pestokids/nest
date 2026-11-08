@@ -3,14 +3,12 @@
 // how long they've been a maybe, and the latest signal Nest read.
 import { useEffect, useRef } from 'react'
 import { ASK_OR_DROP_CALLS, callsLine, DECIDE_BY_DAYS, DECISION_LABEL, DECISION_STATUSES, maybeDays, type DecisionStatus } from '../../lib/decisions'
-import { dayMonth } from '../../lib/home'
+import { formatDay } from '../../lib/dates'
 import type { Investor } from '../../lib/pipeline'
 import { signalLine } from '../../lib/signals'
 import { useUI } from '../raise-ui'
 import { Icon, Input } from '../ui'
 import { useDecide, useDecisions } from './data'
-
-const day = (iso: string) => dayMonth(iso).replace(/^\w+ /, '')
 
 export function DecisionSection({ inv }: { inv: Investor }) {
   const x = useDecisions()
@@ -99,7 +97,7 @@ export function DecisionSection({ inv }: { inv: Investor }) {
 
       <div className="decision__foot">
         <span className="decision__source">
-          {signal ? 'Read by Nest from ' + (signal.source === 'email' ? 'their ' + day(signal.day) + ' email' : 'your ' + day(signal.day) + ' notes') : 'Nest reads their emails and your notes for signals.'}
+          {signal ? 'Read by Nest from ' + (signal.source === 'email' ? 'their ' + formatDay(signal.day) + ' email' : 'your ' + formatDay(signal.day) + ' notes') : 'Nest reads their emails and your notes for signals.'}
           {autoMade ? (
             <>
               {' · '}

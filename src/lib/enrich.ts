@@ -2,8 +2,8 @@
 // how a kept fact lands on the investor (and when it would clash with something
 // Dev typed), the light Fit score, and the small labels the drawer, Investors,
 // Who's this? and Settings show. Pure functions.
-import { dayMonth } from './home'
-import { money } from './money'
+import { formatDay } from './dates'
+import { exactMoney, money } from './money'
 import { NEW_INVESTOR, type InvestorFields } from './pipeline'
 import { domainOf, GENERIC_DOMAINS, normDomain, normEmail } from './google'
 import type { Round } from './round'
@@ -239,7 +239,7 @@ export function fit(facts: readonly Fact[], round: Pick<Round, 'minCheck' | 'tar
 
 /** "4¢", "$1.84", and under a cent (PST-273: most Haiku runs) "0.4¢" or "<0.1¢". */
 export function cents(usd: number): string {
-  if (usd >= 1) return '$' + usd.toFixed(2)
+  if (usd >= 1) return exactMoney(usd, true)
   const c = usd * 100
   if (c <= 0) return '0¢'
   if (c < 0.05) return '<0.1¢'
@@ -266,15 +266,11 @@ export function sourceShort(url: string): string {
   }
 }
 
-const isoDay = (ms: number) => new Date(ms + 330 * 6e4).toISOString().slice(0, 10)
-/** "7 Nov" (IST). */
-export const shortDay = (ms: number) => dayMonth(isoDay(ms)).replace(/^\w+ /, '')
-
 /** The Investors table's Enriched cell. */
 export function enrichedCell(run: Pick<Run, 'status' | 'finishedAt'> | undefined): { text: string; tone: 'done' | 'running' | 'queued' | 'none' } {
   if (run?.status === 'running') return { text: 'Running…', tone: 'running' }
   if (run?.status === 'queued') return { text: 'Queued', tone: 'queued' }
-  if (run?.status === 'done' && run.finishedAt) return { text: '✓ ' + shortDay(run.finishedAt), tone: 'done' }
+  if (run?.status === 'done' && run.finishedAt) return { text: '✓ ' + formatDay(run.finishedAt), tone: 'done' }
   return { text: '—', tone: 'none' }
 }
 

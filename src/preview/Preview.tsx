@@ -86,6 +86,25 @@
 //   &today=win               the ask logged from its Next move row (confetti and the Cheer toast)
 //   &system=list-focus       on Today: the J/K focus ring on the second row
 //   ---------- end PST-297 ----------
+//   ---------- PST-298 empty states (every empty list says why and offers one next step) ----------
+//   &home=firstrun           on any route, no investors and no round: Home's This week, the board's columns (and the
+//                            phone stage view at 440), Race's Who's ahead and Who to update, Maybes, Insights with no target
+//   &today=clear             also Home's Inbox card with nothing waiting
+//   &materials=noopens       links sent, nobody has opened one yet (Recent views)
+//   &materials=empty         with &drawer=materials: the drawer's Materials tab before anything is uploaded
+//   &close=empty             with /raise/close?view=allocation: nobody has said a number yet
+//   &feedback=empty          Settings › Feedback with nothing sent yet
+//   ---------- end PST-298 empty states ----------
+//   ---------- PST-298 skeletons ----------
+//   &system=loading          on any Raise view: the skeleton shaped like that view (Today, Pipeline, Race, Investors,
+//                            Close, Plan, Settings)
+//   &system=loading-drawer   with &drawer=history|materials|notes: the drawer's lists as skeleton rows
+//   ---------- end PST-298 skeletons ----------
+//   ---------- PST-298 interactions (see preview/momentsFixture.tsx) ----------
+//   &moment=<name>           one interaction from interactions-batch-1.png, played a moment after load: inbox-done, inbox-move,
+//                            inbox-snooze (with &today=inbox); race-move, race-ahead, race-offer, race-lead, maybe-no (with
+//                            &pipeline=race); intro-step, intro-thanked (with &introducer=panel)
+//   ---------- end PST-298 interactions ----------
 //   &fail                    every write fails (save-failed toast with Retry)
 //   any unknown path         the 404, e.g. /nowhere?preview
 import { useEffect, useRef } from 'react'
@@ -117,6 +136,7 @@ import { RaceProvider } from '../components/race/data' // PST-295
 import { PREVIEW_RACE, type PreviewRace } from './raceFixture' // PST-295
 import { InboxProvider } from '../components/inbox/data' // PST-297
 import { isInboxPreview } from './inboxFixture' // PST-297
+import { Moments, PREVIEW_MOMENTS, type PreviewMoment } from './momentsFixture' // PST-298 interactions
 
 const session = { me: { firstName: 'Dev', name: 'Dev Preview', email: 'dev@example.com' }, signOut: () => {} }
 
@@ -168,6 +188,9 @@ export function Preview() {
   /* ---------- PST-292: &whos=prechecked (Jev's Who's this? pre-check) ---------- */
   const whos = q.get('whos') === 'prechecked'
   /* ---------- end PST-292 ---------- */
+  /* ---------- PST-298 interactions: &moment=<name> ---------- */
+  const moment = (PREVIEW_MOMENTS as readonly string[]).includes(q.get('moment') ?? '') ? (q.get('moment') as PreviewMoment) : null
+  /* ---------- end PST-298 interactions ---------- */
   return (
     <LocalSounds>
       <SessionContext.Provider value={session}>
@@ -202,6 +225,8 @@ export function Preview() {
                     <AppShell>
                       {state.system === 'savefailed' ? <FailOnce /> : null}
                       {state.system === 'undo' ? <UndoOnce /> : null}
+                      {/* PST-298 interactions */}
+                      {moment ? <Moments moment={moment} /> : null}
                       <OpenToasts />
                     </AppShell>
                   </PreviewFeedback>

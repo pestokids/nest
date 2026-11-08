@@ -4,6 +4,7 @@ import { useConvex, useMutation, useQuery, useAction } from 'convex/react'
 import { createContext, useContext, useMemo, type ReactNode } from 'react'
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
+import { showMaterials } from '../optimistic'
 import { NO_MATERIALS, PDF_TYPE, type LinkOptions, type MaterialKind, type MaterialsData } from '../../lib/materials'
 
 /** A version's contents: an uploaded PDF (its storage id and page count) or a link, and a one-line note. */
@@ -44,11 +45,12 @@ export function ConvexMaterials({ children }: { children: ReactNode }) {
   const uploadUrl = useMutation(api.materials.uploadUrl)
   const create = useMutation(api.materials.create)
   const addVersion = useMutation(api.materials.addVersion)
-  const makeCurrent = useMutation(api.materials.makeCurrent)
-  const remove = useMutation(api.materials.remove)
+  // PST-298: these show at once; uploads, new versions and shares wait for what they make.
+  const makeCurrent = useMutation(api.materials.makeCurrent).withOptimisticUpdate((store, { versionId }) => showMaterials(store, { current: versionId }))
+  const remove = useMutation(api.materials.remove).withOptimisticUpdate((store, { materialId }) => showMaterials(store, { remove: materialId }))
   const share = useMutation(api.materials.share)
-  const revoke = useMutation(api.materials.revoke)
-  const seen = useMutation(api.materials.seen)
+  const revoke = useMutation(api.materials.revoke).withOptimisticUpdate((store, { linkId }) => showMaterials(store, { revoke: linkId }))
+  const seen = useMutation(api.materials.seen).withOptimisticUpdate((store, { linkIds }) => showMaterials(store, { seen: linkIds }))
   const email = useAction(api.materials.emailLinks)
   const act = useMemo<MaterialsActions>(() => {
     const src = (s: Source) => ({ ...s, fileId: s.fileId as Id<'_storage'> | undefined })

@@ -1,13 +1,13 @@
 import { useRef, useState } from 'react'
-import { fieldsOf } from '../../lib/pipeline'
 import { play } from '../../lib/sound'
-import { ALL, STAGE_TILE, type Stage } from '../../lib/stages'
+import { ALL, STAGE_TILE } from '../../lib/stages'
 import { useRaise } from '../data'
 import { useUI } from '../raise-ui'
 import { Confirm } from '../system/Confirm'
 import { Menu } from '../system/Menu'
 import { useSaveAction } from '../system/useSaveAction'
 import { Icon } from '../ui'
+import { bulkChange, type BulkChange } from './bulk'
 import { exportInvestors } from './exportCsv'
 
 const plural = (n: number) => `${n} investor${n === 1 ? '' : 's'}`
@@ -25,19 +25,22 @@ export function BulkBar({ ids, onClear, onEnriching }: { ids: Set<string>; onCle
   const picked = d.investors.filter((i) => ids.has(i._id))
   const n = picked.length
 
-  const update = (patch: { stage?: Stage; wave?: 1 | 2 | 3 }, done: string, sound?: 'stage-up') =>
-    void save(
-      async () => {
-        for (const i of picked) if ((patch.stage && i.stage !== patch.stage) || (patch.wave && i.wave !== patch.wave)) await d.save(i._id, { ...fieldsOf(i), ...patch })
-      },
-      {
-        failMessage: `Couldn’t update ${plural(n)}.`,
-        onDone: () => {
-          if (sound) play(sound)
-          toast(done)
+  /** PST-298: shows on every row at once, with Undo (./bulk.ts). */
+  const update = (change: BulkChange, done: string, sound?: 'stage-up') => {
+    const { saved, undo } = bulkChange(d, picked, change)
+    if (sound) play(sound)
+    toast({
+      message: done,
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          play('undo')
+          undo().catch(fail)
         },
       },
-    )
+    })
+    void saved.then((e) => e && fail(e))
+  }
 
   async function enrich() {
     setStarting(true)

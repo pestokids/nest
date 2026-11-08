@@ -1,15 +1,11 @@
 import { useRef, useState, type PointerEvent as RPointerEvent } from 'react'
+import { formatDay } from '../../lib/dates'
 import { goalLabel } from '../../lib/plan'
 import { isDollarMetric, METRIC_LABEL, METRICS, type Metric, type Phase, type PhaseTarget, type Round, type RoundErrors } from '../../lib/round'
 import { money } from '../../lib/money'
 import { Button, Icon } from '../ui'
 import { NumberInput } from './inputs'
 
-const MONTHS = ['', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
-const md = (iso: string) => {
-  const [, m, d] = (iso || '').split('-').map(Number)
-  return m ? `${MONTHS[m]} ${d}` : '–'
-}
 
 type Props = {
   round: Round
@@ -99,7 +95,7 @@ export function PhaseList({ round, errors, show, touch, onChange }: Props) {
               </button>
               <span className="set-phase__name">{p.name || 'Untitled phase'}</span>
               <span className="set-phase__dates">
-                {md(p.from)} <Icon name="arrow-right" size={12} strokeWidth={2.2} /> {md(p.to)}
+                {formatDay(p.from)} <Icon name="arrow-right" size={12} strokeWidth={2.2} /> {formatDay(p.to)}
               </span>
               <span className="set-phase__goal">{goalLabel(round, p)}</span>
               <button type="button" className="set-phase__btn" aria-label={`Edit ${p.name}`} aria-expanded={open} onClick={() => setEditing(editing === p.k ? null : p.k)}>

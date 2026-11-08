@@ -1,6 +1,6 @@
 // The Settings change log in sentences: "Close date moved from Tue 1 Dec to Fri 4 Dec".
-import { isISODate } from './dates'
-import { longDay } from './investorView'
+import { formatDay, isISODate } from './dates'
+import { timeOf } from './google'
 import { money } from './money'
 import { fieldLabel, type RoundChange } from './round'
 
@@ -13,7 +13,7 @@ const NAMES: Record<string, string> = { target: 'Target', stretch: 'Room to', ca
 const show = (field: string, v: string) => {
   if (!v) return 'nothing'
   if (MONEY.has(field) && Number.isFinite(Number(v))) return money(Number(v))
-  if (isISODate(v)) return longDay(v)
+  if (isISODate(v)) return formatDay(v)
   return v
 }
 
@@ -45,9 +45,5 @@ export function groupLog(rows: LogEntry[]): LogEvent[] {
   return out
 }
 
-/** "NOV 6 · 18:20" in India time, like every other date in Nest. */
-export function logTime(at: number): string {
-  const d = new Date(at + 330 * 60 * 1000)
-  const mon = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'][d.getUTCMonth()]
-  return `${mon} ${d.getUTCDate()} · ${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`
-}
+/** "Fri 6 Nov · 18:20" in India time, like every other date in Nest. */
+export const logTime = (at: number) => `${formatDay(at)} · ${timeOf(at)}`

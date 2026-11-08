@@ -1,6 +1,6 @@
 /* Investor drawer: screens/drawer/*.png (desktop side drawer), investor-sheet.png (phone bottom sheet). */
-.scrim { position: fixed; inset: 0; z-index: 60; background: rgb(18 61 45 / 0.32); animation: m-fade 200ms ease-out; }
-.scrim--leaving { opacity: 0; transition: opacity 200ms ease-in; }
+.scrim { position: fixed; inset: 0; z-index: 60; background: rgb(18 61 45 / 0.32); animation: m-fade 200ms var(--ease-out); }
+.scrim--leaving { opacity: 0; transition: opacity 200ms var(--ease-out); }
 
 .drawer {
   position: fixed;
@@ -18,9 +18,9 @@
   width: min(540px, 100%);
   padding-right: env(safe-area-inset-right, 0px);
   box-shadow: -24px 0 60px -30px rgb(0 31 23 / 0.45);
-  animation: drawer-in 280ms var(--ease-out-quart);
+  animation: drawer-in 200ms var(--ease-out);
 }
-.drawer--side.drawer--leaving { transform: translateX(100%); transition: transform 200ms ease-in; }
+.drawer--side.drawer--leaving { transform: translateX(100%); transition: transform 200ms var(--ease-out); }
 @keyframes drawer-in { from { transform: translateX(100%); } }
 
 .drawer--sheet {
@@ -31,12 +31,12 @@
   border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
   padding-bottom: env(safe-area-inset-bottom, 0px);
   box-shadow: var(--shadow-sheet);
-  animation: sheet-in 280ms var(--ease-out-quart);
-  transition: transform 220ms var(--ease-out-quart);
+  animation: sheet-in 200ms var(--ease-out);
+  transition: transform 200ms var(--ease-out);
   touch-action: pan-y;
 }
 .drawer--sheet.is-dragging { transition: none; }
-.drawer--sheet.drawer--leaving { transform: translateY(100%) !important; transition: transform 200ms ease-in; }
+.drawer--sheet.drawer--leaving { transform: translateY(100%) !important; transition: transform 200ms var(--ease-out); }
 @keyframes sheet-in { from { transform: translateY(100%); } }
 
 .drawer__top { flex: none; }
@@ -102,6 +102,7 @@
 .drawer__menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 5; width: 220px; padding: 6px; background: var(--surface-white); border: 1px solid var(--line-default); border-radius: var(--radius-small); box-shadow: var(--shadow-pop); animation: m-slide-down 150ms var(--ease-out); }
 .drawer__menu-item { display: flex; align-items: center; width: 100%; min-height: 44px; padding: 0 12px; border: 0; border-radius: 10px; background: none; color: var(--text-primary); font: 500 14px/1 var(--font-ui); text-align: left; cursor: pointer; }
 .drawer__menu-item:hover, .drawer__menu-item:focus-visible { background: var(--surface-mint); outline: none; }
+.drawer__menu-item:focus-visible { box-shadow: inset 0 0 0 3px var(--brand-lime); }
 .drawer__menu-item--danger { color: var(--state-error); }
 .drawer__menu-item--danger:hover { background: var(--state-error-bg); }
 
@@ -120,7 +121,6 @@
 
 /* History timeline */
 .history { list-style: none; margin: 0; padding: 4px 0 0; }
-.history--loading { min-height: 200px; }
 .history__item { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 0 0 26px 36px; }
 .history__item::before { content: ''; position: absolute; left: 7px; top: 18px; bottom: 0; width: 2px; background: var(--line-default); }
 .history__item:last-child::before { display: none; }
@@ -134,7 +134,7 @@
 .history__by { color: var(--text-faint); }
 .history__title { font: 600 15px/1.3 var(--font-ui); color: var(--text-primary); }
 .history__sub { font: 400 14px/1.35 var(--font-ui); color: var(--text-secondary); overflow-wrap: anywhere; }
-.history__item--new { animation: history-in 420ms var(--ease-out-back) both; }
+.history__item--new { animation: history-in 200ms var(--ease-out) both; }
 @keyframes history-in { from { opacity: 0; transform: translateY(-14px); } }
 /* Emails tab (screens/drawer/emails.png) and History's "From Calendar" mark (PST-263). */
 .tab-count { margin-left: 8px; font-weight: 600; }
@@ -154,7 +154,7 @@
   color: var(--text-secondary);
   text-decoration: none;
   font: 400 14px/1.35 var(--font-ui);
-  transition: background-color 150ms ease, transform 150ms ease;
+  transition: background-color 150ms var(--ease-out), transform 150ms var(--ease-out);
 }
 a.email-card:hover { background: #efebdf; }
 a.email-card:focus-visible { outline: 3px solid var(--brand-lime); outline-offset: 2px; }
@@ -194,7 +194,7 @@ a.email-card--waiting:hover { background: #ffe8d9; }
 .advance-card__rule { margin: 8px 0 0; font: 600 16px/1.3 var(--font-ui); color: var(--text-on-dark); }
 .advance-card__egg { flex: none; display: grid; place-items: center; width: 64px; height: 64px; }
 .advance-card__egg--cracking svg { animation: m-wobble 500ms ease-in-out 2; }
-.advance-card__egg--hatched svg { animation: hatch-pop 450ms var(--ease-spring); }
+.advance-card__egg--hatched svg { animation: hatch-pop 200ms var(--ease-out); }
 @keyframes hatch-pop { 0% { transform: translateY(10px) scale(0.85); } 100% { transform: none; } }
 .advance-ok { padding: 16px 16px; border-radius: 14px; background: var(--state-success-bg); }
 .advance-ok .checkbox { width: 100%; min-height: 24px; }
@@ -203,9 +203,9 @@ a.email-card--waiting:hover { background: #ffe8d9; }
 
 /* Delete confirm (in the drawer) */
 .drawer--confirming > :not(.confirm-layer) { filter: none; }
-.confirm-layer { position: absolute; inset: 0; z-index: 4; display: flex; align-items: flex-start; justify-content: center; padding: 380px 32px 0; background: rgb(18 61 45 / 0.32); animation: m-fade 150ms ease-out; border-radius: inherit; }
+.confirm-layer { position: absolute; inset: 0; z-index: 4; display: flex; align-items: flex-start; justify-content: center; padding: 380px 32px 0; background: rgb(18 61 45 / 0.32); animation: m-fade 150ms var(--ease-out); border-radius: inherit; }
 .drawer--sheet .confirm-layer { padding: 120px 16px 0; }
-.confirm { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 16px; width: 100%; padding: 26px 24px 24px; border-radius: var(--radius-card); background: var(--surface-white); box-shadow: var(--shadow-pop); animation: m-rise 220ms var(--ease-out-back); }
+.confirm { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 16px; width: 100%; padding: 26px 24px 24px; border-radius: var(--radius-card); background: var(--surface-white); box-shadow: var(--shadow-pop); animation: m-rise 200ms var(--ease-out); }
 .confirm__egg { grid-row: 1; display: grid; place-items: start; padding-top: 2px; }
 .confirm__text h3 { font: 700 22px/1.2 var(--font-display); color: var(--text-primary); overflow-wrap: anywhere; }
 .confirm__text p { margin: 8px 0 0; font: 400 14px/1.25 var(--font-ui); color: var(--text-secondary); }
@@ -223,4 +223,18 @@ a.email-card--waiting:hover { background: #ffe8d9; }
 @media (prefers-reduced-motion: reduce) {
   .drawer--side, .drawer--sheet, .confirm, .history__item--new { animation: m-fade 200ms ease-out; }
   .advance-card__egg svg { animation: none !important; }
+}
+
+/* PST-298: under reduced motion, movement here becomes a fade (these win over the keyframes above). */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes drawer-in { from { opacity: 0; } }
+  @keyframes sheet-in { from { opacity: 0; } }
+  @keyframes history-in { from { opacity: 0; } }
+  @keyframes hatch-pop { from { opacity: 0; } }
+}
+
+/* PST-298 phone pass: 44 px tap targets without changing how they look. */
+@media (max-width: 720px) {
+  .drawer__link { position: relative; }
+  .drawer__link::after { content: ''; position: absolute; inset: -4px 0; }
 }

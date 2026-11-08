@@ -2,7 +2,7 @@
 // post-money SAFEs. Every number is a what-if: nothing here is saved.
 // The maths, with the formulas written out, is in src/lib/close.ts.
 import { useMemo, useState, type CSSProperties } from 'react'
-import { capTableAfter, compareCaps, dilution, isAngel, ladder, pct, scenarioSafes, usd, type Safe } from '../../lib/close'
+import { capTableAfter, compareCaps, dilution, isAngel, ladder, pct, scenarioSafes, type Safe } from '../../lib/close'
 import { trancheLine, trancheOf } from '../../lib/closeKit'
 import { money } from '../../lib/money'
 import { useInView } from '../../lib/motion'
@@ -151,7 +151,7 @@ export function Modeller() {
                       {s.name}
                       {earlierSafe ? <small>Earlier SAFE · {money(s.cap)} cap</small> : s.terms.cap !== s.cap ? <small>MFN: converts at {money(s.terms.cap)}</small> : inTwo.some((x) => x.id === s.id) ? <small>Tranche 2 · {money(s.cap)} cap</small> : null}
                     </th>
-                    <td className="num">{usd(s.amount)}</td>
+                    <td className="num">{money(s.amount)}</td>
                     <td>{f ? <Toggle aria-label={`${s.name} has pro-rata rights`} checked={!!f.proRata} onChange={(e) => set('proRata', e.target.checked)} /> : '–'}</td>
                     <td>{f ? <Toggle aria-label={`${s.name} has MFN`} checked={!!f.mfn} onChange={(e) => set('mfn', e.target.checked)} /> : '–'}</td>
                     <td className="num">{pct(s.ownership)}</td>

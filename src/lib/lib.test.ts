@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { dayDiff, shortDate, todayIST } from './dates'
-import { money } from './money'
+import { dayDiff, formatDay, todayIST, weekdayOf } from './dates'
+import { exactMoney, money } from './money'
 import {
   applyAdvance, applySave, committedOf, dueList, funnel, meetingsKpi, mixByType, NEW_INVESTOR, nextList, phaseActual,
   quietList, score, totals, warmPaths, weightedOf, type Investor,
@@ -15,23 +15,88 @@ describe('dates', () => {
     expect(todayIST(Date.parse('2030-01-01T18:29:00Z'))).toBe('2030-01-01')
     expect(todayIST(Date.parse('2030-01-01T18:30:00Z'))).toBe('2030-01-02')
   })
-  it('dayDiff and shortDate', () => {
+  it('dayDiff', () => {
     expect(dayDiff('2030-02-01', '2030-01-01')).toBe(31)
-    expect(shortDate('2030-01-06')).toBe('Jan 6')
-    expect(shortDate(undefined)).toBe('–')
   })
+})
+
+describe('formatDay', () => {
+  it('writes a day as "Fri 27 Nov"', () => {
+    expect(formatDay('2026-11-27')).toBe('Fri 27 Nov')
+    expect(formatDay('2030-01-06')).toBe('Sun 6 Jan')
+    expect(formatDay('2030-12-04')).toBe('Wed 4 Dec')
+    expect(formatDay('2030-11-11')).toBe('Mon 11 Nov')
+  })
+  it('reads epoch ms as the IST calendar day', () => {
+    expect(formatDay(Date.parse('2026-11-26T18:29:00Z'))).toBe('Thu 26 Nov')
+    expect(formatDay(Date.parse('2026-11-26T18:30:00Z'))).toBe('Fri 27 Nov')
+    expect(formatDay(Date.parse('2026-12-31T20:00:00Z'))).toBe('Fri 1 Jan')
+  })
+  it('is "–" when empty or not a day', () => {
+    expect(formatDay(undefined)).toBe('–')
+    expect(formatDay(null)).toBe('–')
+    expect(formatDay('')).toBe('–')
+    expect(formatDay('27 Nov')).toBe('–')
+    expect(formatDay(NaN)).toBe('–')
+  })
+  it('gives the short weekday', () => expect(weekdayOf('2026-11-27')).toBe('Fri'))
 })
 
 describe('money', () => {
   it('formats like the prototype', () => {
     expect(money(1000000)).toBe('$1M')
     expect(money(1500000)).toBe('$1.5M')
-    expect(money(1250000)).toBe('$1.25M')
+    expect(money(1250000)).toBe('$1.3M')
     expect(money(150000)).toBe('$150K')
     expect(money(40)).toBe('$40')
     expect(money(null)).toBe('$0')
   })
   it('keeps whole tens of millions', () => expect(money(10000000)).toBe('$10M'))
+  it('keeps at most one decimal on millions, and never a trailing zero', () => {
+    expect(money(1200000)).toBe('$1.2M')
+    expect(money(1040000)).toBe('$1M')
+    expect(money(1960000)).toBe('$2M')
+    expect(money(12340000)).toBe('$12.3M')
+  })
+  it('rounds to whole thousands and dollars', () => {
+    expect(money(149600)).toBe('$150K')
+    expect(money(1000)).toBe('$1K')
+    expect(money(999.4)).toBe('$999')
+    expect(money(999.5)).toBe('$1K')
+    expect(money(0)).toBe('$0')
+  })
+  it('rolls over from K to M', () => {
+    expect(money(999499)).toBe('$999K')
+    expect(money(999500)).toBe('$1M')
+  })
+  it('reads empty as $0 and negatives with a minus', () => {
+    expect(money(undefined)).toBe('$0')
+    expect(money('')).toBe('$0')
+    expect(money('abc')).toBe('$0')
+    expect(money(-50000)).toBe('-$50K')
+    expect(money(-1250000)).toBe('-$1.3M')
+    expect(money(-40)).toBe('-$40')
+  })
+})
+
+describe('exactMoney', () => {
+  it('reads to the dollar', () => {
+    expect(exactMoney(150000)).toBe('$150,000')
+    expect(exactMoney(2000000)).toBe('$2,000,000')
+    expect(exactMoney(49999.6)).toBe('$50,000')
+    expect(exactMoney(0)).toBe('$0')
+    expect(exactMoney(-50000)).toBe('-$50,000')
+  })
+  it('keeps cents for AI spend', () => {
+    expect(exactMoney(0.12, true)).toBe('$0.12')
+    expect(exactMoney(1.8, true)).toBe('$1.80')
+    expect(exactMoney(1234.5, true)).toBe('$1,234.50')
+  })
+  it('is empty when there is no number', () => {
+    expect(exactMoney(undefined)).toBe('')
+    expect(exactMoney(null)).toBe('')
+    expect(exactMoney(NaN)).toBe('')
+  })
 })
 
 describe('scoring and pipeline', () => {

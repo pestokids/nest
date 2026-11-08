@@ -1,5 +1,6 @@
 import { useEffect, useState, type InputHTMLAttributes } from 'react'
-import { formatAmount, parseAmount } from '../../lib/settingsForm'
+import { exactMoney } from '../../lib/money'
+import { parseAmount } from '../../lib/settingsForm'
 
 type Base = Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'type'>
 
@@ -26,10 +27,10 @@ export function NumberInput({ value, onChange, ...rest }: Base & { value: number
 
 /** Dollars as "$2,000,000"; accepts "2m", "250k", "$10M post". Formats when you leave the field. */
 export function AmountInput({ value, onChange, onBlur, ...rest }: Base & { value: number | undefined; onChange: (n: number | undefined) => void }) {
-  const [s, setS] = useState(formatAmount(value))
+  const [s, setS] = useState(exactMoney(value))
   const [focused, setFocused] = useState(false)
   useEffect(() => {
-    if (!focused) setS(Number.isNaN(value) ? (cur) => cur : formatAmount(value))
+    if (!focused) setS(Number.isNaN(value) ? (cur) => cur : exactMoney(value))
   }, [value, focused])
   return (
     <input
@@ -45,7 +46,7 @@ export function AmountInput({ value, onChange, onBlur, ...rest }: Base & { value
       onBlur={(e) => {
         setFocused(false)
         const n = parseAmount(s)
-        if (n !== undefined && Number.isFinite(n)) setS(formatAmount(n))
+        if (n !== undefined && Number.isFinite(n)) setS(exactMoney(n))
         onBlur?.(e)
       }}
       {...rest}

@@ -4,7 +4,7 @@
 // store under ?preview (src/preview/raceFixture.ts).
 import type { OptimisticLocalStore } from 'convex/browser'
 import { useMutation, useQuery } from 'convex/react'
-import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useSyncExternalStore, type ReactNode } from 'react'
 import { api } from '../../../convex/_generated/api'
 import type { Doc, Id } from '../../../convex/_generated/dataModel'
 import { todayIST } from '../../lib/dates'
@@ -12,6 +12,7 @@ import type { Investor } from '../../lib/pipeline'
 import type { LeadFields } from '../../lib/race'
 import { previewRaceStart, type PreviewRace } from '../../preview/raceFixture'
 import { useRaise } from '../data'
+import { showUpdateSent, showUpdateUndone } from '../optimistic-interactions' // PST-298
 import { usePreviewState } from '../preview-state'
 
 export type LastUpdate = { id: string; sentOn: string; count: number; by?: string }
@@ -61,8 +62,10 @@ function ConvexRace({ children }: { children: ReactNode }) {
   }
   const setCanLead = useMutation(api.race.setCanLead).withOptimisticUpdate((store, a) => patchInvestor(store, a.investorId, { leadOverride: a.on, lead: a.on }))
   const setLeadAsked = useMutation(api.race.setLeadAsked).withOptimisticUpdate((store, a) => patchInvestor(store, a.investorId, { leadAskedOn: a.on ? todayIST() : undefined }))
-  const markSent = useMutation(api.race.markUpdateSent)
-  const undoSent = useMutation(api.race.undoUpdateSent)
+  // PST-298: Mark sent and its Undo show at once; Undo puts back the update before it.
+  const prevUpdate = useRef<NonNullable<typeof q>['lastUpdate']>(null)
+  const markSent = useMutation(api.race.markUpdateSent).withOptimisticUpdate((store, a) => showUpdateSent(store, a, todayIST()))
+  const undoSent = useMutation(api.race.undoUpdateSent).withOptimisticUpdate((store, a) => showUpdateUndone(store, a, prevUpdate.current))
   const value = useMemo<RaceValue>(
     () => ({
       loaded: !!q,
@@ -73,7 +76,10 @@ function ConvexRace({ children }: { children: ReactNode }) {
       setLead: (id) => setLead({ investorId: id as Id<'investors'> | null }),
       setCanLead: (id, on) => setCanLead({ investorId: id as Id<'investors'>, on }),
       setLeadAsked: (id, on) => setLeadAsked({ investorId: id as Id<'investors'>, on }),
-      markUpdateSent: (count) => markSent({ count }),
+      markUpdateSent: (count) => {
+        prevUpdate.current = q?.lastUpdate ?? null
+        return markSent({ count })
+      },
       undoUpdateSent: (id) => undoSent({ id: id as Id<'investorUpdates'> }),
     }),
     [q, d.investors, setLead, setCanLead, setLeadAsked, markSent, undoSent],

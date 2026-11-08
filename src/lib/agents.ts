@@ -4,7 +4,7 @@
 // tool arguments are checked against), the Nest skill, and how a key reads in
 // Settings. Pure functions (unit-tested).
 import { isEmail } from './csv'
-import { isISODate } from './dates'
+import { formatDay, isISODate } from './dates'
 import { LIMITS } from './qanda'
 import { LABEL, STAGE_KEYS, STAGE_RULE, STAGE_TILE, TOUCH_PICK, WARM, WARMTHS, type PipelineStage } from './stages'
 import { APPLICATION_STATUSES } from './applications' // PST-302
@@ -313,9 +313,8 @@ export type AgentCall = { _id: string; tool: string; at: number; ok: boolean; ms
 export type CreatedKey = { id: string; key: string; name: string; scope: AgentScope }
 
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-/** "Used 12 min ago", "Used 3h ago", "Used yesterday", "Used Nov 2", "Never used". dayOf gives the IST day of a time. */
+/** "Used 12 min ago", "Used 3h ago", "Used yesterday", "Used Mon 2 Nov", "Never used". dayOf gives the IST day of a time. */
 export function lastUsedLine(lastUsedAt: number | undefined, now: number, dayOf: (ms: number) => string): string {
   if (!lastUsedAt) return 'Never used'
   const mins = Math.max(0, Math.floor((now - lastUsedAt) / 6e4))
@@ -324,8 +323,7 @@ export function lastUsedLine(lastUsedAt: number | undefined, now: number, dayOf:
   const day = dayOf(lastUsedAt)
   if (day === dayOf(now)) return `Used ${Math.floor(mins / 60)}h ago`
   if (day === dayOf(now - 864e5)) return 'Used yesterday'
-  const [, m, d] = day.split('-').map(Number)
-  return `Used ${MONTHS[m - 1]} ${d}`
+  return `Used ${formatDay(day)}`
 }
 /** "GB" for Grok Bot; a one-word name takes its first letter and the next consonant: "CL" for Claude, "CP" for Capy. */
 export function agentInitials(name: string): string {

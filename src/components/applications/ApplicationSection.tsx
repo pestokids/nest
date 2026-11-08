@@ -3,8 +3,8 @@
 // withdrawn) with the programme and dates. Changes save at once with Undo, and
 // never move the stage. Clear means "not applied".
 import { useState } from 'react'
-import { APPLICATION_LABEL, APPLICATION_STATUSES, applicationChip, applicationTone, decisionDay, isDecisionPassed, type ApplicationChanges, type ApplicationStatus } from '../../lib/applications'
-import { todayIST } from '../../lib/dates'
+import { APPLICATION_LABEL, APPLICATION_STATUSES, applicationChip, applicationTone, isDecisionPassed, type ApplicationChanges, type ApplicationStatus } from '../../lib/applications'
+import { formatDay, todayIST } from '../../lib/dates'
 import type { Investor } from '../../lib/pipeline'
 import { play } from '../../lib/sound'
 import { errorMessage, useRaise } from '../data'
@@ -67,7 +67,7 @@ export function ApplicationSection({ inv }: { inv: Investor }) {
 
   if (!editing && a) {
     const passed = isDecisionPassed(a, today)
-    const meta = [a.submittedOn ? 'Submitted ' + decisionDay(a.submittedOn) : '', a.decisionBy ? (passed ? 'Decision date passed · ' : 'Decision by ') + decisionDay(a.decisionBy) : ''].filter(Boolean).join(' · ')
+    const meta = [a.submittedOn ? 'Submitted ' + formatDay(a.submittedOn) : '', a.decisionBy ? (passed ? 'Decision date passed · ' : 'Decision by ') + formatDay(a.decisionBy) : ''].filter(Boolean).join(' · ')
     return (
       <div className="app-row">
         <span className="app-row__label">Application</span>

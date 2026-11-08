@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { scrollBehavior } from '../../lib/motion'
 
 /**
  * The board's sideways scroll: edge fades on whichever side has more, and a
@@ -41,7 +42,7 @@ export function Scrollbar({ scroller, children }: { scroller: RefObject<HTMLDivE
     const onThumb = (e.target as HTMLElement).classList.contains('pb-scroll__thumb')
     const start = toRatio(e.clientX)
     const startLeft = sc.scrollLeft
-    if (!onThumb) sc.scrollTo({ left: (start - m.width / 2) * sc.scrollWidth, behavior: 'smooth' })
+    if (!onThumb) sc.scrollTo({ left: (start - m.width / 2) * sc.scrollWidth, behavior: scrollBehavior() })
     if (!onThumb) return
     e.currentTarget.setPointerCapture(e.pointerId)
     const move = (ev: PointerEvent) => {

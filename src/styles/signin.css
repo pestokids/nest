@@ -110,7 +110,7 @@
   aspect-ratio: 1;
   transform: translateX(-50%);
   transform-origin: 50% 100%;
-  transition: transform 350ms var(--ease-out-back);
+  transition: transform 200ms var(--ease-out);
   z-index: 1;
 }
 .signin__bird img {
@@ -122,7 +122,7 @@
   max-width: none;
   transform: translateX(-50%);
   opacity: 0;
-  transition: opacity 200ms ease;
+  transition: opacity 200ms var(--ease-out);
 }
 .signin__bird img.is-on { opacity: 1; }
 .signin__bird--office-typing { --h: 350px; --x: -10px; }
@@ -164,7 +164,7 @@
   opacity: 0;
   transform: translateY(6px) scale(0.9);
   transform-origin: 20% 100%;
-  transition: opacity 300ms var(--ease-out-back), transform 300ms var(--ease-out-back);
+  transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out);
   left: calc(100px * var(--k));
   bottom: calc(370px * var(--k));
 }
@@ -262,7 +262,7 @@
   color: var(--text-primary);
   font: 600 16px/1 var(--font-ui);
   box-shadow: 0 4px 0 var(--brand-forest);
-  transition: transform 120ms ease, box-shadow 120ms ease;
+  transition: transform 150ms var(--ease-out), box-shadow 150ms var(--ease-out);
 }
 .gbtn:hover:not(:disabled),
 .gbtn.is-hover { transform: translateY(-2px); box-shadow: 0 6px 0 var(--brand-forest); }
@@ -337,4 +337,12 @@
   .gbtn__egg { animation: none; }
   .signin__glint { opacity: 0; }
   .signin__bubble { transition: opacity 200ms ease; transform: none; }
+}
+
+/* PST-298: under reduced motion, movement here becomes a fade (these win over the keyframes above). */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes signin-steam { 0%, 100% { opacity: 0; } 30% { opacity: 1; } }
+  @keyframes signin-type {}
+  @keyframes signin-glint {}
+  @keyframes signin-card-shake {}
 }

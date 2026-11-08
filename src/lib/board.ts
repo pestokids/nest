@@ -1,7 +1,7 @@
 // The Pipeline board's rules: which stages are columns, what a drop means
 // (next, skip, back, passed, parked), its sounds and toast, the [ and ] keys,
 // undo, and where a card lands in a column. Pure, shared by the UI and Convex.
-import { dayDiff } from './dates'
+import { dayDiff, formatDay } from './dates'
 import { applySave, quietFor, type Investor, type InvestorFields } from './pipeline'
 import { applicationChip, awaitingLine, isApplicationPath, isDecisionPassed, type ApplicationFields } from './applications' // PST-302
 import { COMMIT, IDX, type PipelineStage, type Stage } from './stages'
@@ -171,12 +171,6 @@ export function cardKeyAction(key: string, stage: Stage, mods: { meta?: boolean;
 /* ---------- card text ---------- */
 
 const WARM_SHORT: Record<Investor['warmth'], string> = { existing: 'Existing investor', warm: 'Warm', intro: 'Intro', cold: 'Cold' }
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-/** "Thu 12" */
-export const dayLabel = (iso: string) => {
-  const t = Date.parse(iso + 'T00:00:00Z')
-  return Number.isNaN(t) ? '' : `${DAYS[new Date(t).getUTCDay()]} ${new Date(t).getUTCDate()}`
-}
 const lowerFirst = (s: string) => (/^[A-Z][a-z]/.test(s) ? s[0].toLowerCase() + s.slice(1) : s)
 
 export type CardText = {
@@ -215,6 +209,6 @@ export function cardText(i: Investor, today: string, quietDays: number, money: (
   // PST-302: waiting on an application's decision, with no step of Dev's own: a calm foot instead of a quiet warning.
   const wait = i.nextStep ? null : awaitingLine(i.application, today)
   if (wait) return { sub, chip, app, amount: amt ? money(amt) : '–', foot: wait, tone: isDecisionPassed(i.application, today) ? 'late' : 'waiting' }
-  const next = i.nextStep ? `Next: ${lowerFirst(i.nextStep)}${i.nextDate ? ` · ${dayLabel(i.nextDate)}` : ''}` : i.nextDate ? `Next step due ${dayLabel(i.nextDate)}` : 'No next step yet'
+  const next = i.nextStep ? `Next: ${lowerFirst(i.nextStep)}${i.nextDate ? ` · ${formatDay(i.nextDate)}` : ''}` : i.nextDate ? `Next step due ${formatDay(i.nextDate)}` : 'No next step yet'
   return { sub, chip, app, amount: amt ? money(amt) : '–', foot: next, tone: i.nextDate && i.nextDate < today && i.stage !== 'wired' ? 'late' : 'default' }
 }

@@ -4,14 +4,13 @@
 // helpers below, and activities.forInvestor (d.useLog).
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { parseMoney } from '../lib/csv'
-import { dayDiff, shortDate, todayIST } from '../lib/dates'
+import { dayDiff, formatDay, todayIST } from '../lib/dates'
 import {
   addressesOf, agoShort, dayOf, dedupeMeetings, GENERIC_DOMAINS, gmailSearchLink, isWaiting, makeMatcher, nameFromEmail, normDomain, normEmail, splitList, timeOf,
   type SyncedThread,
 } from '../lib/google'
-import { dayMonth, monDay } from '../lib/home'
 import { confetti, replay, shake, shine } from '../lib/motion'
-import { money } from '../lib/money'
+import { exactMoney, money } from '../lib/money'
 import { fieldsOf, isBackward, NEW_INVESTOR, quietList, type Activity, type Investor, type InvestorFields } from '../lib/pipeline'
 import { changedFields, fieldCopy, keepUntouched } from '../lib/investorForm' // PST-303
 import { play } from '../lib/sound'
@@ -22,6 +21,7 @@ import {
 import { neighbour } from '../lib/listOrder'
 import { KEYS, matches, singleKeyOk, type KeyName } from '../lib/shortcuts'
 import { useInstant } from './system/useInstant'
+import { SkeletonRows } from './system/Skeleton'
 import { addDays, celebrates, stageChange } from '../lib/today'
 import { useRaise } from './data'
 import { InvestorEnrich } from './enrich/InvestorEnrich'
@@ -40,6 +40,7 @@ import { useDecide, useDecisions } from './decisions/data'
 import { WarmPath } from './introducers/WarmPath' // PST-294
 import { ApplicationSection } from './applications/ApplicationSection' // PST-302
 import { StageMenu } from './pipeline/StageMenu' // PST-302
+import { noteOwnMove } from '../lib/ownMove' // PST-298
 
 export type DrawerStart = 'view' | 'edit' | 'advance' | 'touch' | 'history' | 'emails' | 'materials' | 'notes' | 'delete' | /* PST-293 */ 'decision'
 type Mode = 'view' | 'edit' | 'advance' | 'touch' | 'park' | 'delete'
@@ -68,11 +69,10 @@ type Form = Omit<InvestorFields, 'expected' | 'committed' | 'nextDate' | 'lastTo
 }
 type FormErrors = Partial<Record<'name' | 'expected' | 'committed' | 'email' | 'emails' | 'domains', string>>
 
-const moneyText = (n: number | undefined) => (n == null ? '' : `$${n.toLocaleString('en-US')}`)
 const toForm = (v: InvestorFields): Form => ({
   ...v,
-  expected: moneyText(v.expected),
-  committed: moneyText(v.committed),
+  expected: exactMoney(v.expected),
+  committed: exactMoney(v.committed),
   nextDate: v.nextDate ?? '',
   lastTouch: v.lastTouch ?? '',
   email: v.email ?? '',
@@ -331,7 +331,7 @@ export function Drawer({ id, start = 'view', forceSheet, onClose }: { id: string
                   <Chip tone={WARM_SHORT[inv.warmth][1]} dot={inv.warmth === 'warm' || inv.warmth === 'existing'}>
                     {WARM_SHORT[inv.warmth][0]}
                   </Chip>
-                  {inv.stage === 'parked' && inv.parkedUntil ? <Chip tone="muted" dot={false}>Until {dayMonth(inv.parkedUntil)}</Chip> : null}
+                  {inv.stage === 'parked' && inv.parkedUntil ? <Chip tone="muted" dot={false}>Until {formatDay(inv.parkedUntil)}</Chip> : null}
                 </div>
                 {picking ? (
                   <StageMenu
@@ -567,14 +567,14 @@ function Details({ inv, log, sheet, onDelete, onEdit }: { inv: Investor; log: Ac
     ? [
         ['Expected', inv.expected ? money(inv.expected) : '–'],
         ['Warm path', inv.path || '–'],
-        ['Next step', inv.nextStep ? `${inv.nextStep}${inv.nextDate ? ` · ${dayMonth(inv.nextDate).replace(/ \w+$/, '')}` : ''}` : '–'],
+        ['Next step', inv.nextStep ? `${inv.nextStep}${inv.nextDate ? ` · ${formatDay(inv.nextDate)}` : ''}` : '–'],
         ['Last touch', inv.lastTouch ? `${relDay(inv.lastTouch, today)}${lastKind ? ` · ${TOUCH_LABEL[lastKind].toLowerCase()}` : ''}` : 'Never'],
       ]
     : [
         ['Expected amount', inv.expected ? money(inv.expected) : '–'],
         ['Warm path', inv.path || '–'],
         ['Next step', inv.nextStep || '–'],
-        ['Due', inv.nextDate ? <span className={late ? 'is-late' : undefined}>{dayMonth(inv.nextDate)}{late ? ' · late' : ''}</span> : '–'],
+        ['Due', inv.nextDate ? <span className={late ? 'is-late' : undefined}>{formatDay(inv.nextDate)}{late ? ' · late' : ''}</span> : '–'],
         ['Last touch', inv.lastTouch ? `${relDay(inv.lastTouch, today)}${lastKind ? ` · ${TOUCH_LABEL[lastKind].toLowerCase()}` : ''}` : 'Never'],
         ['Wave', waveLabel(inv.wave, round.waves)],
       ]
@@ -635,7 +635,7 @@ function History({ inv, log, fresh }: { inv: Investor; log: Activity[] | undefin
   const today = todayIST()
   const { google } = useRaise()
   const decisions = useDecisionHistory(inv._id) // PST-293
-  if (log === undefined) return <div className="history history--loading" aria-busy="true" />
+  if (log === undefined) return <SkeletonRows action={false} />
   type Item = { key: string; date: string; title: string; sub: string; by?: string; from?: keyof typeof SOURCE_LABEL; at?: number; /* PST-302 */ fix?: Activity }
   // PST-302: the newest move, when it went back and they're still there, can be marked as a correction.
   const newest = log.find((a) => a.kind === 'stage')
@@ -667,7 +667,7 @@ function History({ inv, log, fresh }: { inv: Investor; log: Activity[] | undefin
         <li key={x.key} className={`history__item${n === 0 && fresh ? ' history__item--new' : ''}${x.key === 'added' ? ' history__item--first' : ''}`}>
           <span className="history__dot" aria-hidden="true" />
           <span className="history__date eyebrow-mono">
-            {x.date === today ? 'Today' : x.date === addDays(today, -1) ? 'Yesterday' : monDay(x.date)}
+            {x.date === today ? 'Today' : x.date === addDays(today, -1) ? 'Yesterday' : formatDay(x.date)}
             {x.by ? <span className="history__by"> · {x.by}</span> : null}
           </span>
           <span className="history__title">
@@ -701,7 +701,7 @@ function CorrectionToggle({ act }: { act: Activity }) {
 /* ---------- emails (PST-263) ---------- */
 
 /** "2h ago" today-ish, else "Nov 4". */
-const emailWhen = (ms: number, now: number) => (now - ms < 24 * 36e5 ? agoShort(ms, now) : shortDate(dayOf(ms)))
+const emailWhen = (ms: number, now: number) => (now - ms < 24 * 36e5 ? agoShort(ms, now) : formatDay(ms))
 
 /** Who sent the last message, by name: "You", a teammate, or the person at the investor. */
 function lastSender(t: SyncedThread, inv: Investor, myEmail: string | undefined) {
@@ -827,6 +827,7 @@ export function EditForm({ inv, onDone, onCelebrate }: { inv: Investor | null; o
     const body = inv ? keepUntouched(fieldsOf(inv), parsed, Object.keys(edits)) : parsed
     if (inv && !changedFields(fieldsOf(inv), body).length) return onDone()
     setBusy(true)
+    if (inv && body.stage !== inv.stage) noteOwnMove(inv._id, body.stage)
     try {
       await d.save(inv ? inv._id : null, body)
       if (!inv) ui.toast(`Added ${body.name} to the nest.`)
@@ -969,6 +970,7 @@ function AdvancePanel({ inv, to: target, onDone, onPass, onPark }: { inv: Invest
     }
     try {
       const nextStep = step.trim() ? { step: step.trim(), date: by || undefined } : undefined
+      noteOwnMove(inv._id, to)
       if (to === nextStage(inv.stage)) {
         const r = await d.advance(inv._id, nextStep)
         if (!r) return onDone()
@@ -1064,7 +1066,7 @@ function TouchPanel({ inv, kind: startKind, onDone }: { inv: Investor; kind?: To
       <Select label="When" className="dform__narrow" value={when} onChange={(e) => setWhen(e.target.value)}>
         {days.map((x, n) => (
           <option key={x} value={x}>
-            {n === 0 ? 'Today' : n === 1 ? 'Yesterday' : dayMonth(x)}
+            {n === 0 ? 'Today' : n === 1 ? 'Yesterday' : formatDay(x)}
           </option>
         ))}
       </Select>

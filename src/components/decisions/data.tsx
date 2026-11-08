@@ -12,6 +12,7 @@ import { todayIST } from '../../lib/dates'
 import { play } from '../../lib/sound'
 import { fixtureAutoSignal, fixtureDecisions, type PreviewLogEntry, type PreviewSignal } from '../../preview/decisionsFixture'
 import { errorMessage, useRaise } from '../data'
+import { showDecisionBack, showDoneAsk, showResolve, showUndoSignal } from '../optimistic-interactions' // PST-298
 import { usePreviewState } from '../preview-state'
 import { useToast } from '../ui'
 
@@ -92,7 +93,8 @@ export function useDecide() {
     })
     return {
       status: (inv: { _id: string; name: string }, to: DecisionStatus | null, reason?: string) => {
-        play('card-drop', { volume: 0.6 })
+        if (to === 'no') play('not-on-list')
+        else play('card-drop', { volume: 0.6 })
         const saved = x.setStatus(inv._id, to, reason)
         saved.catch(failed)
         toast({ message: to ? inv.name + ' is ' + STATUS_PHRASE[to] + ' now.' : 'Cleared ' + inv.name + '’s status.', action: undo(saved) })
@@ -138,19 +140,35 @@ function ConvexDecisions({ children }: { children: ReactNode }) {
         }),
       })
   })
-  const undo = useMutation(api.decisions.undo)
-  const undoSignal = useMutation(api.decisions.undoSignal)
-  const resolve = useMutation(api.decisions.resolve)
-  const doneAsk = useMutation(api.decisions.doneAsk)
+  // PST-298: what each logged change replaced, so its Undo shows at once.
+  const before = useRef(new Map<string, { prior: Decision; after: DecisionStatus | undefined }>())
+  const undo = useMutation(api.decisions.undo).withOptimisticUpdate((store, a) => {
+    const b = before.current.get(a.logId)
+    if (b) showDecisionBack(store, b.prior, b.after)
+  })
+  const undoSignal = useMutation(api.decisions.undoSignal).withOptimisticUpdate((store, a) => showUndoSignal(store, a))
+  const resolve = useMutation(api.decisions.resolve).withOptimisticUpdate((store, a) => showResolve(store, a))
+  const doneAsk = useMutation(api.decisions.doneAsk).withOptimisticUpdate((store, a) => showDoneAsk(store, a))
   const value = useMemo<DecisionsValue>(
     () => ({
       loaded: !!data,
       ...shape(data?.decisions ?? [], data?.signals ?? []),
-      setStatus: (id, status, reason) => setStatus({ investorId: id as Id<'investors'>, status, ...(reason ? { reason } : {}) }),
+      setStatus: async (id, status, reason) => {
+        const prior = data?.decisions.find((d) => d.investorId === id)
+        const logId = await setStatus({ investorId: id as Id<'investors'>, status, ...(reason ? { reason } : {}) })
+        if (logId && prior) before.current.set(logId, { prior, after: status ?? undefined })
+        return logId
+      },
       undo: (logId) => undo({ logId: logId as Id<'decisionLog'> }),
       undoSignal: (signalId) => undoSignal({ signalId: signalId as Id<'signals'> }),
       setDecideBy: (id, date) => setDecideBy({ investorId: id as Id<'investors'>, date }),
-      resolve: (signalId, accept) => resolve({ signalId: signalId as Id<'signals'>, accept }),
+      resolve: async (signalId, accept) => {
+        const s = data?.signals.find((x) => x._id === signalId)
+        const prior = s && data?.decisions.find((d) => d.investorId === s.investorId)
+        const logId = await resolve({ signalId: signalId as Id<'signals'>, accept })
+        if (logId && prior && s.change) before.current.set(logId, { prior, after: s.change.to })
+        return logId
+      },
       doneAsk: (signalId) => doneAsk({ signalId: signalId as Id<'signals'> }),
       useLog: useConvexLog,
     }),

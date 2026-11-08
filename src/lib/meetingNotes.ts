@@ -4,9 +4,8 @@
 // that doesn't trust Claude: every item must quote the note, a stage move is only
 // ever the next stage, Expected needs an amount that was actually said, and a
 // question id must be one Nest sent. Pure, so Convex, the preview and the tests share it.
-import { isISODate } from './dates'
+import { formatDay, isISODate } from './dates'
 import { addressesOf, dayOf, domainOf, GENERIC_DOMAINS, normEmail } from './google'
-import { dayMonth } from './home'
 import { money } from './money'
 import { normFirm } from './suggestions'
 import { IDX, STAGES, STAGE_SHORT, STAGE_TILE, type PipelineStage, type Stage } from './stages'
@@ -179,7 +178,7 @@ const shortQuestion = (t: string) => {
 export function proposalText(p: Proposal): string {
   switch (p.kind) {
     case 'next_step':
-      return p.step + (p.date ? ' · ' + dayMonth(p.date) : '')
+      return p.step + (p.date ? ' · ' + formatDay(p.date) : '')
     case 'stage':
       return `${STAGE_SHORT[p.from] ?? STAGE_TILE[p.from]} → ${STAGE_TILE[p.to]}`
     case 'expected':

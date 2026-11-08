@@ -4,8 +4,8 @@ import { useRaise } from '../../components/data'
 import { NestEmpty, NestWithEggs } from '../../components/illustrations'
 import { useSession } from '../../components/session'
 import { Badge, buttonClass, Card, Chip, Icon } from '../../components/ui'
-import { todayIST } from '../../lib/dates'
-import { dateEyebrow, dayMonth, greeting, isChecklistDone, nextPhase, phaseLine, phaseOn, raiseStats, thisWeek, weekDay } from '../../lib/home'
+import { formatDay, todayIST } from '../../lib/dates'
+import { dateEyebrow, greeting, isChecklistDone, nextPhase, phaseLine, phaseOn, raiseStats, thisWeek, weekDay } from '../../lib/home'
 import { INBOX_TYPE_LABEL, type InboxRow } from '../../lib/inbox'
 import { INBOX_TONE, useInbox } from '../../components/inbox/data' // PST-297
 import { rise, usePop } from '../../lib/motion'
@@ -84,7 +84,7 @@ function RaiseCard({ round: r, roundExists, today }: { round: Round; roundExists
           {money(t.committed)}
         </span>
         <span className="raise-card__of">
-          of {money(r.target)} committed · {t.daysLeft < 0 ? `closed ${dayMonth(r.deadline)}` : `${days} day${days === 1 ? '' : 's'} to close`}
+          of {money(r.target)} committed · {t.daysLeft < 0 ? `closed ${formatDay(r.deadline)}` : `${days} day${days === 1 ? '' : 's'} to close`}
         </span>
       </p>
       <dl className="raise-card__stats">
@@ -171,34 +171,47 @@ function InboxLink({ row: x }: { row: InboxRow }) {
 function WeekCard({ round: r, roundExists, today }: { round: Round; roundExists: boolean; today: string }) {
   const d = useRaise()
   const week = thisWeek({ investors: d.investors, meetings: d.google.meetings, phases: roundExists ? r.phases : [], today })
+  const empty = week.every((w) => !w.items.length)
   return (
     <Card riseIndex={3} className="home-week" aria-labelledby="home-week-title">
       <header className="home-card__head">
         <h2 id="home-week-title" className="home-card__title">
           This week
         </h2>
+        {empty ? (
+          <Link to="/raise/investors" className="home-card__link">
+            Open Investors <Icon name="arrow-right" size={16} strokeWidth={2.2} />
+          </Link>
+        ) : null}
       </header>
-      <ol className="home-week__days">
-        {week.map((w) => (
-          <li key={w.day} className={`home-week__day${w.today ? ' is-today' : ''}`} aria-current={w.today ? 'date' : undefined}>
-            <p className="eyebrow-mono home-week__date">
-              {weekDay(w.day)}
-              {w.today ? ' · Today' : ''}
-            </p>
-            {w.items.length ? (
-              <ul className="home-week__items">
-                {w.items.map((x) => (
-                  <li key={x.key} className={`home-week__item home-week__item--${x.kind}`}>
-                    {x.text}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="home-week__none">Nothing yet</p>
-            )}
-          </li>
-        ))}
-      </ol>
+      {empty ? (
+        <div className="home-card__empty">
+          <NestEmpty size={88} />
+          <p>Nothing on the calendar this week. Phase dates, meetings and investor next steps land here.</p>
+        </div>
+      ) : (
+        <ol className="home-week__days">
+          {week.map((w) => (
+            <li key={w.day} className={`home-week__day${w.today ? ' is-today' : ''}`} aria-current={w.today ? 'date' : undefined}>
+              <p className="eyebrow-mono home-week__date">
+                {weekDay(w.day)}
+                {w.today ? ' · Today' : ''}
+              </p>
+              {w.items.length ? (
+                <ul className="home-week__items">
+                  {w.items.map((x) => (
+                    <li key={x.key} className={`home-week__item home-week__item--${x.kind}`}>
+                      {x.text}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="home-week__none">Nothing yet</p>
+              )}
+            </li>
+          ))}
+        </ol>
+      )}
     </Card>
   )
 }

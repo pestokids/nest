@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   introLine, introNext, matchIntroducer, migrationPlan, needsMigration, normName, parsePath, pathKey, personNext, personRows, relationFromHint, setStep,
-  statsOf, waitingDays, warmPathFor, type Intro, type Introducer,
+  statsOf, thankedLine, waitingDays, warmPathFor, type Intro, type Introducer,
 } from './introducers'
 import { blankUnknownNumbers } from './drafts'
 import type { Investor } from './pipeline'
@@ -163,3 +163,13 @@ describe('the forwardable intro never makes numbers up', () => {
     expect(blankUnknownNumbers('4% of families pay; 38% play weekly.', known)).toBe('[__]% of families pay; 38% play weekly.')
   })
 })
+
+// ---------- PST-298 interactions ----------
+describe('the thanks toast', () => {
+  it('names the introducer and who to report back on, by first name', () => {
+    expect(thankedLine('Ankur Mehta', ['Lantern Ventures'])).toBe('Ankur thanked · report back after Lantern decides')
+    expect(thankedLine('Ankur Mehta', ['Lantern Ventures', 'Kite Angels'])).toBe('Ankur thanked · report back after Lantern and Kite decide')
+    expect(thankedLine('Ankur', ['Lantern Ventures', 'Kite Angels', 'Orchard Capital'])).toBe('Ankur thanked · report back after Lantern, Kite and Orchard decide')
+  })
+})
+// ---------- end PST-298 interactions ----------

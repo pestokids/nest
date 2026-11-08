@@ -1,9 +1,8 @@
 // PST-278: the last few drafts for an investor, at the top of the drawer's
 // History. Each reopens in the Draft dialog as it was left.
-import { todayIST } from '../../lib/dates'
+import { formatDay, todayIST } from '../../lib/dates'
 import { STATUS_LABEL, TYPE_LABEL, type Draft } from '../../lib/drafts'
 import { cents } from '../../lib/enrich'
-import { monDay } from '../../lib/home'
 import { addDays } from '../../lib/today'
 import { Chip, Icon, type ChipTone } from '../ui'
 import { openDraft, useDrafts } from './data'
@@ -18,7 +17,7 @@ export function DraftHistory({ investorId }: { investorId: string }) {
   const today = todayIST()
   const day = (ms: number) => {
     const d = todayIST(ms)
-    return d === today ? 'Today' : d === addDays(today, -1) ? 'Yesterday' : monDay(d)
+    return d === today ? 'Today' : d === addDays(today, -1) ? 'Yesterday' : formatDay(d)
   }
   return (
     <section className="draft-hist" aria-labelledby={'dh-' + investorId}>

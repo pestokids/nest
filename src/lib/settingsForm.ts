@@ -33,9 +33,6 @@ export function parseAmount(s: string): number | undefined {
   return n === null ? NaN : n
 }
 
-/** 2000000 → "$2,000,000". */
-export const formatAmount = (n: number | undefined) => (n === undefined || !Number.isFinite(n) ? '' : '$' + Math.round(n).toLocaleString('en-US'))
-
 /** "28 days from today." under Close by. */
 export function closeHint(deadline: string, today: string): string {
   if (!isISODate(deadline)) return 'The day the round closes.'

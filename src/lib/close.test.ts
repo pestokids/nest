@@ -273,7 +273,7 @@ describe('reminders', () => {
   it('greets the team without a signer and leaves out a missing link', () => {
     const r = reminderText({ kind: 'sign', investorName: 'Marigold Capital', closing: { amount: 50_000, steps: [{ key: 'sent', at: '2026-10-20' }] }, me: '', today })
     expect(r.text.startsWith('Hi Marigold Capital team,\n\n')).toBe(true)
-    expect(r.text).toContain('I sent it on 20 Oct.')
+    expect(r.text).toContain('I sent it on Tue 20 Oct.')
     expect(r.text).not.toContain('link')
     expect(r.text.endsWith('Thanks so much')).toBe(true)
   })

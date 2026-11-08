@@ -1,7 +1,8 @@
 // PST-282: Raise › Materials (raise-materials/library.png, empty.png; the phone
 // layouts in iphone-17-pro-max/materials.png): the summary, the library, recent views.
 import { useEffect, useMemo, useState, type DragEvent } from 'react'
-import { duration, furthestPage, pagesSeen, sumPages, topPage, whenOf, materialCounts, dayOfMs, linkSource, type Material, type ShareLink } from '../../lib/materials'
+import { formatDay } from '../../lib/dates'
+import { duration, furthestPage, pagesSeen, sumPages, topPage, whenOf, materialCounts, linkSource, type Material, type ShareLink } from '../../lib/materials'
 import { pop, usePop } from '../../lib/motion'
 import { play } from '../../lib/sound'
 import { useRaise } from '../data'
@@ -39,7 +40,7 @@ export function MaterialsView() {
   }, [state, m.loaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!m.loaded) return <ViewSkeleton />
-  const share = (materialId: string, investorIds?: string[]) => setSharing({ materialId, investorIds })
+  const share = (materialId?: string, investorIds?: string[]) => setSharing({ materialId, investorIds })
   const main = m.materials.filter((x) => x.kind !== 'data-room').sort(byKind)
   const room_ = m.materials.filter((x) => x.kind === 'data-room')
 
@@ -104,7 +105,7 @@ function Summary() {
     <div className="mat-sum card card--white m-rise" style={{ ['--rise-i' as string]: 0 }}>
       <div className="mat-sum__tile">
         <span className="mat-sum__label eyebrow-mono">Current deck</span>
-        <span className="mat-sum__value">{cur ? `v${cur.n} · ${dayOfMs(cur.createdAt)}` : 'Not uploaded'}</span>
+        <span className="mat-sum__value">{cur ? `v${cur.n} · ${formatDay(cur.createdAt)}` : 'Not uploaded'}</span>
       </div>
       <div className="mat-sum__tile only-desk">
         <span className="mat-sum__label eyebrow-mono">Links sent</span>
@@ -132,7 +133,7 @@ function MaterialCard({ material, rise, onOpen, onShare }: { material: Material;
   const cur = ix.current(material._id)
   const c = materialCounts(material._id, m.links, m.stats)
   const [over, setOver] = useState(false)
-  const sub = ['Current', cur?.pages ? `${cur.pages} page${cur.pages === 1 ? '' : 's'}` : cur?.url ? linkSource(cur.url) : '', cur ? dayOfMs(cur.createdAt) : ''].filter(Boolean).join(' · ')
+  const sub = ['Current', cur?.pages ? `${cur.pages} page${cur.pages === 1 ? '' : 's'}` : cur?.url ? linkSource(cur.url) : '', cur ? formatDay(cur.createdAt) : ''].filter(Boolean).join(' · ')
   // Drop a PDF on the card: it opens with that file ready as the next version.
   const onDrop = async (e: DragEvent) => {
     e.preventDefault()
@@ -254,7 +255,7 @@ function DataRoom({ files, onClose, onOpen, onShare }: { files: Material[]; onCl
 
 const MAX_RECENT = 6
 
-function RecentViews({ onShare }: { onShare: (materialId: string, investorIds?: string[]) => void }) {
+function RecentViews({ onShare }: { onShare: (materialId?: string, investorIds?: string[]) => void }) {
   const m = useMaterials()
   const d = useRaise()
   const ui = useUI()
@@ -359,6 +360,9 @@ function RecentViews({ onShare }: { onShare: (materialId: string, investorIds?: 
           <div>
             <p className="empty-state__title">No opens yet.</p>
             <p>When an investor opens a link, it shows here with the time they spent on each page.</p>
+            <Button variant="secondary" className="empty-state__action" onClick={() => onShare()}>
+              Share a link
+            </Button>
           </div>
         </div>
       )}

@@ -12,6 +12,7 @@ import { todayIST } from '../../lib/dates'
 import type { Wave } from '../../lib/stages'
 import { FIXTURE_CANDIDATES, FIXTURE_COMPANIES, PREVIEW_FIND, type PreviewFind } from '../../preview/findMoreFixture'
 import { useRaise } from '../data'
+import { showFind } from '../optimistic'
 import { usePreviewState } from '../preview-state'
 
 export type FindCandidate = Found & { _id: string; score: number; scoredBy: 'jev' | 'nest'; warmPath?: string; status: 'new' | 'suggested' }
@@ -43,9 +44,10 @@ export type FindMore = {
 export function useFindMore(): FindMore {
   const preview = usePreviewState()
   const live = useQuery(api.findMore.state, preview ? 'skip' : {})
-  const setCompanies = useMutation(api.findMore.setCompanies)
+  // PST-298: the chips and Add show at once; a run starts on the server.
+  const setCompanies = useMutation(api.findMore.setCompanies).withOptimisticUpdate((store, { companies }) => showFind(store, { companies }))
   const start = useMutation(api.findMore.start)
-  const add = useMutation(api.findMore.add)
+  const add = useMutation(api.findMore.add).withOptimisticUpdate((store, { ids }) => showFind(store, { added: ids }))
   const fake = usePreviewFind(!!preview)
   return useMemo<FindMore>(
     () =>

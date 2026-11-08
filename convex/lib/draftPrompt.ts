@@ -2,7 +2,8 @@
 // about the investor, and nothing else: no web tools, no made-up numbers.
 import { BLANK, blankUnknownNumbers, DATA_ROOM_LINK, DECK_LINK, MAX_BODY, MAX_SUBJECT, normBlanks, stripFiller, type AiDraftType, type Forward, type Recipient, type Tweak } from '../../src/lib/drafts'
 import { AIError, extractJson } from './anthropic'
-import { dayMonth } from '../../src/lib/home'
+import { formatDay } from '../../src/lib/dates'
+import { exactMoney } from '../../src/lib/money'
 
 export const DRAFT_SYSTEM = [
   'You write short emails and messages for Dev, a founder of Pesto, a kids and family company raising a pre-seed round. Dev sends them himself, so they must sound like him.',
@@ -32,7 +33,7 @@ const WHAT: Record<AiDraftType, (c: DraftContext) => string> = {
   dataroom: (c) => 'Sharing the data room with ' + c.investor.name + ': one line on what is in it, the link, and one ask.' + (c.dataRoom ? '' : ' There is no data room in Materials, so say it’s coming and ask what they’d like to see first.'),
   // PST-293
   decision: (c) =>
-    'Ask ' + c.investor.name + ' for a decision, yes or no, by ' + dayMonth(c.askBy) + '. Short and polite: three sentences at most. Thank them for their time, say a no is completely fine and helps Dev plan the round, and ask for their answer by that date. No pressure, no guilt, no new pitch.',
+    'Ask ' + c.investor.name + ' for a decision, yes or no, by ' + formatDay(c.askBy) + '. Short and polite: three sentences at most. Thank them for their time, say a no is completely fine and helps Dev plan the round, and ask for their answer by that date. No pressure, no guilt, no new pitch.',
   // PST-294: a double opt-in intro. Two emails, both to the introducer.
   forwardable: (c) => {
     const who = c.introducer?.name ?? 'the introducer'
@@ -97,8 +98,8 @@ export function draftPrompt(c: DraftContext, type: AiDraftType, o: { tweak?: Twe
     i.path ? 'Warm path: ' + i.path : '',
     i.nextStep ? 'Open next step: ' + i.nextStep + (i.nextDate ? ' (due ' + i.nextDate + ')' : '') : '',
     i.lastTouch ? 'Last touch: ' + i.lastTouch : '',
-    i.expected ? 'Amount Dev expects from them: $' + i.expected.toLocaleString('en-US') : '',
-    i.committed ? 'Amount they committed: $' + i.committed.toLocaleString('en-US') : '',
+    i.expected ? 'Amount Dev expects from them: ' + exactMoney(i.expected) : '',
+    i.committed ? 'Amount they committed: ' + exactMoney(i.committed) : '',
     c.contact ? 'Main contact: ' + (c.contact.name ?? c.contact.email) : '',
     i.notes ? 'Dev’s notes: ' + i.notes : '',
   ].filter(Boolean)

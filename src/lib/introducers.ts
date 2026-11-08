@@ -1,9 +1,8 @@
 // PST-294: Introducers as people, and the six dated steps of a double opt-in
 // intro (asked → yes → forwardable sent → intro made → thanked → reported back).
 // Pure functions over plain data, shared by the UI and Convex.
-import { dayDiff } from './dates'
+import { dayDiff, formatDay, weekdayOf } from './dates'
 import type { DecisionStatus } from './decisions'
-import { dayMonth } from './home'
 import { domainOf, normEmail } from './google'
 import { committedOf, type Investor } from './pipeline'
 import { COMMIT, IDX } from './stages'
@@ -56,6 +55,15 @@ export type Person = { key: string; name: string; email?: string; relation: Rela
 
 export const personKey = (x: { introducerId?: string; viaInvestorId?: string }) => (x.introducerId ? x.introducerId : 'inv:' + x.viaInvestorId)
 export const firstName = (name: string) => name.trim().split(/\s+/)[0] || name
+
+// ---------- PST-298 interactions ----------
+/** The toast once a thank-you is ticked (interactions-batch-1.png): "Ankur thanked · report back after Lantern decides". */
+export function thankedLine(who: string, investors: readonly string[]): string {
+  const firms = investors.map(firstName)
+  const list = firms.length <= 1 ? firms.join('') : firms.slice(0, -1).join(', ') + ' and ' + firms.at(-1)
+  return `${firstName(who)} thanked · report back after ${list} ${firms.length === 1 ? 'decides' : 'decide'}`
+}
+// ---------- end PST-298 interactions ----------
 
 /* ---------- names and the old free-text warm paths ---------- */
 
@@ -254,13 +262,12 @@ export function introNext(x: Intro, inv: (Pick<Investor, 'name' | 'stage'> & { d
   return { kind: 'ask', tone: 'plain', text: 'Ask ' + who }
 }
 
-/** "today", "yesterday", "Tue" within the week, else "4 Nov". */
+/** "today", "yesterday", "Tue" within the week, else "Wed 4 Nov". */
 export function dayWord(day: string, today: string): string {
   const n = dayDiff(today, day)
   if (n <= 0) return 'today'
   if (n === 1) return 'yesterday'
-  const [wd, d, m] = dayMonth(day).split(' ')
-  return n < 7 ? wd : d + ' ' + m
+  return n < 7 ? weekdayOf(day) : formatDay(day)
 }
 
 /** The line under an intro's steps: "Forwardable sent Tue · waiting on Ankur". */

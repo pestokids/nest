@@ -2,6 +2,7 @@
 // soft circles, verbals and signed want more than the room: who gets what and
 // why, what's left to place, tranche 2 at a higher cap, and one allocation
 // email per investor for Dev to send (no bulk send).
+import { Link } from '@tanstack/react-router'
 import { useMemo, useState, type CSSProperties } from 'react'
 import { ladder } from '../../lib/close'
 import {
@@ -17,7 +18,7 @@ import { openDraft, useDrafts } from '../drafts/data'
 import { useUI } from '../raise-ui'
 import { AmountInput } from '../settings/inputs'
 import { useSaveAction } from '../system/useSaveAction'
-import { Button } from '../ui'
+import { Button, buttonClass } from '../ui'
 import { useClose } from './CloseData'
 
 const initials = (name: string) =>
@@ -109,7 +110,12 @@ export function Allocation() {
               </tfoot>
             </table>
           ) : (
-            <p className="close-model__note">Nobody has said a number yet. Soft circles, verbals and signed SAFEs show up here.</p>
+            <div className="close-empty close-empty--inline">
+              <p>Nobody has said a number yet. Soft circles, verbals and signed SAFEs show up here.</p>
+              <Link to="/raise/pipeline" className={buttonClass({ variant: 'secondary' })}>
+                Open Pipeline
+              </Link>
+            </div>
           )}
           {rows.some((r) => r.suggested) ? <p className="alloc-table__note">Until you enter an amount, Gets is a suggested cut that fits the room and keeps angels whole.</p> : null}
         </section>

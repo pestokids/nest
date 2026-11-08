@@ -4,8 +4,8 @@ import { Link } from '@tanstack/react-router'
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { ACTION_LABEL, ladder, RUNG_LABEL, RUNGS, safeStatus, stepMap, termsLine, wireStatus, type CloseRow, type Rung } from '../../lib/close'
 import { closeDue, dueText, istParts, oversubscribed, trancheOf } from '../../lib/closeKit'
-import { dayDiff, todayIST } from '../../lib/dates'
-import { longDay, subLine } from '../../lib/investorView'
+import { dayDiff, formatDay, todayIST } from '../../lib/dates'
+import { subLine } from '../../lib/investorView'
 import { money } from '../../lib/money'
 import { rise, useCountUp, useInView } from '../../lib/motion'
 import { closePreview, isKitState } from '../../preview/closeFixture'
@@ -282,7 +282,7 @@ function Hero({ committed, total, rungs, today }: { committed: number; total: nu
         <p>
           {need ? 'to reach the target.' : `${money(committed - round.target)} over the target.`}
           <br />
-          Close by {longDay(round.deadline)} · {days >= 0 ? `${days} day${days === 1 ? '' : 's'}` : `${-days} day${days === -1 ? '' : 's'} late`}.
+          Close by {formatDay(round.deadline)} · {days >= 0 ? `${days} day${days === 1 ? '' : 's'}` : `${-days} day${days === -1 ? '' : 's'} late`}.
         </p>
       </div>
     </section>
