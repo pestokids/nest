@@ -4,6 +4,7 @@ import { QUESTION_MAX } from '../../lib/ask'
 import { cents } from '../../lib/enrich'
 import { estimate, MODEL_INFO, modelFor, MODELS, type Model } from '../../lib/models'
 import { onOpenCommandPalette, recentInvestors, rememberInvestor } from '../../lib/commandPalette'
+import { openFeedback } from '../../lib/feedback' // PST-289
 import { todayIST } from '../../lib/dates'
 import { addressesOf, gmailSearchLink } from '../../lib/google'
 import { dayMonth } from '../../lib/home'
@@ -238,6 +239,8 @@ function Palette({
     const person = (i: Investor, long: boolean): Item => ({ id: 'i-' + i._id, icon: 'user', label: i.name, meta: meta(i, long), run: close(() => actions.openInvestor(i)) })
     const n = suggestions.length
     const review: Item = { id: 'a-suggestions', icon: 'spark', label: `Review ${n} suggestion${n === 1 ? '' : 's'}`, meta: 'Suggestions', run: close(actions.reviewSuggestions) }
+    // PST-289: Send feedback (⌘.), in Quick actions and when the search asks for it.
+    const feedback: Item = { id: 'a-feedback', icon: 'note', label: 'Send feedback', keys: ['⌘', '.'], run: close(openFeedback) }
     if (!query) {
       let recent = recentInvestors()
         .map((id) => investors.find((i) => i._id === id))
@@ -251,7 +254,7 @@ function Palette({
       ]
       return [
         ...(recent.length ? [{ title: 'Recent', items: recent.map((i) => person(i, false)) }] : []),
-        { title: 'Quick actions', items: n ? [review, ...quick] : quick },
+        { title: 'Quick actions', items: [...(n ? [review, ...quick] : quick), feedback] },
       ]
     }
     const found = rankInvestors(investors, query, 5)
@@ -276,6 +279,7 @@ function Palette({
       })
     }
     if (n && ['review suggestions', 'suggestions', 'suggested fixes', 'fix the list'].some((t) => matchScore(t, query) > 0)) out.push({ title: 'Suggestions', items: [review] })
+    if (['send feedback', 'feedback', 'report a bug', 'bug', 'idea'].some((t) => matchScore(t, query) > 0)) out.push({ title: 'Feedback', items: [feedback] }) // PST-289
     const sections = searchSections(query)
     if (sections.length) out.push({ title: 'Jump to', items: sections.map((s) => ({ id: 's-' + s.to, icon: 'arrow-right', label: `Go to ${s.label}`, keys: s.keys, run: close(() => actions.go(s.to)) })) })
     const notes = searchNotes(investors, query, new Set(found.map((i) => i._id)))

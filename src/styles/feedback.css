@@ -1,0 +1,52 @@
+/* PST-289: Send feedback (screens/round5/system-feedback.png) and Settings › Feedback.
+   The dialog borrows the Draft dialog's head and chips (drafts.css). */
+.sys-modal__panel.feedback { width: min(640px, 100%); padding: 36px 32px 28px; }
+.feedback .draft__types { margin: 22px 0 18px; }
+.feedback__text { display: block; min-height: 150px; padding: 14px 18px; font: 400 15px/1.45 var(--font-ui); }
+
+.feedback__shot {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  margin-top: 20px;
+  padding: 14px 16px;
+  border: 1px solid var(--line-default);
+  border-radius: 14px;
+  background: var(--surface-paper);
+}
+.feedback__thumb { display: block; width: 112px; height: 68px; overflow: hidden; border: 1px solid var(--line-default); border-radius: 8px; background: var(--surface-cream); }
+.feedback__thumb img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top left; }
+.feedback__thumb .sk { display: block; width: 100%; height: 100%; }
+.feedback__shot.is-off .feedback__thumb { opacity: 0.4; }
+.feedback__shot-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.feedback__shot-title { font: 600 15px/1.3 var(--font-ui); color: var(--text-primary); }
+.feedback__shot-sub,
+.feedback__shot-note { font: 400 14px/1.35 var(--font-ui); color: var(--text-muted); }
+.feedback__note { margin: 18px 0 0; font: 400 14px/1.4 var(--font-ui); color: var(--text-secondary); }
+.feedback__foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 24px -32px 0; padding: 22px 32px 0; border-top: 1px solid var(--line-default); }
+.feedback__keys { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; color: var(--text-muted); }
+.feedback__keys .kbd + .kbd,
+.feedback__keys .kbd:not(:first-child) { margin-left: 10px; }
+
+/* The avatar menu's item */
+.avatar-menu__kbd { margin-left: auto; }
+
+/* Settings › Feedback */
+.set-feedback__list { list-style: none; margin: 20px 0 0; padding: 0; display: flex; flex-direction: column; }
+.set-feedback__list li { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; padding: 12px 0; border-top: 1px solid var(--line-default); }
+.set-feedback__what { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.set-feedback__what strong { font: 600 15px/1.3 var(--font-ui); color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.set-feedback__what span { font-size: 14px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.set-feedback__issue { flex: none; font: 600 14px/1 var(--font-mono); color: var(--brand-leaf); }
+.set-feedback__wait { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: 1 0 100%; }
+.set-feedback__empty { margin: 16px 0 0; font-size: 14px; color: var(--text-muted); }
+
+@media (max-width: 720px) {
+  .sys-modal__panel.feedback { padding-top: 28px; }
+  .feedback__shot { grid-template-columns: 72px minmax(0, 1fr) auto; gap: 12px; }
+  .feedback__thumb { width: 72px; height: 56px; }
+  .feedback__foot { margin: 20px -20px 0; padding: 18px 20px 0; }
+  .feedback__keys { display: none; }
+  .feedback__foot .btn { flex: 1; }
+}

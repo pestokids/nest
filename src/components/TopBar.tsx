@@ -1,18 +1,14 @@
 import { Link } from '@tanstack/react-router'
 import { useEffect, useId, useRef, useState } from 'react'
 import { isPaletteShortcut, openCommandPalette } from '../lib/commandPalette'
+import { openFeedback } from '../lib/feedback'
+import { shownSections } from '../lib/nav'
 import { useSession, useSounds } from './session'
 import { Avatar, Icon, IconButton, Kbd, Tabs, Toggle, type TabItem } from './ui'
 import { Wordmark } from './Wordmark'
 
-const SECTIONS: TabItem[] = [
-  { to: '/', label: 'Home', exact: true },
-  { to: '/raise', label: 'Raise', live: true },
-  { to: '', label: 'Growth', soon: true },
-  { to: '', label: 'Families', soon: true },
-  { to: '', label: 'Hiring', soon: true },
-  { to: '', label: 'Ops & Legal', soon: true },
-]
+// PST-289: only Home and Raise show; the rest are hidden in lib/nav.ts until they have content.
+const SECTIONS: TabItem[] = shownSections()
 
 /** 72px Paper bar: wordmark, section tabs, search (⌘K) and the avatar menu. */
 export function TopBar() {
@@ -89,16 +85,30 @@ function AvatarMenu() {
             </div>
           </div>
           <nav className="avatar-menu__sections" aria-label="Sections">
-            <Link to="/" activeOptions={{ exact: true }} onClick={() => setOpen(false)}>
-              Home
-            </Link>
-            <Link to="/raise" onClick={() => setOpen(false)}>
-              Raise
-            </Link>
+            {SECTIONS.map((s) => (
+              <Link key={s.to} to={s.to} activeOptions={{ exact: s.exact }} onClick={() => setOpen(false)}>
+                {s.label}
+              </Link>
+            ))}
           </nav>
           <div className="avatar-menu__row">
             <Toggle label={sounds.on ? 'Sounds on' : 'Sounds off'} checked={sounds.on} onChange={(e) => sounds.set(e.target.checked)} />
           </div>
+          {/* PST-289: Send feedback (also ⌘. and ⌘K) */}
+          <button
+            type="button"
+            className="avatar-menu__item"
+            aria-keyshortcuts="Meta+. Control+."
+            onClick={() => {
+              setOpen(false)
+              openFeedback()
+            }}
+          >
+            <Icon name="note" size={18} />
+            Send feedback
+            <Kbd className="avatar-menu__kbd">⌘.</Kbd>
+          </button>
+          {/* end PST-289 */}
           <button type="button" className="avatar-menu__item" onClick={signOut}>
             <Icon name="sign-out" size={18} />
             Sign out

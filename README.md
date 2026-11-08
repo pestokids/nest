@@ -7,7 +7,7 @@ Pesto's internal app. Its first section is the **pre-seed raise tracker** under 
 ```
 src/            Frontend: TanStack Start (React, TypeScript, file-based routes)
   routes/       _app (signed-in layout: top bar) → / Home, /raise/{today,pipeline,investors,plan,settings}
-  components/   ui/ (design system: Button, Chip, Input, Tabs, Toast, Icon…), sign-in desk, top bar, Home logo tile, data providers
+  components/   ui/ (design system: Button, Chip, Input, Tabs, Toast, Icon…), sign-in desk, top bar, data providers
   lib/          Shared logic: stages, scoring, round maths, dates, money, CSV, Home, motion, sound (unit-tested)
   styles/       Plain CSS: tokens (named after the Sketch swatches), base, motion, ui, shell, sign-in, home, raise
   preview/      ?preview fixture (made-up data; local dev and Vercel PR previews only)
@@ -57,6 +57,7 @@ Screenshots of every preview screen at 1440 × 900, 440 × 956 and 412 × 915: r
 | `SITE_URL` | Where sign-in returns to: `http://localhost:3000` (dev), `https://nest.pestokids.com` (prod) |
 | `JWT_PRIVATE_KEY`, `JWKS` | Convex Auth signing keys: `node scripts/generate-auth-keys.mjs --set` (add `--prod` for production) |
 | `ANTHROPIC_API_KEY` | Optional. Turns on investor enrichment and Who's this? lookups (Claude with web search). Without it the app shows "AI isn't set up here" and nothing is sent anywhere. |
+| `LINEAR_API_KEY` | Optional (PST-289). A Linear personal API key (Settings › Account › Security & access), used to file ⌘. feedback as issues in Pesto › Nest. Without it feedback is saved and waits in Settings › Feedback. |
 | `GOOGLE_TOKEN_KEY` | Encrypts Google refresh tokens (Calendar and Gmail) and Wispr Flow's tokens at rest. 32 random bytes, base64: `openssl rand -base64 32`. Set it straight into Convex; don't keep a copy anywhere else. Changing it means everyone reconnects. |
 
 Google OAuth redirect URIs per deployment: `https://<deployment>.convex.site/api/auth/callback/google` (sign-in) and `https://<deployment>.convex.site/google/callback` (Connect Google). The Google Cloud project needs the Gmail API and the Google Calendar API turned on.
@@ -183,7 +184,27 @@ App-wide, in the shell: the ⌘K palette (`openCommandPalette()`, `src/component
 
 ## Home
 
-`/` greets you by time of day (Asia/Kolkata) and shows the round from the same data as `/raise`: committed and phases, days to close, the current phase's prep checklist, the list against its phase targets, and the next three dated items. Checklist ticks live in the `prepTicks` table (phase key, to-do index, done by, done at); unticking deletes the row.
+`/` is the company overview (PST-289, `round5/home-company-overview.png`). It greets you by time of day (Asia/Kolkata), then shows three cards from the same data as `/raise`:
+
+- **Raise**: committed of the target, days to close, in conversation (intro made and on) and intros out (intro asked). PST-295 adds "in the race", offers and the lead in the marked slot in `src/routes/_app/index.tsx`; until then they aren't shown.
+- **Inbox**: the top 4 rows from Today's own lists (Waiting on you, Due today, Gone quiet, then Suggested fixes), one row per investor, through `inboxPreview()` in `src/lib/inbox.ts`. A row opens that investor on Today. PST-297 replaces it with the real Inbox.
+- **This week**: the next five working days with investor meetings, dated next steps and phase starts and ends (`thisWeek()` in `src/lib/home.ts`).
+
+The top bar shows only Home and Raise. Growth, Families, Hiring and Ops & Legal are hidden in `src/lib/nav.ts` (`hidden: true`) until each has real content.
+
+Preview: `/?preview&home=default` (or `firstrun`, `prepdone`).
+
+<!-- PST-289 -->
+## Feedback
+
+⌘. on any screen (Ctrl+. elsewhere), Send feedback in the avatar menu, or Send feedback in ⌘K opens it (`src/components/system/Feedback.tsx`; rules in `src/lib/feedback.ts`). Pick Bug, Idea, Slow or Confusing, write it, and Send (⌘↵; Esc closes). "Screenshot of this page" is on by default: the browser draws the page with html-to-image (without the dialog) and uploads the PNG to Convex file storage.
+
+Send saves a `feedback` row (type, text, the page path without its query string, viewport, app version, screenshot id) and then makes a Linear issue through Linear's GraphQL API with `LINEAR_API_KEY` (`convex/feedback.ts`, `convex/lib/linear.ts`): team Pesto, project Nest, label Feedback (created on the team if it's missing), titled with the first line of the text. The screenshot goes up with Linear's `fileUpload` flow and is embedded in the description with the page and the viewport. The toast says "Sent as PST-xxx. Thanks!" with Open.
+
+Without a key, or when Linear fails, the row stays "Not sent yet": Raise › Settings › Feedback lists it with Send now, and a cron (`crons.ts`) sends what's waiting every hour once a key is set. Logs carry ids and statuses, never the text.
+
+Preview: `?preview&feedback=open|sent|unsent` (unsent also fills Settings › Feedback with rows waiting and no key).
+<!-- end PST-289 -->
 
 ## Seed
 

@@ -35,6 +35,9 @@
 //                            (pair with &ai=nokey for "AI isn't set up here"; prep implies &google=connected)
 //   &brief=<state>           the morning brief on Today (PST-279): default, fallback (no AI: Today's own whys), quiet, dismissed
 //   &wispr=<state>           Settings › Wispr Flow (PST-285): off (default), connected, reconnect, fetching
+//   &feedback=<state>        Send feedback (PST-289): open (the ⌘. dialog), sent (the "Sent as PST-301" toast), unsent (saved,
+//                            not sent: the toast, and Settings › Feedback with rows waiting and no Linear key)
+//   &home=default            Home, the company overview (PST-289); firstrun and prepdone as above
 //   &fail                    every write fails (save-failed toast with Retry)
 //   any unknown path         the 404, e.g. /nowhere?preview
 import { useEffect } from 'react'
@@ -56,6 +59,7 @@ import { PREVIEW_DRAFTS, type PreviewDrafts } from './draftsFixture'
 import { PREVIEW_ASK, PREVIEW_BRIEF, type PreviewAsk, type PreviewBrief } from './askFixture'
 import { PreviewWispr } from './wisprFixture'
 import { WISPR_PREVIEW, type WisprPreview } from '../lib/wispr'
+import { PREVIEW_FEEDBACK, PreviewFeedback, type PreviewFeedback as FeedbackState } from './feedbackFixture' // PST-289
 
 const session = { me: { firstName: 'Dev', name: 'Dev Preview', email: 'dev@example.com' }, signOut: () => {} }
 
@@ -83,6 +87,8 @@ export function Preview() {
   const ask = (PREVIEW_ASK as readonly string[]).includes(q.get('ask') ?? '') ? (q.get('ask') as PreviewAsk) : null
   const brief = (PREVIEW_BRIEF as readonly string[]).includes(q.get('brief') ?? '') ? (q.get('brief') as PreviewBrief) : null
   const wispr: WisprPreview = (WISPR_PREVIEW as readonly string[]).includes(q.get('wispr') ?? '') ? (q.get('wispr') as WisprPreview) : 'off'
+  // PST-289
+  const feedback = (PREVIEW_FEEDBACK as readonly string[]).includes(q.get('feedback') ?? '') ? (q.get('feedback') as FeedbackState) : null
   const state = { today, drawer, sheet: q.has('sheet'), investors: q.get('investors'), plan: q.get('plan'), settings: q.get('settings'), system: q.get('system'), suggestions, qanda: q.get('qanda'), materials, agents, notes: q.get('notes'), drafts, ask }
   const insights = q.get('insights')
   const extra = { loading: state.system === 'loading', mid: state.plan === 'mid', fail: q.has('fail'), insights: insights === 'default' || insights === 'behind' ? (insights as 'default' | 'behind') : undefined }
@@ -109,10 +115,13 @@ export function Preview() {
             <PreviewMaterials state={materials}>
               <DraftsProvider>
                 <PreviewWispr state={wispr} fail={extra.fail}>
-                  <AppShell>
-                    {state.system === 'savefailed' ? <FailOnce /> : null}
-                    <OpenToasts />
-                  </AppShell>
+                  {/* PST-289 */}
+                  <PreviewFeedback state={feedback} fail={extra.fail}>
+                    <AppShell>
+                      {state.system === 'savefailed' ? <FailOnce /> : null}
+                      <OpenToasts />
+                    </AppShell>
+                  </PreviewFeedback>
                 </PreviewWispr>
               </DraftsProvider>
             </PreviewMaterials>
