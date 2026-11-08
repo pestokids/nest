@@ -1,6 +1,6 @@
 // PST-278: the prompt for Drafts. Claude writes as Dev from what Nest knows
 // about the investor, and nothing else: no web tools, no made-up numbers.
-import { BLANK, DATA_ROOM_LINK, DECK_LINK, MAX_BODY, MAX_SUBJECT, normBlanks, stripFiller, type AiDraftType, type Recipient, type Tweak } from '../../src/lib/drafts'
+import { BLANK, blankUnknownNumbers, DATA_ROOM_LINK, DECK_LINK, MAX_BODY, MAX_SUBJECT, normBlanks, stripFiller, type AiDraftType, type Forward, type Recipient, type Tweak } from '../../src/lib/drafts'
 import { AIError, extractJson } from './anthropic'
 import { dayMonth } from '../../src/lib/home'
 
@@ -33,6 +33,19 @@ const WHAT: Record<AiDraftType, (c: DraftContext) => string> = {
   // PST-293
   decision: (c) =>
     'Ask ' + c.investor.name + ' for a decision, yes or no, by ' + dayMonth(c.askBy) + '. Short and polite: three sentences at most. Thank them for their time, say a no is completely fine and helps Dev plan the round, and ask for their answer by that date. No pressure, no guilt, no new pitch.',
+  // PST-294: a double opt-in intro. Two emails, both to the introducer.
+  forwardable: (c) => {
+    const who = c.introducer?.name ?? 'the introducer'
+    const first = who.split(/\s+/)[0]
+    return [
+      'Two emails for a double opt-in intro to ' + c.investor.name + ' through ' + who + '. Both go to ' + first + ', never to the investor.',
+      '1. The ask (subject and body): ask ' + first + ' whether they’d be up for introducing Dev to ' + c.investor.name + ', say in one line why it’s a fit (from the facts below), and offer to send a short note they can forward as it is. Under 80 words. Never cc or address the investor.',
+      '2. The forwardable (forwardSubject and forwardBody): starts "Hi ' + first + '," then "As promised, here’s a note you can forward to ' + c.investor.name + '." Then a short note written to be read by the investor: who is building Pesto, what just happened (traction), what Pesto does in two sentences (from Dev’s saved answers below when there are any), the deck link, and one ask (a 30-minute call). Under 130 words. Never mention how much Dev expects from them. Subject like "Intro request: Pesto → ' + c.investor.name + '".',
+      'Never invent traction, terms or numbers of any kind: every number the input below doesn’t give is ' + BLANK + '. Where a fact other than a number is missing, write a short note in square brackets for Dev to fill, like [one-line credibility].',
+      'The deck link: ' + (c.deck?.url ? 'use their link exactly as given.' : 'write ' + DECK_LINK + ' where it goes.'),
+      'Answer with only a JSON object: {"subject": "...", "body": "...", "forwardSubject": "...", "forwardBody": "..."}.',
+    ].join('\n')
+  },
 }
 
 const TWEAK_TEXT: Record<Tweak, string> = {
@@ -62,6 +75,9 @@ export type DraftContext = {
   sent: { date: string; subject: string; firstLine?: string }[]
   /** PST-293: the day "Ask for a yes or no" asks them to decide by. */
   askBy: string
+  /** PST-294, a forwardable intro: who makes it, and Dev’s best saved answers about Pesto (the Q&A bank). */
+  introducer?: { name: string; email?: string; relation: string; notes: string } | null
+  bank?: { q: string; a: string }[]
 }
 
 const block = (title: string, lines: string[]) => (lines.length ? '## ' + title + '\n' + lines.join('\n') + '\n' : '## ' + title + '\nNothing.\n')
@@ -94,10 +110,32 @@ export function draftPrompt(c: DraftContext, type: AiDraftType, o: { tweak?: Twe
     block('Questions they asked, with Dev’s saved answers', c.answers.map((x) => 'Q: ' + x.q + '\nA: ' + x.a)),
     block('Materials', [...material('Deck', c.deck, DECK_LINK), ...material('Data room', c.dataRoom, DATA_ROOM_LINK)]),
     block('Dev’s last emails to them (newest first)', c.sent.map((s) => s.date + ' · ' + s.subject + (s.firstLine ? ' · "' + s.firstLine + '"' : ''))),
+    c.introducer ? block('Who makes the intro', [c.introducer.name + ' (' + c.introducer.relation + ')' + (c.introducer.notes ? ': ' + c.introducer.notes : '')]) : '',
+    c.bank ? block('Dev’s best saved answers about Pesto', c.bank.map((x) => 'Q: ' + x.q + '\nA: ' + x.a)) : '',
     'Sign as ' + c.me + '.',
   ]
     .filter(Boolean)
     .join('\n')
+}
+
+const tidy = (body: string) => stripFiller(normBlanks(body.replace(/\r\n/g, '\n'))).replace(/\n{3,}/g, '\n\n').trim().slice(0, MAX_BODY)
+const line = (subject: string) => normBlanks(subject).trim().replace(/\s+/g, ' ').slice(0, MAX_SUBJECT)
+
+/**
+ * PST-294: Claude's forwardable intro as the ask and the note to forward.
+ * Any amount, percentage or count the input (`known`, the prompt) didn't give
+ * becomes [__]: Nest never makes numbers up, even when Claude does.
+ */
+export function parseForwardable(text: string, known: string): { subject: string; body: string; forward: Forward } {
+  const j = extractJson(text) as { subject?: unknown; body?: unknown; forwardSubject?: unknown; forwardBody?: unknown }
+  const str = (x: unknown) => (typeof x === 'string' ? x : '')
+  if (!str(j?.body).trim() || !str(j?.forwardBody).trim()) throw new AIError(200, 'answered without both emails', 'no_draft')
+  const safe = (s: string) => blankUnknownNumbers(s, known)
+  return {
+    subject: safe(line(str(j.subject))),
+    body: safe(tidy(str(j.body))),
+    forward: { subject: safe(line(str(j.forwardSubject))), body: safe(tidy(str(j.forwardBody))) },
+  }
 }
 
 /** Claude's answer as a subject and body: blanks kept as [__], filler openers dropped. */

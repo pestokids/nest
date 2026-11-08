@@ -6,6 +6,7 @@ import { ConvexData } from '../components/ConvexData'
 import { ConvexMaterials } from '../components/materials/data'
 import { DraftsProvider } from '../components/drafts/data'
 import { DecisionsProvider } from '../components/decisions/data' // PST-293
+import { IntroducersProvider } from '../components/introducers/data' // PST-294
 import { OpenToasts } from '../components/materials/Opens'
 import { ConvexSounds } from '../components/session'
 import { installSound } from '../lib/sound'
@@ -40,13 +41,16 @@ function AppLayout() {
       <ConvexSounds>
         <ConvexData>
           <ConvexMaterials>
-            <DraftsProvider>
-              <DecisionsProvider>
-                <AppShell>
-                  <OpenToasts />
-                </AppShell>
-              </DecisionsProvider>
-            </DraftsProvider>
+            {/* PST-294 */}
+            <IntroducersProvider>
+              <DraftsProvider>
+                <DecisionsProvider>
+                  <AppShell>
+                    <OpenToasts />
+                  </AppShell>
+                </DecisionsProvider>
+              </DraftsProvider>
+            </IntroducersProvider>
           </ConvexMaterials>
         </ConvexData>
       </ConvexSounds>

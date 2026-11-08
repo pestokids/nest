@@ -109,6 +109,11 @@ const SCREENS = [
   ...['investors', 'pipeline', 'today'].map((v) => [`list-focus-${v}`, `/raise/${v}?preview&system=list-focus&density=comfortable`]),
   ...['investors', 'pipeline', 'today'].map((v) => [`density-compact-${v}`, `/raise/${v}?preview&density=compact`]),
   ['density-comfortable-investors', '/raise/investors?preview&density=comfortable'],
+  // PST-294: Introducers, the warm path and the forwardable intro
+  ['investors-introducers', '/raise/investors?preview&investors=introducers'],
+  ...['panel', 'add', 'ask'].map((s) => [`introducer-${s}`, `/raise/investors?preview&introducer=${s}`]),
+  ['draft-forwardable', '/raise/investors?preview&draft=forwardable'],
+  ['drawer-warm-path', '/raise/pipeline?preview&drawer=warm-path'],
 ]
 
 /** Sideways scroll, and (phones) visible controls smaller than 44 × 44. */

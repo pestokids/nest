@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { todayIST } from '../../lib/dates'
 import {
-  AI_DRAFT_TYPES, blanks, draftTitle, hasLinkSlot, isAiType, isEmail, pickType, recipientFor, TWEAK_LABEL, TWEAKS, TYPE_LABEL, whatsappUrl,
+  blanks, PICK_TYPES, draftTitle, hasLinkSlot, isAiType, isEmail, pickType, recipientFor, TWEAK_LABEL, TWEAKS, TYPE_LABEL, whatsappUrl,
   type DraftInput, type DraftType, type Tweak,
 } from '../../lib/drafts'
 import { cents, NO_AI_KEY } from '../../lib/enrich'
@@ -26,7 +26,7 @@ const isNoKey = (e: unknown) => (e as { data?: { code?: string } })?.data?.code 
 const firstName = (s: string) => s.trim().split(/\s+/)[0] || s
 
 /** Write to the clipboard inside the click, even when the text (links filled in) is still on its way. */
-function toClipboard(text: string | Promise<string>): Promise<void> {
+export function toClipboard(text: string | Promise<string>): Promise<void> {
   try {
     if (typeof text === 'string') return navigator.clipboard.writeText(text)
     if (typeof ClipboardItem !== 'undefined' && navigator.clipboard.write)
@@ -219,7 +219,7 @@ export function DraftDialog({ start, investor, onClose }: { start: DraftOpen; in
       </h2>
 
       <div className="draft__types" role="group" aria-label="What to write">
-        {AI_DRAFT_TYPES.map((t) => (
+        {PICK_TYPES.map((t) => (
           <button key={t} type="button" className={'draft-chip' + (t === type ? ' is-on' : '')} aria-pressed={t === type} disabled={writing && t !== type} onClick={() => pick(t)}>
             {TYPE_LABEL[t]}
           </button>

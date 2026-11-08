@@ -35,6 +35,7 @@ import { Button, buttonClass, Checkbox, Chip, Icon, Input, Segmented, Select, Su
 import { Link } from '@tanstack/react-router'
 import { DecisionSection, useDecisionHistory } from './decisions/DecisionSection' // PST-293
 import { useDecide, useDecisions } from './decisions/data'
+import { WarmPath } from './introducers/WarmPath' // PST-294
 
 export type DrawerStart = 'view' | 'edit' | 'advance' | 'touch' | 'history' | 'emails' | 'materials' | 'notes' | 'delete' | /* PST-293 */ 'decision'
 type Mode = 'view' | 'edit' | 'advance' | 'touch' | 'park' | 'delete'
@@ -561,6 +562,7 @@ function Details({ inv, log, sheet, onDelete, onEdit }: { inv: Investor; log: Ac
     <div className="details">
       {/* PST-293 */}
       <DecisionSection inv={inv} />
+      <WarmPath inv={inv} /> {/* PST-294 */}
       <InvestorEnrich inv={inv} sheet={sheet} />
       <dl className="details__rows">
         {rows.map(([k, v]) => (

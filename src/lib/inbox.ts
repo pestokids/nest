@@ -8,6 +8,8 @@ import type { Suggestion } from './suggestions'
 // PST-293
 import { ASK_OR_DROP_CALLS, decideByLine, isDecideByPassed, undecided, type Decision } from './decisions'
 import { ASK_LABEL, decideQuestion, type SignalChange, type SignalView } from './signals'
+import { allPeople, firstName, hasDecided, NUDGE_AFTER, personKey, saidNo, waitingDays, type Intro, type IntroSources } from './introducers' // PST-294
+import { addDays } from './today' // PST-294
 
 export type InboxKind = 'reply' | 'due' | 'quiet' | 'review'
 export type InboxRow = { key: string; kind: InboxKind; name: string; detail: string; investorId?: string }
@@ -143,3 +145,92 @@ export function decisionInbox(src: DecisionSources): DecisionInboxRow[] {
   return [...decideRows(src), ...newAskRows(src), ...late, ...thirdCallRows(src).filter((r) => !seen.has(r.investorId))]
 }
 /* ---------- end PST-293 ---------- */
+/* ---------- PST-294: introducer rows (PST-297's Inbox takes these as they are) ---------- */
+
+export type IntroRowKind = 'thank' | 'report' | 'nudge-introducer'
+export type IntroRow = {
+  key: string
+  kind: IntroRowKind
+  introId: string
+  investorId: string
+  /** The person (or committed investor) making the intro. */
+  personKey: string
+  /** "Ankur Mehta" */
+  name: string
+  /** "Thank Ankur for the intro to Lantern Ventures" */
+  title: string
+  /** "Intro made today", "Orchard said yes", "Asked 4 days ago, no reply" */
+  detail: string
+  /** The day it's due: the intro's day for a thank-you, the decision's for a report, ask + 3 days for a nudge. */
+  due: string
+  /** Days past due (0 on the day). */
+  late: number
+}
+
+/** Where the selectors read from: introducers.ts's sources. */
+export type IntroInboxSources = IntroSources & { today: string }
+
+const nameOf = (src: IntroSources) => {
+  const people = new Map(allPeople(src.introducers, src.investors).map((p) => [p.key, p]))
+  return (x: Intro) => people.get(personKey(x))
+}
+
+/** Thank the introducer the same day the intro is made: due that day, late after. */
+export function introThanks(src: IntroInboxSources): IntroRow[] {
+  const person = nameOf(src)
+  const byId = new Map(src.investors.map((i) => [i._id, i]))
+  return src.intros
+    .filter((x) => x.steps.made && !x.steps.thanked && x.steps.made <= src.today)
+    .flatMap((x) => {
+      const p = person(x)
+      const inv = byId.get(x.investorId)
+      if (!p || !inv) return []
+      const due = x.steps.made!
+      const late = dayDiff(src.today, due)
+      return [{
+        key: 'thank:' + x._id, kind: 'thank' as const, introId: x._id, investorId: inv._id, personKey: p.key, name: p.name,
+        title: 'Thank ' + firstName(p.name) + ' for the intro to ' + inv.name, detail: late <= 0 ? 'Intro made today' : 'Intro made ' + days(late) + ' ago', due, late,
+      }]
+    })
+    .sort((a, b) => a.due.localeCompare(b.due))
+}
+
+/** Report back to the introducer once the investor decides (a yes or a no), after thanking. */
+export function introReports(src: IntroInboxSources): IntroRow[] {
+  const person = nameOf(src)
+  const byId = new Map(src.investors.map((i) => [i._id, i]))
+  return src.intros
+    .filter((x) => x.steps.made && !x.steps.reported)
+    .flatMap((x) => {
+      const p = person(x)
+      const inv = byId.get(x.investorId)
+      if (!p || !inv || !hasDecided(inv)) return []
+      const due = [inv.lastTouch, x.steps.thanked, x.steps.made].filter((d): d is string => !!d).sort().at(-1)!
+      const late = Math.max(0, dayDiff(src.today, due))
+      return [{
+        key: 'report:' + x._id, kind: 'report' as const, introId: x._id, investorId: inv._id, personKey: p.key, name: p.name,
+        title: 'Tell ' + firstName(p.name) + ' how ' + inv.name + ' went', detail: inv.name + (saidNo(inv) ? ' passed' : ' said yes'), due, late,
+      }]
+    })
+    .sort((a, b) => a.due.localeCompare(b.due))
+}
+
+/** Nudge an introducer after 3 days with no reply to the ask (counting again from a nudge). */
+export function introNudges(src: IntroInboxSources): IntroRow[] {
+  const person = nameOf(src)
+  const byId = new Map(src.investors.map((i) => [i._id, i]))
+  return src.intros
+    .flatMap((x) => {
+      const n = waitingDays(x, src.today)
+      const p = person(x)
+      const inv = byId.get(x.investorId)
+      if (n === null || !p || !inv || hasDecided(inv)) return []
+      return [{
+        key: 'nudge-introducer:' + x._id, kind: 'nudge-introducer' as const, introId: x._id, investorId: inv._id, personKey: p.key, name: p.name,
+        title: 'Nudge ' + firstName(p.name) + ' about ' + inv.name, detail: 'Asked ' + days(n) + ' ago, no reply', due: addDays(src.today, NUDGE_AFTER - n), late: n - NUDGE_AFTER,
+      }]
+    })
+    .sort((a, b) => b.late - a.late)
+}
+
+/* ---------- end PST-294 ---------- */

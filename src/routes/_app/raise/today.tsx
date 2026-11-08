@@ -8,6 +8,7 @@ import { MorningBrief } from '../../../components/MorningBrief'
 import { Suggestions } from '../../../components/Suggestions'
 import { UnmatchedNotes } from '../../../components/qanda/UnmatchedNotes'
 import { DecisionRows, useDecisionInbox } from '../../../components/decisions/InboxRows' // PST-293
+import { IntroDueRows, IntroQuietRows, useIntroInbox } from '../../../components/introducers/TodayRows' // PST-294
 import { EggHatching, NestSleeping, NestWithEggs } from '../../../components/illustrations'
 import { PhaseBar } from '../../../components/PhaseBar'
 import { usePreviewState } from '../../../components/preview-state'
@@ -272,7 +273,8 @@ function DueToday({ today }: { today: string }) {
   const rows = all.filter((i) => !gone.has(i._id))
   // PST-293: decisions to make (until PST-297's Inbox replaces Today).
   const decisionRows = useDecisionInbox(today)
-  const count = rows.length + decisionRows.length
+  const intro = useIntroInbox(today).due // PST-294: thank and report-back rows
+  const count = rows.length + decisionRows.length + intro.length
   const countRef = usePop<HTMLSpanElement>(count)
 
   async function tick(i: Investor) {
@@ -307,6 +309,7 @@ function DueToday({ today }: { today: string }) {
       </header>
       {count ? (
         <ul className="rows">
+          <IntroDueRows rows={intro} /> {/* PST-294 */}
           {rows.map((i) => {
             const due = dueDate(i)!
             const late = dayDiff(today, due)
@@ -351,6 +354,7 @@ function GoneQuiet({ today }: { today: string }) {
   const ui = useUI()
   const q = d.round.quietDays
   const base = quietList(d.investors, today, q)
+  const introNudges = useIntroInbox(today).nudges // PST-294: introducers with no reply in 3 days
   // After a nudge the row stays put with its "Nudged" chip (it's no longer quiet).
   const [nudged, setNudged] = useState<ReadonlySet<string>>(() => new Set())
   const [pinned, setPinned] = useState<string[] | null>(null)
@@ -382,7 +386,7 @@ function GoneQuiet({ today }: { today: string }) {
           No touch in {q}+ days.<span className="only-desk"> Draft a nudge, nudge or park.</span>
         </p>
       </header>
-      {rows.length ? (
+      {rows.length || introNudges.length ? (
         <ul className="rows">
           {rows.map((i) => {
             const n = quietDays(i, today)
@@ -411,6 +415,7 @@ function GoneQuiet({ today }: { today: string }) {
               </li>
             )
           })}
+          <IntroQuietRows rows={introNudges} /> {/* PST-294 */}
         </ul>
       ) : (
         <div className="empty-state empty-state--mint">

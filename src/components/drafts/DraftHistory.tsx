@@ -29,7 +29,7 @@ export function DraftHistory({ investorId }: { investorId: string }) {
       <ul className="draft-hist__list">
         {rows.map((x) => (
           <li key={x._id}>
-            <button type="button" className="draft-hist__row" onClick={() => openDraft({ investorId, draftId: x._id })}>
+            <button type="button" className="draft-hist__row" onClick={() => openDraft({ investorId, draftId: x._id, ...(x.type === 'forwardable' ? { type: x.type, introId: x.introId } : {}) })}>
               <span className="draft-hist__top">
                 <span className="draft-hist__subject">{x.subject || TYPE_LABEL[x.type]}</span>
                 <Chip tone={TONE[x.status]} dot={x.status === 'sent'} className="chip--sm">

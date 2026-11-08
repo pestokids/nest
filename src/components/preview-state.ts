@@ -38,6 +38,14 @@ export type PreviewState = {
   /** `&pipeline=maybes`: Pipeline › Maybes (the board states stay `hidden|shown|end`) */
   pipeline?: string | null
   /* ---------- end PST-293 ---------- */
+  /* ---------- PST-294 ---------- */
+  /** `&introducer=panel|add|ask`: Investors › Introducers with one introducer's panel open, Add introducer, or Ask for another intro */
+  introducer?: string | null
+  /** `&draft=forwardable`: the forwardable intro draft */
+  draft?: string | null
+  /** `&drawer=warm-path`: the drawer scrolled to its warm path */
+  warmPath?: boolean
+  /* ---------- end PST-294 ---------- */
 }
 
 /** PST-279 `&ask=…`: the question ⌘K asks as it opens in Ask mode (empty: just Ask mode). See src/preview/askFixture.ts. */

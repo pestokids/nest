@@ -8,6 +8,9 @@ import { ImportDialog, type ImportStart } from '../../../components/investors/Im
 import { InvestorList, type SortKey } from '../../../components/investors/InvestorList'
 import { NoResults } from '../../../components/investors/NoResults'
 import { exportInvestors } from '../../../components/investors/exportCsv'
+import { InvestorViews } from '../../../components/investors/InvestorViews' // PST-294
+import { IntroducersView } from '../../../components/introducers/IntroducersView' // PST-294
+import { Button } from '../../../components/ui' // PST-294
 import { useUI } from '../../../components/raise-ui'
 import { useListKeys } from '../../../components/system/useListKeys'
 import { usePreviewState } from '../../../components/preview-state'
@@ -28,6 +31,9 @@ export type InvestorSearch = InvestorFilters & {
   dir?: 'asc' | 'desc'
   /** Open the CSV import (the Raise header's Import CSV links here). */
   import?: boolean
+  /* PST-294: Investors › Introducers, and the introducer whose panel is open. */
+  view?: 'introducers'
+  person?: string
 }
 
 const oneOf = <T extends string | number>(xs: readonly T[], v: unknown): T | undefined => (xs as readonly unknown[]).includes(v) ? (v as T) : (xs as readonly unknown[]).includes(Number(v)) ? (Number(v) as T) : undefined
@@ -44,6 +50,9 @@ export const Route = createFileRoute('/_app/raise/investors')({
     sort: oneOf(SORT_KEYS, s.sort),
     dir: oneOf(['asc', 'desc'] as const, s.dir),
     import: s.import === true || s.import === '1' || s.import === 'true' ? true : undefined,
+    // PST-294
+    view: s.view === 'introducers' ? 'introducers' : undefined,
+    person: typeof s.person === 'string' && s.person ? s.person : undefined,
   }),
   component: Investors,
 })
@@ -71,6 +80,12 @@ function Investors() {
   /** The investors a bulk Enrich started, for its progress toast. */
   const [batch, setBatch] = useState<string[] | null>(null)
   const closeBatch = useCallback(() => setBatch(null), [])
+  // PST-294: Add introducer (Introducers view), and ?preview&investors=introducers or &introducer=panel|add|ask.
+  const [addingIntro, setAddingIntro] = useState(false)
+  useEffect(() => {
+    if (flags?.investors === 'introducers' || flags?.introducer) setSearch({ view: 'introducers' })
+    if (flags?.introducer === 'add') setAddingIntro(true)
+  }, [flags?.investors, flags?.introducer, setSearch])
 
   // ?preview&investors=filtered|empty|bulk|enrich|exported|import1|import2|import3 (enrich: with &ai=bulk, four enriching)
   const previewDone = useRef(false)
@@ -181,8 +196,25 @@ function Investors() {
   /** The Sort menu: each key in its own default direction. */
   const pickSort = (k: SortKey) => setSearch({ sort: k === 'lastTouch' ? undefined : k, dir: undefined })
 
+  // PST-294
+  if (s.view === 'introducers')
+    return (
+      <section className="inv">
+        <InvestorViews
+          view="introducers"
+          right={
+            <Button variant="secondary" icon="plus" onClick={() => setAddingIntro(true)}>
+              Add introducer
+            </Button>
+          }
+        />
+        <IntroducersView person={s.person} onPerson={(person) => setSearch({ person })} adding={addingIntro} onAdding={setAddingIntro} />
+      </section>
+    )
+
   return (
     <section className="inv">
+      <InvestorViews view="list" /> {/* PST-294 */}
       <FilterBar
         s={s}
         set={setSearch}

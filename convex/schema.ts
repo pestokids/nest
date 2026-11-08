@@ -15,6 +15,7 @@ import { feedbackTables } from './feedbackSchema' // PST-289
 import { jevTables } from './jevSchema'
 // PST-293: decisions and signals (decisions, decisionLog, signals; see decisionsSchema.ts).
 import { decisionTables } from './decisionsSchema'
+import { introducerTables } from './introducersSchema' // PST-294
 import { roundFields, vGeo, vMeetingAnswer, vPipelineStage, vStage, vSyncSource, vTier, vTouch, vType, vWarmth, vWave } from './validators'
 import { vSuggestionKind, vSuggestionPatch, vSuggestionSource, vSuggestionStatus, vSuggestionUndo } from './validators'
 import { vAnswerVersion, vAskSource, vQuestionMerge } from './validators'
@@ -291,4 +292,7 @@ export default defineSchema({
   /* ---------- PST-293: decisions and signals (decisions, decisionLog, signals; see decisionsSchema.ts) ---------- */
   ...decisionTables,
   /* ---------- end PST-293 ---------- */
+  /* ---------- PST-294: Introducers and intro steps (introducers, intros; see introducersSchema.ts) ---------- */
+  ...introducerTables,
+  /* ---------- end PST-294 ---------- */
 })

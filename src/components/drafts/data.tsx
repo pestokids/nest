@@ -6,10 +6,11 @@ import { useAction, useMutation, useQuery } from 'convex/react'
 import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react'
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
-import { BLANK, blanks, DATA_ROOM_LINK, DECK_LINK, isAiType, isEmail, LINK_SLOTS, mainContact, warmPathContact, type Draft, type DraftInput, type DraftType, type Generated, type InvestorDrafts, type Known, type Tweak } from '../../lib/drafts'
+import { BLANK, blanks, DATA_ROOM_LINK, DECK_LINK, isAiType, isEmail, LINK_SLOTS, mainContact, warmPathContact, type Draft, type DraftInput, type DraftType, type Forward, type Generated, type InvestorDrafts, type Known, type Tweak } from '../../lib/drafts'
 import { SAFE_LINK } from '../../lib/closeKit'
 import { previewConfirmSent } from '../close/CloseData'
 import { NO_AI_KEY } from '../../lib/enrich'
+import { todayIST } from '../../lib/dates'
 import { normEmail } from '../../lib/google'
 import { linkState, shareUrl, type MaterialKind } from '../../lib/materials'
 import { PREVIEW_KNOWN, previewDraftText, previewHistory, previewOpen, type PreviewDrafts } from '../../preview/draftsFixture'
@@ -17,9 +18,12 @@ import { useRaise } from '../data'
 import { useMaterials } from '../materials/data'
 import { usePreviewState } from '../preview-state'
 import { DraftDialog } from './DraftDialog'
+import { ForwardableDialog } from './ForwardableDialog'
+import { useIntroducers } from '../introducers/data'
+import { PREVIEW_FORWARDABLE, previewForwardable } from '../../preview/introducersFixture'
 
 /** Open the dialog on an investor: a type to start on (else the drawer's pick), or a saved draft to reopen. */
-export type DraftOpen = { investorId: string; type?: DraftType; draftId?: string }
+export type DraftOpen = { investorId: string; type?: DraftType; draftId?: string; /** PST-294: a forwardable intro's intro. */ introId?: string }
 
 let request: DraftOpen | null = null
 const listeners = new Set<() => void>()
@@ -35,7 +39,7 @@ export function openDraft(o: DraftOpen | null) {
 }
 const useRequest = () => useSyncExternalStore(subscribe, () => request, () => null)
 
-export type GenerateInput = { draftId?: string; investorId: string; type: DraftType; tweak?: Tweak; current?: { subject: string; body: string } }
+export type GenerateInput = { draftId?: string; investorId: string; type: DraftType; tweak?: Tweak; current?: { subject: string; body: string }; introId?: string }
 
 export type DraftsValue = {
   /** One investor's contact, warm path, keys and recent drafts. A hook; undefined while loading, null if the investor is gone. */
@@ -43,8 +47,8 @@ export type DraftsValue = {
   generate: (i: GenerateInput) => Promise<Generated>
   /** Keep what's in the fields (closing after an edit). */
   save: (d: DraftInput) => Promise<string>
-  /** Copy or WhatsApp: the text with its links filled in. Logs nothing. */
-  copied: (d: DraftInput, via: 'copy' | 'whatsapp') => Promise<{ draftId: string; body: string }>
+  /** Copy or WhatsApp: the text with its links filled in (a forwardable intro's note too). Logs nothing. */
+  copied: (d: DraftInput, via: 'copy' | 'whatsapp') => Promise<{ draftId: string; body: string; forward?: Forward }>
   /** "I sent it": the touch, once. */
   markSent: (draftId: string) => Promise<{ logged: boolean }>
   send: (d: DraftInput) => Promise<{ draftId: string; to: string }>
@@ -71,11 +75,13 @@ export function DraftHost() {
   const { investors } = useRaise()
   const inv = r ? investors.find((i) => i._id === r.investorId) : undefined
   if (!r || !inv) return null
+  // PST-294: a forwardable intro has its own dialog (two emails, to the introducer).
+  if (r.type === 'forwardable') return r.introId ? <ForwardableDialog key={r.introId + (r.draftId ?? '')} start={r} introId={r.introId} investor={inv} onClose={() => openDraft(null)} /> : null
   return <DraftDialog key={r.investorId + (r.draftId ?? r.type ?? '')} start={r} investor={inv} onClose={() => openDraft(null)} />
 }
 
 const useInvestorDrafts = (investorId: string | null) => useQuery(api.drafts.forInvestor, investorId ? { investorId: investorId as Id<'investors'> } : 'skip')
-const ids = (d: DraftInput) => ({ ...d, draftId: d.draftId as Id<'drafts'> | undefined, investorId: d.investorId as Id<'investors'> })
+const ids = (d: DraftInput) => ({ ...d, draftId: d.draftId as Id<'drafts'> | undefined, investorId: d.investorId as Id<'investors'>, introId: d.introId as Id<'intros'> | undefined })
 
 function ConvexDrafts({ children }: { children: ReactNode }) {
   const generate = useAction(api.drafts.generate)
@@ -87,7 +93,7 @@ function ConvexDrafts({ children }: { children: ReactNode }) {
   const value = useMemo<DraftsValue>(
     () => ({
       useInvestorDrafts,
-      generate: (i) => generate({ ...i, draftId: i.draftId as Id<'drafts'> | undefined, investorId: i.investorId as Id<'investors'> }),
+      generate: (i) => generate({ ...i, draftId: i.draftId as Id<'drafts'> | undefined, investorId: i.investorId as Id<'investors'>, introId: i.introId as Id<'intros'> | undefined }),
       save: (d) => save(ids(d)),
       copied: (d, via) => copied({ ...ids(d), via }),
       markSent: (draftId) => markSent({ draftId: draftId as Id<'drafts'> }),
@@ -160,6 +166,14 @@ function PreviewDrafts({ state, children }: { state: PreviewDrafts | null; child
   useEffect(() => {
     if (state && d.loaded) openDraft(previewOpen(state, d.investors))
   }, [state, d.loaded]) // eslint-disable-line react-hooks/exhaustive-deps
+  // PST-294: &draft=forwardable opens the forwardable intro (Ankur, for an intro the preview links first).
+  const intro = useIntroducers()
+  const previewDraft = usePreviewState()?.draft
+  useEffect(() => {
+    const inv = d.investors.find((i) => i.name === PREVIEW_FORWARDABLE.investor)
+    if (previewDraft !== 'forwardable' || !d.loaded || !intro.loaded || !inv) return
+    void intro.link(inv._id, { introducerId: PREVIEW_FORWARDABLE.introducerId }).then((introId) => openDraft({ investorId: inv._id, type: 'forwardable', introId }))
+  }, [previewDraft, d.loaded, intro.loaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const value = useMemo<DraftsValue>(() => {
     const fill = (investorId: string, body: string) => {
@@ -174,7 +188,7 @@ function PreviewDrafts({ state, children }: { state: PreviewDrafts | null; child
         const prev = xs.find((y) => y._id === id)
         const row: Draft = {
           status: 'draft', costUsd: 0, createdAt: Date.now(), ...prev, _id: id, investorId: x.investorId, type: x.type, subject: x.subject.trim(), body: x.body.trim(),
-          ...(x.to.trim() ? { to: normEmail(x.to) } : {}), ...patch,
+          ...(x.to.trim() ? { to: normEmail(x.to) } : {}), ...(x.introId ? { introId: x.introId } : {}), ...(x.forward ? { forward: x.forward } : {}), ...patch,
         }
         return [row, ...xs.filter((y) => y._id !== id)]
       })
@@ -187,6 +201,8 @@ function PreviewDrafts({ state, children }: { state: PreviewDrafts | null; child
       writeDrafts((xs) => xs.map((y) => (y._id === id ? { ...y, status: 'sent', sentAt: at } : y)))
       if (x.type === 'confirm') previewConfirmSent(x.investorId, at)
       void d.logNote(x.investorId, (x.via === 'whatsapp' ? 'On WhatsApp: ' : '') + x.subject, { touch: x.via === 'whatsapp' ? 'note' : 'email' })
+      // PST-294: a forwardable intro's ask going ticks Asked.
+      if (x.introId && !intro.intros.find((y) => y._id === x.introId)?.steps.asked) void intro.setStep(x.introId, 'asked', todayIST())
       return true
     }
     return {
@@ -201,6 +217,16 @@ function PreviewDrafts({ state, children }: { state: PreviewDrafts | null; child
         const inv = d.investors.find((x) => x._id === i.investorId)
         if (!inv) return reject('That investor was deleted')
         const deck = linkOf(inv._id, 'deck')
+        if (i.type === 'forwardable') {
+          const x = intro.intros.find((y) => y._id === i.introId)
+          const who = x && (x.introducerId ? intro.introducers.find((p) => p._id === x.introducerId)?.name : d.investors.find((v) => v._id === x.viaInvestorId)?.name)
+          if (!who) return reject('Pick who makes the intro first.')
+          const text = previewForwardable({ investor: inv, introducer: who, deck: deck.url })
+          const prev = find(i.draftId)
+          const costUsd = (prev && prev.status !== 'sent' ? prev.costUsd : 0) + 0.001
+          const draftId = upsert({ draftId: prev && prev.status !== 'sent' ? prev._id : undefined, investorId: inv._id, type: 'forwardable', to: '', introId: i.introId, ...text }, { costUsd })
+          return { draftId, ...text, costUsd }
+        }
         if (i.tweak === 'deck' && !deck.has) return reject('There’s no deck in Materials yet. Add it there, then Nest can link it.')
         const text = previewDraftText({ type, investor: inv, tweak: i.tweak, current: i.current, deck: deck.url ?? DECK_LINK, dataRoom: linkOf(inv._id, 'data-room').url ?? DATA_ROOM_LINK })
         const prev = find(i.draftId)
@@ -213,7 +239,8 @@ function PreviewDrafts({ state, children }: { state: PreviewDrafts | null; child
       copied: async (x, via) => {
         const body = fill(x.investorId, x.body.trim())
         if (!body) return reject('Write the message first.')
-        return { draftId: upsert({ ...x, body }, find(x.draftId)?.status === 'sent' ? {} : { status: 'copied', via }), body }
+        const forward = x.forward ? { subject: x.forward.subject.trim(), body: fill(x.investorId, x.forward.body.trim()) } : undefined
+        return { draftId: upsert({ ...x, body, forward }, find(x.draftId)?.status === 'sent' ? {} : { status: 'copied', via }), body, ...(forward ? { forward } : {}) }
       },
       markSent: async (id) => ({ logged: touch(id) }),
       send: async (x) => {
@@ -242,6 +269,6 @@ function PreviewDrafts({ state, children }: { state: PreviewDrafts | null; child
         return made.map((x) => x._id)
       },
     }
-  }, [d, linkOf, state])
+  }, [d, linkOf, state, intro])
   return <DraftsContext.Provider value={value}>{children}</DraftsContext.Provider>
 }

@@ -31,6 +31,8 @@ import type * as google from "../google.js";
 import type * as googleOAuth from "../googleOAuth.js";
 import type * as googleSync from "../googleSync.js";
 import type * as http from "../http.js";
+import type * as introducers from "../introducers.js";
+import type * as introducersSchema from "../introducersSchema.js";
 import type * as investors from "../investors.js";
 import type * as jev from "../jev.js";
 import type * as jevHousekeeping from "../jevHousekeeping.js";
@@ -110,6 +112,8 @@ declare const fullApi: ApiFromModules<{
   googleOAuth: typeof googleOAuth;
   googleSync: typeof googleSync;
   http: typeof http;
+  introducers: typeof introducers;
+  introducersSchema: typeof introducersSchema;
   investors: typeof investors;
   jev: typeof jev;
   jevHousekeeping: typeof jevHousekeeping;

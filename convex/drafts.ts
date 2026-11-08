@@ -10,7 +10,8 @@ import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
 import { firstName, requireUser } from './lib/access'
 import { AIError, complete, errorTag, hasAIKey, NoAIKey, usageRow } from './lib/anthropic'
-import { draftPrompt, DRAFT_SYSTEM, parseDraft, type DraftContext, type LinkedMaterial } from './lib/draftPrompt'
+import { draftPrompt, DRAFT_SYSTEM, parseDraft, parseForwardable, type DraftContext, type LinkedMaterial } from './lib/draftPrompt'
+import { markAsked } from './introducers' // PST-294
 import { emailReady, sendEmail } from './lib/email'
 import { randomToken } from './lib/token'
 import { siteOrigin } from './materials'
@@ -27,10 +28,14 @@ import { LABEL } from '../src/lib/stages'
 import { addRunUsage } from '../src/lib/models'
 import { askByDate } from '../src/lib/decisions' // PST-293
 import { decisionFor } from './decisions' // PST-293
+import { RELATION_LABEL } from '../src/lib/introducers'
 
 const noKey = () => new ConvexError({ code: NO_AI_KEY, message: 'AI isn’t set up here.' })
-const vInput = { draftId: v.optional(v.id('drafts')), investorId: v.id('investors'), type: vDraftType, to: v.string(), subject: v.string(), body: v.string() }
-type Input = { draftId?: Id<'drafts'>; investorId: Id<'investors'>; type: Doc<'drafts'>['type']; to: string; subject: string; body: string }
+// PST-294: a forwardable intro also carries its intro and the second email.
+const vForward = v.object({ subject: v.string(), body: v.string() })
+const vInput = { draftId: v.optional(v.id('drafts')), investorId: v.id('investors'), type: vDraftType, to: v.string(), subject: v.string(), body: v.string(), introId: v.optional(v.id('intros')), forward: v.optional(vForward) }
+type Forward = { subject: string; body: string }
+type Input = { draftId?: Id<'drafts'>; investorId: Id<'investors'>; type: Doc<'drafts'>['type']; to: string; subject: string; body: string; introId?: Id<'intros'>; forward?: Forward }
 
 /* ---------- what the dialog and the drawer read ---------- */
 
@@ -89,8 +94,8 @@ async function linked(ctx: QueryCtx, investorId: Id<'investors'>, kind: Material
 
 /** What the prompt gets. Checks the caller's access. */
 export const context = internalQuery({
-  args: { investorId: v.id('investors') },
-  handler: async (ctx, { investorId }): Promise<DraftContext> => {
+  args: { investorId: v.id('investors'), introId: v.optional(v.id('intros')) },
+  handler: async (ctx, { investorId, introId }): Promise<DraftContext> => {
     const { user } = await requireUser(ctx)
     const inv = await ctx.db.get(investorId)
     if (!inv) throw new ConvexError('That investor was deleted')
@@ -134,23 +139,45 @@ export const context = internalQuery({
       sent: sent.sort((a, b) => b.at - a.at).slice(0, 5).map(({ at: _, ...s }) => s),
       // PST-293
       askBy: askByDate((await decisionFor(ctx, investorId)).decideBy, todayIST()),
+      ...(introId ? await introContext(ctx, introId, investorId) : {}),
     }
   },
 })
 
+/** PST-294: who makes a forwardable intro, and Dev's best saved answers about Pesto (the most-asked questions with an answer). */
+async function introContext(ctx: QueryCtx, introId: Id<'intros'>, investorId: Id<'investors'>): Promise<Pick<DraftContext, 'introducer' | 'bank'>> {
+  const x = await ctx.db.get(introId)
+  if (!x || x.investorId !== investorId) throw new ConvexError('That intro was deleted')
+  const p = x.introducerId ? await ctx.db.get(x.introducerId) : null
+  const via = x.viaInvestorId ? await ctx.db.get(x.viaInvestorId) : null
+  const introducer = p
+    ? { name: p.name, email: p.email, relation: RELATION_LABEL[p.relation], notes: p.notes }
+    : via
+      ? { name: via.name, email: via.email, relation: RELATION_LABEL.committed, notes: via.firm && via.firm !== via.name ? via.firm : '' }
+      : null
+  if (!introducer) throw new ConvexError('That introducer was deleted')
+  const bank = (await ctx.db.query('questions').collect())
+    .filter((q) => q.removedAt === undefined && !q.mergedInto && q.bestAnswer.trim())
+    .sort((a, b) => b.askedCount - a.askedCount)
+    .slice(0, 4)
+    .map((q) => ({ q: q.text, a: q.bestAnswer.trim() }))
+  return { introducer, bank }
+}
+
 /** A generated draft: a new row, or the dialog's row rewritten (its cost and usage added up). A sent draft is never rewritten. */
 export const saveGenerated = internalMutation({
-  args: { draftId: v.optional(v.id('drafts')), investorId: v.id('investors'), type: vDraftType, subject: v.string(), body: v.string(), costUsd: v.number(), model: vModel, usage: vUsage },
+  args: { draftId: v.optional(v.id('drafts')), investorId: v.id('investors'), type: vDraftType, subject: v.string(), body: v.string(), costUsd: v.number(), model: vModel, usage: vUsage, introId: v.optional(v.id('intros')), forward: v.optional(vForward) },
   handler: async (ctx, a) => {
     const { userId } = await requireUser(ctx)
     const prev = a.draftId ? await ctx.db.get(a.draftId) : null
     if (prev && prev.investorId === a.investorId && prev.status !== 'sent') {
       const costUsd = prev.costUsd + a.costUsd
-      await ctx.db.patch(prev._id, { type: a.type, subject: a.subject, body: a.body, costUsd, model: a.model, usage: prev.usage ? addRunUsage(prev.usage, a.usage) : a.usage })
+      await ctx.db.patch(prev._id, { type: a.type, subject: a.subject, body: a.body, costUsd, model: a.model, usage: prev.usage ? addRunUsage(prev.usage, a.usage) : a.usage, introId: a.introId, forward: a.forward })
       return { draftId: prev._id, costUsd }
     }
     const draftId = await ctx.db.insert('drafts', {
       investorId: a.investorId, type: a.type, subject: a.subject, body: a.body, status: 'draft', costUsd: a.costUsd, model: a.model, usage: a.usage, createdAt: Date.now(), createdBy: userId,
+      ...(a.introId ? { introId: a.introId } : {}), ...(a.forward ? { forward: a.forward } : {}),
     })
     return { draftId, costUsd: a.costUsd }
   },
@@ -167,39 +194,44 @@ export const generate = action({
     type: vDraftType,
     tweak: v.optional(vTweak),
     current: v.optional(v.object({ subject: v.string(), body: v.string() })),
+    introId: v.optional(v.id('intros')),
   },
-  handler: async (ctx, a): Promise<{ draftId: Id<'drafts'>; subject: string; body: string; costUsd: number }> => {
+  handler: async (ctx, a): Promise<{ draftId: Id<'drafts'>; subject: string; body: string; costUsd: number; forward?: Forward }> => {
     // PST-291: the written confirmation and allocation emails are Close's fixed text, never Claude's.
     if (!isAiType(a.type)) throw new ConvexError('Nest fills this one in from Close. Edit it by hand.')
     const type = a.type
     if (!hasAIKey()) throw noKey()
-    const c: DraftContext = await ctx.runQuery(internal.drafts.context, { investorId: a.investorId })
+    if (a.type === 'forwardable' && !a.introId) throw new ConvexError('Pick who makes the intro first.')
+    const introId = a.type === 'forwardable' ? a.introId : undefined
+    const c: DraftContext = await ctx.runQuery(internal.drafts.context, { investorId: a.investorId, introId })
     if (a.tweak === 'deck' && !c.deck) throw new ConvexError('There’s no deck in Materials yet. Add it there, then Nest can link it.')
     const model = await ctx.runQuery(internal.enrich.modelOf, { feature: 'drafts' })
     let out
     try {
-      const r = await complete({ model, system: DRAFT_SYSTEM, prompt: draftPrompt(c, type, { tweak: a.tweak, current: a.current }), maxTokens: 2000 })
-      out = { ...parseDraft(r.text), costUsd: r.costUsd, usage: usageRow(r.usage) }
+      const prompt = draftPrompt(c, type, { tweak: a.tweak, current: a.current })
+      const r = await complete({ model, system: DRAFT_SYSTEM, prompt, maxTokens: 2000 })
+      out = { ...(type === 'forwardable' ? parseForwardable(r.text, prompt) : { ...parseDraft(r.text), forward: undefined }), costUsd: r.costUsd, usage: usageRow(r.usage) }
     } catch (e) {
       if (e instanceof NoAIKey) throw noKey()
       console.warn('drafts.generate failed', a.investorId, 'error=' + errorTag(e))
       throw new ConvexError(e instanceof AIError ? 'Couldn’t write it: ' + e.message + '. Try again.' : 'Couldn’t write it. Try again.')
     }
     const saved: { draftId: Id<'drafts'>; costUsd: number } = await ctx.runMutation(internal.drafts.saveGenerated, {
-      draftId: a.draftId, investorId: a.investorId, type: a.type, subject: out.subject, body: out.body, costUsd: out.costUsd, model, usage: out.usage,
+      draftId: a.draftId, investorId: a.investorId, type: a.type, subject: out.subject, body: out.body, costUsd: out.costUsd, model, usage: out.usage, introId, forward: out.forward,
     })
-    return { draftId: saved.draftId, subject: out.subject, body: out.body, costUsd: saved.costUsd }
+    return { draftId: saved.draftId, subject: out.subject, body: out.body, costUsd: saved.costUsd, ...(out.forward ? { forward: out.forward } : {}) }
   },
 })
 
 /* ---------- keeping, copying and sending ---------- */
 
 const clean = (a: Input) => ({ to: normEmail(a.to), subject: a.subject.trim().replace(/\s+/g, ' ').slice(0, MAX_SUBJECT), body: a.body.replace(/\r\n/g, '\n').trim().slice(0, MAX_BODY) })
+const cleanForward = (f: Forward): Forward => ({ subject: f.subject.trim().replace(/\s+/g, ' ').slice(0, MAX_SUBJECT), body: f.body.replace(/\r\n/g, '\n').trim().slice(0, MAX_BODY) })
 
 /** The dialog's row, updated with what's in the fields; a new row when there's none yet (Dev wrote it, or AI isn't set up). */
 async function upsert(ctx: MutationCtx, userId: Id<'users'>, a: Input, body: string, patch: Partial<Doc<'drafts'>> = {}) {
   const c = clean(a)
-  const fields = { type: a.type, subject: c.subject, body, ...(c.to ? { to: c.to } : {}), ...patch }
+  const fields = { type: a.type, subject: c.subject, body, ...(c.to ? { to: c.to } : {}), ...(a.introId ? { introId: a.introId } : {}), ...(a.forward ? { forward: cleanForward(a.forward) } : {}), ...patch }
   const prev = a.draftId ? await ctx.db.get(a.draftId) : null
   if (prev && prev.investorId === a.investorId) {
     await ctx.db.patch(prev._id, fields)
@@ -227,6 +259,13 @@ async function fillLinks(ctx: MutationCtx, userId: Id<'users'>, investorId: Id<'
     out = out.split(slot).join(shareUrl(token, siteOrigin()))
   }
   return out
+}
+
+/** PST-294: the note to forward, its links filled in too. */
+async function filledForward(ctx: MutationCtx, userId: Id<'users'>, a: Input): Promise<Forward | undefined> {
+  if (!a.forward) return undefined
+  const f = cleanForward(a.forward)
+  return { subject: f.subject, body: await fillLinks(ctx, userId, a.investorId, f.body) }
 }
 
 /** One email touch (the subject as its note) and Last touch today. */
@@ -258,8 +297,9 @@ export const copied = mutation({
     const prev = a.draftId ? await ctx.db.get(a.draftId) : null
     const body = await fillLinks(ctx, userId, a.investorId, clean(a).body)
     if (!body) throw new ConvexError('Write the message first.')
-    const draftId = await upsert(ctx, userId, a, body, prev?.status === 'sent' ? {} : { status: 'copied', via })
-    return { draftId, body }
+    const forward = await filledForward(ctx, userId, a)
+    const draftId = await upsert(ctx, userId, a, body, { ...(forward ? { forward } : {}), ...(prev?.status === 'sent' ? {} : { status: 'copied' as const, via }) })
+    return { draftId, body, ...(forward ? { forward } : {}) }
   },
 })
 
@@ -276,6 +316,7 @@ export const markSent = mutation({
     await logTouch(ctx, userId, d)
     // PST-291: a written confirmation that went starts the 48-hour offer.
     if (d.type === 'confirm') await stampConfirmation(ctx, userId, d.investorId, at)
+    if (d.introId) await markAsked(ctx, d.introId)
     return { logged: true }
   },
 })
@@ -296,7 +337,8 @@ export const prepareSend = internalMutation({
     const prev = a.draftId ? await ctx.db.get(a.draftId) : null
     if (prev?.status === 'sent') throw new ConvexError('This one has already gone. Start a new draft.')
     const body = await fillLinks(ctx, userId, a.investorId, c.body)
-    const draftId = await upsert(ctx, userId, a, body)
+    const forward = await filledForward(ctx, userId, a)
+    const draftId = await upsert(ctx, userId, a, body, forward ? { forward } : {})
     return { draftId, to: c.to, subject: c.subject, body }
   },
 })
@@ -313,6 +355,8 @@ export const sentByEmail = internalMutation({
     await logTouch(ctx, userId, { ...d, via: 'nest' })
     // PST-291: a written confirmation that went starts the 48-hour offer.
     if (d.type === 'confirm') await stampConfirmation(ctx, userId, d.investorId, at)
+    // PST-294: sending a forwardable intro's ask ticks "Asked" and starts the clock.
+    if (d.introId) await markAsked(ctx, d.introId)
   },
 })
 
