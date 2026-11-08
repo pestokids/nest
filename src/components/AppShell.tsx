@@ -1,6 +1,7 @@
 import { Outlet } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import { CommandPalette } from './system/CommandPalette'
+import { Keyboard } from './system/Keyboard'
 import { OfflineBanner } from './system/Connection'
 import { Feedback } from './system/Feedback'
 import { usePreviewState } from './preview-state'
@@ -20,6 +21,9 @@ export function AppShell({ children }: { children?: ReactNode }) {
       <CommandPalette />
       {/* PST-289: Send feedback (⌘.) */}
       <Feedback />
+      {/* PST-290: ? (the shortcut sheet) and ⇧D (density) */}
+      <Keyboard />
+      {/* /PST-290 */}
       {children}
     </ToastProvider>
   )

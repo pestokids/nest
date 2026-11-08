@@ -5,10 +5,11 @@ import { money } from '../../lib/money'
 import type { Investor } from '../../lib/pipeline'
 import { scoreBand, type Priority } from '../../lib/priority'
 import { play } from '../../lib/sound'
-import { ACTIVE, IDX, STAGE_TILE, STAGES } from '../../lib/stages'
+import { ACTIVE, nextStage, STAGE_TILE } from '../../lib/stages'
 import { useRaise } from '../data'
 import { openOnKey, useUI } from '../raise-ui'
 import { Menu, type MenuItem } from '../system/Menu'
+import { useInstant } from '../system/useInstant'
 import { useSaveAction } from '../system/useSaveAction'
 import { Chip, Icon, type ChipTone } from '../ui'
 
@@ -143,7 +144,7 @@ function Row({ i, run, prio, today, quiet, checked, onCheck, onOpen }: RowProps 
   const enriched = enrichedCell(run)
   if (prio)
     return (
-      <div className={rowClass('inv-row', i, quiet, checked)} role="row" tabIndex={0} onClick={onOpen} onKeyDown={openOnKey(onOpen)} aria-label={`${i.name}, priority ${prio.score}, ${STAGE_TILE[i.stage]}`}>
+      <div className={rowClass('inv-row', i, quiet, checked)} role="row" tabIndex={0} data-nav-id={i._id} onClick={onOpen} onKeyDown={openOnKey(onOpen)} aria-label={`${i.name}, priority ${prio.score}, ${STAGE_TILE[i.stage]}`}>
         <span className="c-check" role="cell" onClick={(e) => e.stopPropagation()}>
           <Box checked={checked} onChange={onCheck} label={`Select ${i.name}`} />
         </span>
@@ -177,7 +178,7 @@ function Row({ i, run, prio, today, quiet, checked, onCheck, onOpen }: RowProps 
       </div>
     )
   return (
-    <div className={rowClass('inv-row', i, quiet, checked)} role="row" tabIndex={0} onClick={onOpen} onKeyDown={openOnKey(onOpen)} aria-label={`${i.name}, ${STAGE_TILE[i.stage]}`}>
+    <div className={rowClass('inv-row', i, quiet, checked)} role="row" tabIndex={0} data-nav-id={i._id} onClick={onOpen} onKeyDown={openOnKey(onOpen)} aria-label={`${i.name}, ${STAGE_TILE[i.stage]}`}>
       <span className="c-check" role="cell" onClick={(e) => e.stopPropagation()}>
         <Box checked={checked} onChange={onCheck} label={`Select ${i.name}`} />
       </span>
@@ -251,7 +252,7 @@ function CardRow({ i, prio, today, quiet, checked, onCheck, onOpen }: RowProps) 
       <span className="inv-c__check">
         <Box checked={checked} onChange={onCheck} label={`Select ${i.name}`} />
       </span>
-      <div className="inv-c__body" role="button" tabIndex={0} onClick={onOpen} onKeyDown={openOnKey(onOpen)}>
+      <div className="inv-c__body" role="button" tabIndex={0} data-nav-id={i._id} onClick={onOpen} onKeyDown={openOnKey(onOpen)}>
         <div className="inv-c__top">
           <strong>{i.name}</strong>
           <span className="inv-c__amt">{i.expected ? money(i.expected) : '–'}</span>
@@ -305,12 +306,12 @@ function RowMenu({ i }: { i: Investor }) {
   const d = useRaise()
   const { open: openDrawer, toast, remove } = useUI()
   const save = useSaveAction()
-  const ix = IDX[i.stage]
-  const next = ix !== undefined && ix < STAGES.length - 1 ? STAGES[ix + 1] : null
+  const instant = useInstant()
+  const next = nextStage(i.stage)
   const first = i.name.split(/\s+/)[0]
   const items: MenuItem[] = [
     { label: 'Open', icon: 'user', onSelect: () => openDrawer(i._id) },
-    { label: 'Log a touch', icon: 'note', onSelect: () => openDrawer(i._id) },
+    { label: 'Log a touch', icon: 'note', onSelect: () => openDrawer(i._id, { mode: 'touch' }) },
     ...(ACTIVE.has(i.stage)
       ? [{
           label: `Nudge ${first}`,
@@ -325,21 +326,8 @@ function RowMenu({ i }: { i: Investor }) {
             }),
         }]
       : []),
-    ...(next
-      ? [{
-          label: `Move to ${STAGE_TILE[next.k]}`,
-          icon: 'arrow-right' as const,
-          onSelect: () =>
-            void save(() => d.advance(i._id), {
-              failMessage: `Couldn’t move ${i.name}.`,
-              onDone: (r) => {
-                if (!r) return
-                play('stage-up')
-                toast(`${i.name} → ${r.label}. Set the next step.`)
-              },
-            }),
-        }]
-      : []),
+    // PST-290: shows at once, with Undo.
+    ...(next ? [{ label: `Move to ${STAGE_TILE[next]}`, icon: 'arrow-right' as const, onSelect: () => void instant.move(i, next, { from: btn.current }) }] : []),
     // Delete with Undo, the same as the drawer: the row goes now, the delete is sent when the toast goes.
     { label: 'Delete', icon: 'trash', danger: true, onSelect: () => remove(i) },
   ]

@@ -40,14 +40,22 @@ function RaiseLayout() {
   const opener = useRef<HTMLElement | null>(null)
 
   const open = useCallback((id: string | null, opts: OpenOptions = {}) => {
-    opener.current = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null
-    play('drawer', { volume: 0.5 })
+    if (!opts.swap) {
+      opener.current = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null
+      play('drawer', { volume: 0.5 })
+    }
     setDrawer({ id, opts })
   }, [])
   const opening = drawer?.opts ?? NO_OPTS
+  // PST-290: after ← and →, closing focuses the row of the investor you ended on (when it's on screen).
+  const shown = useRef<string | null>(null)
+  useEffect(() => {
+    shown.current = drawer?.opts.swap ? drawer.id : null
+  }, [drawer])
   const close = useCallback(() => {
     setDrawer(null)
-    const el = opener.current
+    const row = shown.current ? [...document.querySelectorAll<HTMLElement>(`[data-nav-id="${CSS.escape(shown.current)}"]`)].find((x) => x.offsetParent !== null) : undefined
+    const el = row ?? opener.current
     opener.current = null
     if (el?.isConnected) requestAnimationFrame(() => el.focus({ preventScroll: true }))
   }, [])

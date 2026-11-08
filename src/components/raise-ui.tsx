@@ -2,13 +2,24 @@
 import { createContext, useCallback, useContext } from 'react'
 import type { Investor } from '../lib/pipeline'
 import { play } from '../lib/sound'
-import { WARM, type Stage } from '../lib/stages'
+import { WARM, type Stage, type TouchKind } from '../lib/stages'
 import { errorMessage, useRaise } from './data'
 import { Chip, type ChipTone, type ToastInput } from './ui'
 
 /* ---------- toast + drawer opener ---------- */
 /** Prefill for the drawer's "new" state: the stage of the column whose + was clicked, the name searched for ("Add “Name”"), or a person from Who's this? (name and email). */
-export type OpenOptions = { stage?: Stage; name?: string; email?: string; /** PST-282: open an investor on their Materials tab (PST-277: or Notes). */ tab?: 'materials' | 'notes' }
+export type OpenOptions = {
+  stage?: Stage
+  name?: string
+  email?: string
+  /** PST-282: open an investor on their Materials tab (PST-277: or Notes). */
+  tab?: 'materials' | 'notes'
+  /** PST-290 (⌘K): open straight into Log a touch (with its kind) or Park. */
+  mode?: 'touch' | 'park'
+  touch?: TouchKind
+  /** PST-290: ← and → in the drawer: swap the investor in place (no slide, no sound; focus still goes back to the list). */
+  swap?: boolean
+}
 
 /*
  * Opening the drawer from outside the Raise views (the ⌘K palette lives in the

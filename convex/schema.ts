@@ -88,7 +88,9 @@ export default defineSchema({
   // Per-user preferences that follow the user across devices.
   prefs: defineTable({
     userId: v.id('users'),
-    sounds: v.boolean(),
+    sounds: v.optional(v.boolean()),
+    // PST-290: list density (⇧D). Unset is comfortable.
+    density: v.optional(v.union(v.literal('compact'), v.literal('comfortable'))),
   }).index('by_user', ['userId']),
 
   // PST-263: one Google connection per teammate (Calendar read-only, Gmail metadata).

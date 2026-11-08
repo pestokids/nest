@@ -45,6 +45,12 @@ export type Tier = (typeof TIERS)[number]
 export const WAVES = [1, 2, 3] as const
 export type Wave = (typeof WAVES)[number]
 
+/** The pipeline stage after this one; null at Money in and for Passed or Parked. */
+export function nextStage(s: Stage): PipelineStage | null {
+  const ix = IDX[s]
+  return ix === undefined || ix >= STAGES.length - 1 ? null : STAGES[ix + 1].k
+}
+
 export const isStage = (s: unknown): s is Stage => typeof s === 'string' && (STAGE_KEYS as string[]).includes(s)
 
 /** Short labels for the drawer's stage progress bar (every pipeline stage after "Not contacted"). */

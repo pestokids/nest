@@ -14,6 +14,7 @@ import { Scrollbar } from './Scrollbar'
 import { Toolbar } from './Toolbar'
 import { useBoardDrag } from './useBoardDrag'
 import { useMoveCard } from './useMoveCard'
+import { useListKeys } from '../system/useListKeys'
 
 type Hidden = (typeof HIDDEN_STAGES)[number]
 type Drag = { id: string; from: string; over: string | null; h: number; snapshot: Investor[] }
@@ -42,6 +43,8 @@ export function Board({ investors, total, filter, setFilter, today, quietDays, w
   const [focusId, setFocusId] = useState<string | null>(null)
   const scroller = useRef<HTMLDivElement>(null)
   const slotRef = useRef<HTMLDivElement>(null)
+  // PST-290: J and K through the cards, column by column; ↵ opens, D drafts. ] and [ still move a card.
+  useListKeys(scroller)
 
   // While a card is held the board shows the data as it was at pickup, so a
   // save from another tab never shifts columns under the pointer; it lands on drop.

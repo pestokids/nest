@@ -5,8 +5,9 @@ import type { Id } from './_generated/dataModel'
 import { requireUser } from './lib/access'
 import { investorFields, vPipelineStage, vStage, vTouch } from './validators'
 import { todayIST, isISODate } from '../src/lib/dates'
-import { applyAdvance, applySave, touchDay, type InvestorFields } from '../src/lib/pipeline'
+import { applyAdvance, applySave, type InvestorFields } from '../src/lib/pipeline'
 import { applyMove, applyUndo } from '../src/lib/board'
+import { applyTouch, undoTouchPatch } from '../src/lib/touch'
 import { IDX, LABEL } from '../src/lib/stages'
 import { addressesOf, cleanDomains, cleanEmails, normEmail } from '../src/lib/google'
 import { internal } from './_generated/api'
@@ -150,35 +151,65 @@ export const advance = mutation({
   },
 })
 
+const noteArgs = {
+  id: v.id('investors'),
+  note: v.string(),
+  touch: v.optional(vTouch),
+  date: v.optional(v.string()),
+  next: v.optional(v.object({ step: v.string(), date: v.optional(v.union(v.string(), v.null())) })),
+}
+type NoteArgs = { id: Id<'investors'>; note: string; touch?: typeof vTouch.type; date?: string; next?: { step: string; date?: string | null } }
+
+/** One logged touch: the activity, and lastTouch (and the next step, with `next`) on the investor. */
+async function writeNote(ctx: MutationCtx, userId: Id<'users'>, { id, note, touch, date, next }: NoteArgs) {
+  const text = note.trim()
+  if (!text) throw new ConvexError('Write a note first')
+  const i = await ctx.db.get(id)
+  if (!i) throw new ConvexError('That investor was deleted')
+  const from = { lastTouch: i.lastTouch, nextStep: i.nextStep, nextDate: i.nextDate }
+  const { day, patch } = applyTouch(from, { touch, date, next: next ? { step: next.step, date: next.date ?? undefined } : undefined }, todayIST())
+  const activityId = await ctx.db.insert('activities', { investorId: id, kind: 'note', note: text, ...(touch ? { touch } : {}), date: day, userId })
+  await ctx.db.patch(id, { ...patch, updatedAt: Date.now(), updatedBy: userId })
+  return { day, activityId, from, set: patch }
+}
+
 /**
  * Log a touch (a note, call, email, meeting, ask, nudge or done next step).
  * `date` defaults to today and can't be in the future; lastTouch moves forward
  * to it. `next` also sets the next step (an empty date clears it).
  */
 export const logNote = mutation({
-  args: {
-    id: v.id('investors'),
-    note: v.string(),
-    touch: v.optional(vTouch),
-    date: v.optional(v.string()),
-    next: v.optional(v.object({ step: v.string(), date: v.optional(v.union(v.string(), v.null())) })),
-  },
-  handler: async (ctx, { id, note, touch, date, next }) => {
+  args: noteArgs,
+  handler: async (ctx, args) => {
     const { userId } = await requireUser(ctx)
-    const text = note.trim()
-    if (!text) throw new ConvexError('Write a note first')
+    return (await writeNote(ctx, userId, args)).day
+  },
+})
+
+/** PST-290: `logNote`, resolving with what `undoTouch` needs (the drawer's Log a touch, with Undo). */
+export const logTouch = mutation({
+  args: noteArgs,
+  handler: async (ctx, args) => {
+    const { userId } = await requireUser(ctx)
+    const r = await writeNote(ctx, userId, args)
+    return { id: args.id, activityId: r.activityId, day: r.day, from: r.from, set: r.set }
+  },
+})
+
+const vTouchFields = v.object({ lastTouch: v.optional(v.string()), nextStep: v.string(), nextDate: v.optional(v.string()) })
+
+/** PST-290: undo a `logTouch`: drop its activity and put back what it changed, unless that changed again since. */
+export const undoTouch = mutation({
+  args: { id: v.id('investors'), activityId: v.id('activities'), from: vTouchFields, set: vTouchFields },
+  handler: async (ctx, { id, activityId, from, set }) => {
+    const { userId } = await requireUser(ctx)
     const i = await ctx.db.get(id)
     if (!i) throw new ConvexError('That investor was deleted')
-    const today = todayIST()
-    const day = touchDay(date, today)
-    await ctx.db.insert('activities', { investorId: id, kind: 'note', note: text, ...(touch ? { touch } : {}), date: day, userId })
-    await ctx.db.patch(id, {
-      lastTouch: !i.lastTouch || i.lastTouch < day ? day : i.lastTouch,
-      updatedAt: Date.now(),
-      updatedBy: userId,
-      ...(next ? { nextStep: next.step.trim(), nextDate: next.date && isISODate(next.date) ? next.date : undefined } : {}),
-    })
-    return day
+    const a = await ctx.db.get(activityId)
+    if (a && a.investorId === id && a.kind === 'note') await ctx.db.delete(activityId)
+    const back = undoTouchPatch({ lastTouch: i.lastTouch, nextStep: i.nextStep, nextDate: i.nextDate }, { from, set })
+    await ctx.db.patch(id, { ...back, updatedAt: Date.now(), updatedBy: userId })
+    return null
   },
 })
 
@@ -207,15 +238,17 @@ export const remove = mutation({
  * put the card back exactly.
  */
 export const move = mutation({
-  args: { id: v.id('investors'), stage: vStage },
-  handler: async (ctx, { id, stage }) => {
+  // PST-290: `parkedUntil` when parking with a date (null: no date).
+  args: { id: v.id('investors'), stage: vStage, parkedUntil: v.optional(v.union(v.string(), v.null())) },
+  handler: async (ctx, { id, stage, parkedUntil }) => {
     const { userId } = await requireUser(ctx)
     const prev = await ctx.db.get(id)
     if (!prev) throw new ConvexError('That investor was deleted')
-    const from = { stage: prev.stage, lastTouch: prev.lastTouch, maxStage: prev.maxStage }
-    if (prev.stage === stage) return { from, activityId: null }
+    const from = { stage: prev.stage, lastTouch: prev.lastTouch, maxStage: prev.maxStage, parkedUntil: prev.parkedUntil ?? null }
+    const until = stage === 'parked' && parkedUntil !== undefined ? (parkedUntil && isISODate(parkedUntil) ? parkedUntil : null) : undefined
+    if (prev.stage === stage && until === undefined) return { from, activityId: null }
     const today = todayIST()
-    const { patch, logStage } = applyMove(prev, stage, today)
+    const { patch, logStage } = applyMove(prev, stage, today, until)
     await ctx.db.patch(id, { ...patch, updatedAt: Date.now(), updatedBy: userId })
     const activityId = logStage ? await ctx.db.insert('activities', { investorId: id, kind: 'stage', stage: logStage, date: today, userId }) : null
     return { from, activityId }
@@ -227,7 +260,7 @@ export const undoMove = mutation({
   args: {
     id: v.id('investors'),
     to: vStage,
-    from: v.object({ stage: vStage, lastTouch: v.optional(v.string()), maxStage: vPipelineStage }),
+    from: v.object({ stage: vStage, lastTouch: v.optional(v.string()), maxStage: vPipelineStage, parkedUntil: v.optional(v.union(v.string(), v.null())) }),
     activityId: v.optional(v.union(v.id('activities'), v.null())),
   },
   handler: async (ctx, { id, to, from, activityId }) => {
@@ -236,7 +269,13 @@ export const undoMove = mutation({
     if (!cur) throw new ConvexError('That investor was deleted')
     const patch = applyUndo(cur, { id, to, from, activityId })
     if (!patch) throw new ConvexError('It moved again since, so there’s nothing to undo')
-    await ctx.db.patch(id, { ...patch, lastTouch: patch.lastTouch && isISODate(patch.lastTouch) ? patch.lastTouch : undefined, updatedAt: Date.now(), updatedBy: userId })
+    await ctx.db.patch(id, {
+      ...patch,
+      lastTouch: patch.lastTouch && isISODate(patch.lastTouch) ? patch.lastTouch : undefined,
+      ...('parkedUntil' in patch ? { parkedUntil: patch.parkedUntil && isISODate(patch.parkedUntil) ? patch.parkedUntil : undefined } : {}),
+      updatedAt: Date.now(),
+      updatedBy: userId,
+    })
     if (activityId) {
       const a = await ctx.db.get(activityId)
       if (a && a.investorId === id && a.kind === 'stage') await ctx.db.delete(activityId)

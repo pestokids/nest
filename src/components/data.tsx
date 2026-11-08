@@ -1,6 +1,7 @@
 import { createContext, useContext } from 'react'
 import type { MoveRecord } from '../lib/board'
 import type { Activity, Investor, InvestorFields, TouchOptions } from '../lib/pipeline'
+import type { TouchRecord } from '../lib/touch'
 import type { GoogleData, MeetingAnswer } from '../lib/google'
 import type { AIData, AISettings, Fit, InvestorAI } from '../lib/enrich'
 import type { Round, RoundChange } from '../lib/round'
@@ -24,12 +25,16 @@ export type RaiseData = {
   save: (id: string | null, fields: InvestorFields) => Promise<string>
   /** One stage forward; `next` also sets the next step. Null at Money in or a closed stage. */
   advance: (id: string, next?: TouchOptions['next']) => Promise<{ stage: string; label: string } | null>
-  /** Move to any stage (Pipeline board); resolves with what `undoMove` needs. Applied optimistically. */
-  move: (id: string, stage: Stage) => Promise<MoveRecord>
+  /** Move to any stage (Pipeline board); resolves with what `undoMove` needs. Applied optimistically. PST-290: `parkedUntil` when parking (null: no day). */
+  move: (id: string, stage: Stage, opts?: { parkedUntil?: string | null }) => Promise<MoveRecord>
   /** Put a moved investor back; rejects if it has moved again since. */
   undoMove: (rec: MoveRecord) => Promise<unknown>
-  /** Log a touch; returns the day it was logged on. */
+  /** Log a touch; returns the day it was logged on. Applied optimistically. */
   logNote: (id: string, note: string, opts?: TouchOptions) => Promise<string>
+  /** PST-290: log a touch (shown at once); resolves with what `undoTouch` needs. */
+  logTouch: (id: string, note: string, opts?: TouchOptions) => Promise<TouchRecord>
+  /** PST-290: take a logged touch back; fields that changed again since stay. */
+  undoTouch: (rec: TouchRecord) => Promise<unknown>
   remove: (id: string) => Promise<unknown>
   /** `file` names the CSV in the change log; `ids` are the new rows (Undo, "See the new names"). */
   importMany: (rows: InvestorFields[], file?: string) => Promise<{ added: number; skipped: number; ids?: string[] }>

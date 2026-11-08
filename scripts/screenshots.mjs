@@ -96,6 +96,13 @@ const SCREENS = [
   // PST-278: Drafts
   ...['followup', 'intro', 'blurb', 'nudge', 'thanks', 'dataroom', 'writing', 'nokey', 'noemail', 'copied', 'failed'].map((s) => [`drafts-${s}`, `/raise/today?preview&drafts=${s}`]),
   ['drafts-history', '/raise/investors?preview&drafts=history'],
+  // PST-290: Keyboard
+  ['system-shortcuts', '/raise/today?preview&system=shortcuts'],
+  ['system-cmdk-actions', '/raise/today?preview&system=cmdk-actions'],
+  ['system-undo', '/raise/today?preview&system=undo'],
+  ...['investors', 'pipeline', 'today'].map((v) => [`list-focus-${v}`, `/raise/${v}?preview&system=list-focus&density=comfortable`]),
+  ...['investors', 'pipeline', 'today'].map((v) => [`density-compact-${v}`, `/raise/${v}?preview&density=compact`]),
+  ['density-comfortable-investors', '/raise/investors?preview&density=comfortable'],
 ]
 
 /** Sideways scroll, and (phones) visible controls smaller than 44 × 44. */

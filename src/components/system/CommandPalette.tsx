@@ -13,7 +13,11 @@ import { matchScore, rankInvestors, searchNotes, searchSections, titleCase } fro
 import { searchQuestions } from '../../lib/qanda'
 import type { Investor } from '../../lib/pipeline'
 import { play } from '../../lib/sound'
-import { IDX, STAGE_TILE, STAGES } from '../../lib/stages'
+import { STAGE_TILE } from '../../lib/stages'
+import { DRAFT_TYPES, type DraftType } from '../../lib/drafts'
+import { investorActions, parseActionQuery, type InvestorAction } from '../../lib/paletteActions'
+import { GO_TO, KEYS, keyLabel, matches, singleKeyOk } from '../../lib/shortcuts'
+import { useInstant } from './useInstant'
 import { ASK_NOTE, askFollowUp } from '../../lib/today'
 import { errorMessage, useRaise } from '../data'
 import { openDraft } from '../drafts/data'
@@ -28,11 +32,13 @@ import { Modal } from './Modal'
 import { PREVIEW_ASK_QUESTIONS, usePreviewState } from '../preview-state'
 import { useSaveAction } from './useSaveAction'
 
-type Item = { id: string; icon: IconName; label: ReactNode; meta?: ReactNode; keys?: string[]; run: () => void }
+/** `action`: an action on the matched investor (its chevron turns into an arrow while active). */
+type Item = { id: string; icon: IconName; label: ReactNode; meta?: ReactNode; keys?: string[]; action?: boolean; run: () => void }
 type Group = { title: string; items: Item[] }
 
-const isTyping = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))
 const first = (name: string) => name.trim().split(/\s+/)[0]
+/** PST-295 adds the "Ask if they'll lead" draft; until then the action stays hidden. */
+const LEAD_DRAFT = (DRAFT_TYPES as readonly string[]).includes('lead') ? ('lead' as string as DraftType) : null
 
 type Mode = 'search' | 'ask'
 
@@ -41,6 +47,8 @@ type Mode = 'search' | 'ask'
  * match, jump to a section. ↑↓ move, ↵ opens, Esc closes. A full-height sheet
  * on phones. Also owns the single-key shortcuts it advertises (N, I, G then P…).
  * PST-279: Tab (or the chips) switches to Ask, where ↵ asks Nest the question.
+ * PST-290: actions on the investor you're searching for ("orch dd", "log call fern"),
+ * and the single keys come from the shortcut registry (src/lib/shortcuts.ts).
  */
 export function CommandPalette() {
   const flags = usePreviewState()
@@ -60,11 +68,12 @@ export function CommandPalette() {
     [],
   )
 
-  // ?preview&system=cmdk|cmdk-empty|cmdk-none
+  // ?preview&system=cmdk|cmdk-empty|cmdk-none|cmdk-actions
   useEffect(() => {
     const s = flags?.system
-    if (s === 'cmdk' || s === 'cmdk-empty' || s === 'cmdk-none') {
-      setQ(s === 'cmdk' ? 'orch' : s === 'cmdk-none' ? 'nightjar' : '')
+    const query = { cmdk: 'orch', 'cmdk-none': 'nightjar', 'cmdk-empty': '', 'cmdk-actions': 'orch dd' }[s ?? '']
+    if (query !== undefined) {
+      setQ(query)
       setOpen(true)
     }
   }, [flags?.system])
@@ -86,22 +95,21 @@ export function CommandPalette() {
   useEffect(() => {
     let g = 0
     const onKey = (e: KeyboardEvent) => {
-      if (open || e.metaKey || e.ctrlKey || e.altKey || isTyping(e.target) || document.querySelector('.sys-modal, [aria-modal="true"]')) return
-      const k = e.key.toLowerCase()
+      if (open || !singleKeyOk(e) || document.querySelector('.sys-modal, [aria-modal="true"]')) return
       if (Date.now() - g < 1200) {
         g = 0
-        const to = { h: '/', t: '/raise/today', p: '/raise/pipeline', i: '/raise/investors', q: '/raise/qanda', l: '/raise/plan', s: '/raise/settings' }[k]
+        const to = e.shiftKey ? undefined : GO_TO[e.key.toLowerCase()]
         if (to) {
           e.preventDefault()
           actions.go(to)
         }
         return
       }
-      if (k === 'g') g = Date.now()
-      else if (k === 'n') {
+      if (matches(e, KEYS.goTo)) g = Date.now()
+      else if (matches(e, KEYS.addInvestor)) {
         e.preventDefault()
         actions.addInvestor()
-      } else if (k === 'i') {
+      } else if (matches(e, KEYS.importCsv)) {
         e.preventDefault()
         actions.importCsv()
       }
@@ -128,9 +136,9 @@ function usePaletteActions() {
       void navigate({ to: inRaise ? path : '/raise/today', search: inRaise ? true : undefined, state: (s) => ({ ...s, drawer: { id, opts } }) })
     return {
       go: (to: string) => void navigate({ to }),
-      openInvestor: (i: Investor) => {
+      openInvestor: (i: Investor, opts?: OpenOptions) => {
         rememberInvestor(i._id)
-        openDrawer(i._id)
+        openDrawer(i._id, opts)
       },
       addInvestor: (name?: string) => openDrawer(null, name ? { name } : undefined),
       importCsv: () => void navigate({ to: '/raise/investors', search: { import: true } }),
@@ -145,9 +153,9 @@ function usePaletteActions() {
         openPanel({ kind: 'prep', meetingId })
       },
       // PST-278's draft dialog, which also lives in the Raise views.
-      draft: (i: Investor) => {
+      draft: (i: Investor, type?: DraftType) => {
         if (!inRaise) void navigate({ to: '/raise/today' })
-        openDraft({ investorId: i._id })
+        openDraft({ investorId: i._id, type })
       },
       logAsk: (i: Investor) => {
         const next = askFollowUp(todayIST())
@@ -188,6 +196,7 @@ function Palette({
   const [oneOff, setOneOff] = useState<Model | null>(null)
   const input = useRef<HTMLInputElement>(null)
   const asking = mode === 'ask'
+  const instant = useInstant()
 
   const ask = useCallback(
     async (question: string) => {
@@ -257,17 +266,29 @@ function Palette({
         { title: 'Quick actions', items: [...(n ? [review, ...quick] : quick), feedback] },
       ]
     }
-    const found = rankInvestors(investors, query, 5)
-    const top = found[0]
+    // PST-290: the investor the query names, and what it asks to do with them ("orch dd").
+    const { investor: top, intent } = parseActionQuery(investors, query)
+    const found = intent && top ? [top] : rankInvestors(investors, query, 5)
     const out: Group[] = []
-    if (found.length) out.push({ title: 'Investors', items: found.map((i) => person(i, true)) })
+    const people: Group | null = found.length ? { title: 'Investors', items: found.map((i) => person(i, true)) } : null
+    if (people && !intent) out.push(people)
     if (top) {
-      const nx = IDX[top.stage] !== undefined && IDX[top.stage]! < STAGES.length - 1 ? STAGES[IDX[top.stage]! + 1] : null
+      const features = { decideBy: typeof (d as { setDecideBy?: unknown }).setDecideBy === 'function', askLead: !!LEAD_DRAFT }
+      const run = (a: InvestorAction) => {
+        rememberInvestor(top._id)
+        if (a.kind === 'move' && a.stage) instant.move(top, a.stage)
+        else if (a.kind === 'no') instant.pass(top)
+        else if (a.kind === 'log') actions.openInvestor(top, { mode: 'touch', touch: a.touch })
+        else if (a.kind === 'park') actions.openInvestor(top, { mode: 'park' })
+        else if (a.kind === 'draft') actions.draft(top, 'followup')
+        else if (a.kind === 'lead' && LEAD_DRAFT) actions.draft(top, LEAD_DRAFT)
+        // The decide-by date lives in the drawer's decision (PST-293).
+        else actions.openInvestor(top)
+      }
       out.push({
-        title: 'Actions',
+        title: `Actions for ${top.name}`,
         items: [
-          { id: 'x-log', icon: 'note', label: `Log a touch for ${first(top.name)}`, run: close(() => actions.openInvestor(top)) },
-          ...(nx ? [{ id: 'x-move', icon: 'arrow-right' as IconName, label: `Move ${first(top.name)} to ${STAGE_TILE[nx.k]}`, run: close(() => actions.advance(top)) }] : []),
+          ...investorActions(top, intent, features).map((a): Item => ({ id: 'x-' + a.kind, icon: 'chevron-right', action: true, label: a.label, keys: a.key ? [keyLabel(a.key)] : undefined, run: close(() => run(a)) })),
           // PST-263: their threads in your Gmail (a search for their addresses and firm domains).
           ...(google.me && google.threads.some((t) => t.investorIds.includes(top._id))
             ? [{
@@ -278,6 +299,7 @@ function Palette({
         ],
       })
     }
+    if (people && intent) out.push(people)
     if (n && ['review suggestions', 'suggestions', 'suggested fixes', 'fix the list'].some((t) => matchScore(t, query) > 0)) out.push({ title: 'Suggestions', items: [review] })
     if (['send feedback', 'feedback', 'report a bug', 'bug', 'idea'].some((t) => matchScore(t, query) > 0)) out.push({ title: 'Feedback', items: [feedback] }) // PST-289
     const sections = searchSections(query)
@@ -287,7 +309,7 @@ function Palette({
     const asked = searchQuestions(questions, query, 3)
     if (asked.length) out.push({ title: 'Questions', items: asked.map(({ q, quote }) => ({ id: 'q-' + q._id, icon: 'spark', label: q.text, meta: quote ?? (q.bestAnswer.trim() ? q.theme : 'Needs an answer'), run: close(() => actions.openQuestion(q._id)) })) })
     return out
-  }, [query, investors, actions, meta, onClose, recentsFallback, google, suggestions.length, questions])
+  }, [query, investors, actions, meta, onClose, recentsFallback, google, suggestions.length, questions, d, instant])
 
   const none = !!query && !groups.length
   const items: Item[] = none ? [{ id: 'add-new', icon: 'plus', label: `Add “${titleCase(query)}” as an investor`, keys: ['↵'], run: () => (onClose(), actions.addInvestor(titleCase(query))) }] : groups.flatMap((g) => g.items)
@@ -332,7 +354,7 @@ function Palette({
         onMouseMove={() => n !== at && setActive(n)}
         onClick={it.run}
       >
-        <Icon name={it.icon} size={18} className="cmdk-item__icon" />
+        <Icon name={it.action && n === at ? 'arrow-right' : it.icon} size={18} className="cmdk-item__icon" />
         <span className="cmdk-item__label">{it.label}</span>
         {it.meta ? <span className="cmdk-item__meta">{it.meta}</span> : null}
         {it.keys ? (
@@ -412,21 +434,22 @@ function Palette({
         </div>
       )}
       <div className="cmdk-foot" aria-hidden="true">
-        {asking ? (
-          <span>↵ to ask</span>
-        ) : (
-          <>
-            <span>↑↓ to move</span>
-            <span>·</span>
-            <span>↵ to open</span>
-          </>
+        {asking ? null : (
+          <span className="cmdk-foot__key">
+            <Kbd>↑↓</Kbd> move
+          </span>
         )}
-        <span>·</span>
-        <span>tab to {asking ? 'search' : 'ask'}</span>
-        <span>·</span>
-        <span>esc to close</span>
+        <span className="cmdk-foot__key">
+          <Kbd>↵</Kbd> {asking ? 'ask' : 'run'}
+        </span>
+        <span className="cmdk-foot__key">
+          <Kbd>Tab</Kbd> {asking ? 'search' : 'ask'}
+        </span>
+        <span className="cmdk-foot__key">
+          <Kbd>Esc</Kbd> close
+        </span>
         <span className="cmdk-foot__sp" />
-        <Kbd>⌘K</Kbd>
+        <Kbd>{keyLabel(KEYS.palette)}</Kbd>
       </div>
     </Modal>
   )

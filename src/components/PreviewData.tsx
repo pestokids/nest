@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { applyMove, applyUndo } from '../lib/board'
 import { todayIST } from '../lib/dates'
-import { applyAdvance, applySave, NEW_INVESTOR, touchDay, type Activity, type Investor } from '../lib/pipeline'
+import { applyAdvance, applySave, NEW_INVESTOR, touchDay, type Activity, type Investor, type TouchOptions } from '../lib/pipeline'
 import { DEFAULT_ROUND, diffRound, mergeRound, type Round } from '../lib/round'
 import { LABEL } from '../lib/stages'
 import { fixtureActs, fixtureBoardExtras, fixtureInvestors, fixtureMembers, fixtureMid, fixtureRound } from '../preview/fixture'
@@ -25,6 +25,7 @@ import { PreviewQanda } from '../preview/PreviewQanda'
 import { useAgentsPreview, type PreviewAgents } from '../preview/agentsFixture'
 import { useAskPreview, type PreviewAsk, type PreviewBrief } from '../preview/askFixture'
 import { modelFor } from '../lib/models'
+import { applyTouch, undoTouchPatch } from '../lib/touch'
 
 type Seed = { round?: Partial<Round>; investors: (Omit<Investor, '_id'> & { slug: string })[] }
 export type PreviewHome = 'default' | 'firstrun' | 'prepdone'
@@ -247,6 +248,16 @@ export function PreviewData({
       patchInv(i._id, set)
       return () => patchInv(i._id, before)
     }
+    // PST-290: a touch, and what Undo needs (the preview's logNote too).
+    const logTouch = async (id: string, note: string, o?: TouchOptions) => {
+      const i = list.find((x) => x._id === id)
+      if (!i) throw { data: 'That investor was deleted' }
+      const from = { lastTouch: i.lastTouch, nextStep: i.nextStep, nextDate: i.nextDate }
+      const { day, patch } = applyTouch(from, o, t)
+      const activityId = act({ investorId: id, kind: 'note', note: note.trim(), touch: o?.touch, date: day })
+      patchInv(id, patch)
+      return { id, activityId, day, from, set: patch }
+    }
     return {
       loaded: !!investors && !extra.loading,
       investors: list,
@@ -277,12 +288,13 @@ export function PreviewData({
         act({ investorId: id, kind: 'stage', stage: nx.stage })
         return { stage: nx.stage, label: LABEL[nx.stage] }
       }),
-      move: w(async (id, stage) => {
+      move: w(async (id, stage, o) => {
         const i = list.find((x) => x._id === id)
         if (!i) throw { data: 'That investor was deleted' }
-        const from = { stage: i.stage, lastTouch: i.lastTouch, maxStage: i.maxStage }
-        if (i.stage === stage) return { id, to: stage, from, activityId: null }
-        const { patch, logStage } = applyMove(i, stage, t)
+        const from = { stage: i.stage, lastTouch: i.lastTouch, maxStage: i.maxStage, parkedUntil: i.parkedUntil ?? null }
+        const until = stage === 'parked' && o && 'parkedUntil' in o ? o.parkedUntil ?? null : undefined
+        if (i.stage === stage && until === undefined) return { id, to: stage, from, activityId: null }
+        const { patch, logStage } = applyMove(i, stage, t, until)
         setInvestors((xs) => (xs ?? []).map((x) => (x._id === id ? { ...x, ...patch } : x)))
         const activityId = logStage ? act({ investorId: id, kind: 'stage', stage: logStage }) : null
         return { id, to: stage, from, activityId }
@@ -295,17 +307,12 @@ export function PreviewData({
         setInvestors((xs) => (xs ?? []).map((x) => (x._id === rec.id ? { ...x, ...back } : x)))
         if (rec.activityId) setActs((xs) => xs.filter((a) => a._id !== rec.activityId))
       }),
-      logNote: w(async (id, note, o) => {
-        const day = touchDay(o?.date, t)
-        act({ investorId: id, kind: 'note', note: note.trim(), touch: o?.touch, date: day })
-        setInvestors((xs) =>
-          (xs ?? []).map((x) =>
-            x._id === id
-              ? { ...x, lastTouch: !x.lastTouch || x.lastTouch < day ? day : x.lastTouch, ...(o?.next ? { nextStep: o.next.step.trim(), nextDate: o.next.date || undefined } : {}) }
-              : x,
-          ),
-        )
-        return day
+      logNote: w(async (id, note, o) => (await logTouch(id, note, o)).day),
+      // PST-290
+      logTouch: w(logTouch),
+      undoTouch: w(async (rec) => {
+        setActs((xs) => xs.filter((a) => a._id !== rec.activityId))
+        setInvestors((xs) => (xs ?? []).map((x) => (x._id === rec.id ? { ...x, ...undoTouchPatch(x, rec) } : x)))
       }),
       remove: w(async (id) => {
         setInvestors((xs) => (xs ?? []).filter((x) => x._id !== id))

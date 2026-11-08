@@ -84,20 +84,25 @@ export const swipeTarget = (stage: Stage) => keyTarget(stage, ']')
 
 /* ---------- saving and undo ---------- */
 
-type Saved = Pick<Investor, 'stage' | 'lastTouch' | 'maxStage'>
-/** What a move writes (same rule as saving in the drawer: lastTouch today, maxStage only ever rises). */
-export function applyMove(prev: InvestorFields & { maxStage: PipelineStage }, to: Stage, today: string) {
+type Saved = Pick<Investor, 'stage' | 'lastTouch' | 'maxStage' | 'parkedUntil'>
+/**
+ * What a move writes (same rule as saving in the drawer: lastTouch today, maxStage only ever rises).
+ * PST-290: parking from the drawer or ⌘K also sets the day they come back (null: no day);
+ * other moves leave the date alone.
+ */
+export function applyMove(prev: InvestorFields & { maxStage: PipelineStage }, to: Stage, today: string, parkedUntil?: string | null) {
   const r = applySave(prev, { ...prev, stage: to }, today)
-  return { patch: { stage: to, lastTouch: r.lastTouch, maxStage: r.maxStage } satisfies Saved, logStage: r.logStage }
+  const patch: Saved = { stage: to, lastTouch: r.lastTouch, maxStage: r.maxStage, ...(parkedUntil !== undefined ? { parkedUntil: parkedUntil ?? undefined } : {}) }
+  return { patch, logStage: r.logStage }
 }
 
 /** Enough to put a moved card back exactly as it was. */
-export type MoveRecord = { id: string; to: Stage; from: { stage: Stage; lastTouch?: string; maxStage: PipelineStage }; activityId?: string | null }
+export type MoveRecord = { id: string; to: Stage; from: { stage: Stage; lastTouch?: string; maxStage: PipelineStage; parkedUntil?: string | null }; activityId?: string | null }
 
 /** Undo patch, or null when the card has moved again since (another tab or another drop). */
 export function applyUndo(current: Pick<Investor, 'stage'>, rec: MoveRecord): Saved | null {
   if (current.stage !== rec.to) return null
-  return { stage: rec.from.stage, lastTouch: rec.from.lastTouch, maxStage: rec.from.maxStage }
+  return { stage: rec.from.stage, lastTouch: rec.from.lastTouch, maxStage: rec.from.maxStage, ...('parkedUntil' in rec.from ? { parkedUntil: rec.from.parkedUntil ?? undefined } : {}) }
 }
 
 /* ---------- column contents ---------- */

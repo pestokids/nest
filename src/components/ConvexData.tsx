@@ -3,6 +3,7 @@ import { useMemo, type ReactNode } from 'react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { applyMove, applyUndo } from '../lib/board'
+import { hideTouch, showAdvance, showTouch } from './optimistic'
 import { todayIST } from '../lib/dates'
 import { NO_GOOGLE, withContact, type GoogleData } from '../lib/google'
 import { DEFAULT_ROUND } from '../lib/round'
@@ -38,11 +39,12 @@ export function ConvexData({ children }: { children: ReactNode }) {
   const acts = useQuery(api.activities.recent)
   const settings = useQuery(api.settings.get)
   const upsert = useMutation(api.investors.upsert)
-  const advance = useMutation(api.investors.advance)
+  // PST-290: a stage move shows at once too.
+  const advance = useMutation(api.investors.advance).withOptimisticUpdate((store, a) => showAdvance(store, a))
   // Board moves show at once; Convex replaces the guess with the saved row.
-  const move = useMutation(api.investors.move).withOptimisticUpdate((store, { id, stage }) => {
+  const move = useMutation(api.investors.move).withOptimisticUpdate((store, { id, stage, parkedUntil }) => {
     const list = store.getQuery(api.investors.list, {})
-    if (list) store.setQuery(api.investors.list, {}, list.map((i) => (i._id === id ? { ...i, ...applyMove(i, stage, todayIST()).patch } : i)))
+    if (list) store.setQuery(api.investors.list, {}, list.map((i) => (i._id === id ? { ...i, ...applyMove(i, stage, todayIST(), stage === 'parked' ? parkedUntil : undefined).patch } : i)))
   })
   const undoMove = useMutation(api.investors.undoMove).withOptimisticUpdate((store, rec) => {
     const list = store.getQuery(api.investors.list, {})
@@ -52,7 +54,9 @@ export function ConvexData({ children }: { children: ReactNode }) {
       return back ? { ...i, ...back } : i
     }))
   })
-  const logNote = useMutation(api.investors.logNote)
+  const logNote = useMutation(api.investors.logNote).withOptimisticUpdate((store, a) => showTouch(store, a, me))
+  const logTouch = useMutation(api.investors.logTouch).withOptimisticUpdate((store, a) => showTouch(store, a, me))
+  const undoTouch = useMutation(api.investors.undoTouch).withOptimisticUpdate((store, a) => hideTouch(store, a))
   const remove = useMutation(api.investors.remove)
   const importMany = useMutation(api.investors.importMany)
   const updateRound = useMutation(api.settings.update)
@@ -152,13 +156,16 @@ export function ConvexData({ children }: { children: ReactNode }) {
       me,
       save: (id, fields) => upsert({ id: (id ?? undefined) as Id<'investors'> | undefined, fields }),
       advance: (id, next) => advance({ id: id as Id<'investors'>, next }),
-      move: async (id, stage) => {
-        const r = await move({ id: id as Id<'investors'>, stage })
+      move: async (id, stage, o) => {
+        const r = await move({ id: id as Id<'investors'>, stage, ...(o && 'parkedUntil' in o ? { parkedUntil: o.parkedUntil ?? null } : {}) })
         return { id, to: stage, from: r.from, activityId: r.activityId }
       },
       undoMove: (rec) =>
         undoMove({ id: rec.id as Id<'investors'>, to: rec.to, from: rec.from, activityId: (rec.activityId ?? null) as Id<'activities'> | null }),
       logNote: (id, note, o) => logNote({ id: id as Id<'investors'>, note, touch: o?.touch, date: o?.date, next: o?.next }),
+      // PST-290
+      logTouch: (id, note, o) => logTouch({ id: id as Id<'investors'>, note, touch: o?.touch, date: o?.date, next: o?.next }),
+      undoTouch: (rec) => undoTouch({ id: rec.id as Id<'investors'>, activityId: rec.activityId as Id<'activities'>, from: rec.from, set: rec.set }),
       remove: (id) => remove({ id: id as Id<'investors'> }),
       importMany: (rows, file) => importMany({ rows, file }),
       updateRound: (round) => updateRound({ round }),
@@ -183,7 +190,7 @@ export function ConvexData({ children }: { children: ReactNode }) {
       brief,
       setBriefDismissed: (id, dismissed) => briefDismiss({ id: id as Id<'briefs'>, dismissed }),
     }),
-    [investors, withSignals, acts, settings, me, upsert, advance, move, undoMove, logNote, remove, importMany, updateRound, setTick, google, googleDo, suggestionRows, suggest, ai, aiDo, agents, agentsDo, askStart, brief, briefDismiss],
+    [investors, withSignals, acts, settings, me, upsert, advance, move, undoMove, logNote, logTouch, undoTouch, remove, importMany, updateRound, setTick, google, googleDo, suggestionRows, suggest, ai, aiDo, agents, agentsDo, askStart, brief, briefDismiss],
   )
   return (
     <RaiseContext.Provider value={value}>
