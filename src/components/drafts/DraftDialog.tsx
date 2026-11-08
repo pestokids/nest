@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { todayIST } from '../../lib/dates'
 import {
-  blanks, DRAFT_TYPES, draftTitle, hasLinkSlot, isEmail, pickType, recipientFor, TWEAK_LABEL, TWEAKS, TYPE_LABEL, whatsappUrl,
+  AI_DRAFT_TYPES, blanks, draftTitle, hasLinkSlot, isAiType, isEmail, pickType, recipientFor, TWEAK_LABEL, TWEAKS, TYPE_LABEL, whatsappUrl,
   type DraftInput, type DraftType, type Tweak,
 } from '../../lib/drafts'
 import { cents, NO_AI_KEY } from '../../lib/enrich'
@@ -101,7 +101,7 @@ export function DraftDialog({ start, investor, onClose }: { start: DraftOpen; in
       setCost(saved.costUsd)
       setVia(saved.status === 'copied' ? (saved.via === 'whatsapp' ? 'whatsapp' : 'copy') : null)
       setSent(saved.status === 'sent')
-      setPhase(info.aiReady ? 'ready' : 'nokey')
+      setPhase(info.aiReady || !isAiType(saved.type) ? 'ready' : 'nokey')
       return
     }
     setTo(recipientFor(type, info.contact, info.warm)?.email ?? '')
@@ -219,7 +219,7 @@ export function DraftDialog({ start, investor, onClose }: { start: DraftOpen; in
       </h2>
 
       <div className="draft__types" role="group" aria-label="What to write">
-        {DRAFT_TYPES.map((t) => (
+        {AI_DRAFT_TYPES.map((t) => (
           <button key={t} type="button" className={'draft-chip' + (t === type ? ' is-on' : '')} aria-pressed={t === type} disabled={writing && t !== type} onClick={() => pick(t)}>
             {TYPE_LABEL[t]}
           </button>
@@ -285,10 +285,10 @@ export function DraftDialog({ start, investor, onClose }: { start: DraftOpen; in
 
       <p className="draft__caption">
         {n ? <strong>{n === 1 ? '1 blank' : n + ' blanks'} to fill ([__]). </strong> : null}
-        Numbers come from your notes and Materials. Nest never makes them up; check before sending.
+        {isAiType(type) ? 'Numbers come from your notes and Materials. Nest never makes them up; check before sending.' : 'Amount, cap and dates come from Close and Settings. Nothing is guessed.'}
       </p>
 
-      {phase !== 'nokey' && !sent ? (
+      {phase !== 'nokey' && !sent && isAiType(type) ? (
         <div className="draft__tweaks" role="group" aria-label="Rewrite it">
           {TWEAKS.filter((t) => t !== 'deck' || info?.hasDeck).map((t) => (
             <button key={t} type="button" className="draft-chip draft-chip--tweak" disabled={writing || phase === 'failed' || !body.trim()} onClick={() => void write(type, t)}>

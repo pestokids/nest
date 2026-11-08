@@ -2,17 +2,19 @@
 // money ladder, the five rungs and the closing table with each row's next action.
 import { Link } from '@tanstack/react-router'
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { ACTION_LABEL, ladder, RUNG_LABEL, RUNGS, safeStatus, termsLine, wireStatus, type CloseRow, type Rung } from '../../lib/close'
+import { ACTION_LABEL, ladder, RUNG_LABEL, RUNGS, safeStatus, stepMap, termsLine, wireStatus, type CloseRow, type Rung } from '../../lib/close'
+import { closeDue, dueText, istParts, oversubscribed, trancheOf } from '../../lib/closeKit'
 import { dayDiff, todayIST } from '../../lib/dates'
 import { longDay, subLine } from '../../lib/investorView'
 import { money } from '../../lib/money'
 import { rise, useCountUp, useInView } from '../../lib/motion'
-import { closePreview } from '../../preview/closeFixture'
+import { closePreview, isKitState } from '../../preview/closeFixture'
 import { useRaise } from '../data'
 import { useUI } from '../raise-ui'
 import { Button, buttonClass, Chip, type ChipTone } from '../ui'
 import { useClose } from './CloseData'
 import { ClosingPanel } from './ClosingPanel'
+import { openCloseKit } from './openKit'
 import { RecordDialog } from './RecordDialog'
 import { ReminderDialog } from './ReminderDialog'
 import { useTick } from './useTick'
@@ -35,6 +37,15 @@ export function Overview() {
   const [open, setOpen] = useState<Open>(null)
   const row = open ? l.rows.find((r) => r.investor._id === open.investorId) : undefined
 
+  // ?preview&close=kit|kit-sent (PST-291): the Close kit on Heron Angels, once.
+  useEffect(() => {
+    const p = closePreview()
+    const heron = l.rows.find((r) => r.investor.name === 'Heron Angels')
+    if (previewDialogShown || !isKitState(p) || !heron) return
+    previewDialogShown = true
+    openCloseKit(heron.investor._id)
+  }, [l.rows])
+
   // ?preview&close=record|status|remind: open that dialog once, on Marigold (or the first to record).
   useEffect(() => {
     const p = closePreview()
@@ -46,6 +57,7 @@ export function Overview() {
   }, [l.rows])
 
   const act = (r: CloseRow, el: HTMLElement) => {
+    if (needsKit(r)) return openCloseKit(r.investor._id)
     if (r.action === 'confirm') return ui.open(r.investor._id)
     if (r.action === 'record') return setOpen({ kind: 'record', investorId: r.investor._id })
     if (r.action === 'remind') return setOpen({ kind: 'remind', investorId: r.investor._id })
@@ -72,18 +84,25 @@ export function Overview() {
         ))}
       </ul>
 
+      {oversubscribed(l.total, d.round.stretch) ? (
+        <section className="kit-over card m-rise" aria-label="Oversubscribed">
+          <div>
+            <p className="eyebrow-mono">Oversubscribed</p>
+            <p>
+              {money(l.total)} wanted against {money(d.round.stretch)} of room. Decide who gets what before anyone signs.
+            </p>
+          </div>
+          <Link to="/raise/close" search={{ view: 'allocation' }} className={buttonClass({ variant: 'primary' })}>
+            Allocate
+          </Link>
+        </section>
+      ) : null}
+      <DueSteps />
+
       <header className="close-head">
         <div>
           <h2>Commitments</h2>
           <p>Every number someone has said, from a soft circle to money in the bank.</p>
-        </div>
-        <div className="close-head__tools">
-          <Link to="/raise/close" search={{ view: 'captable' }} className={buttonClass({ variant: 'ghost' })}>
-            Cap table
-          </Link>
-          <Link to="/raise/close" search={{ view: 'modeller' }} className={buttonClass({ variant: 'secondary' })}>
-            Round modeller
-          </Link>
         </div>
       </header>
 
@@ -119,6 +138,7 @@ export function Overview() {
                 </span>
                 <span role="cell" className="close-td-terms">
                   {r.rung === 'soft' ? '–' : termsLine(r.closing ?? (d.round.cap ? { cap: d.round.cap, instrument: d.round.instrument } : null))}
+                  {r.closing && trancheOf(r.closing) === 2 ? <small className="kit-t2">Tranche 2</small> : null}
                 </span>
                 <span role="cell" className={`close-td-safe${safe.waiting ? ' is-waiting' : ''}`}>
                   {r.rung === 'soft' ? '–' : safe.text}
@@ -176,13 +196,49 @@ export function Overview() {
   )
 }
 
+/** PST-291: a verbal with nothing in writing yet: the row offers the Close kit before the SAFE. */
+const needsKit = (r: CloseRow) => r.rung === 'verbal' && !r.closing?.confirmationSentAt && !stepMap(r.closing).sent
+
 function RowAction({ row, onAct }: { row: CloseRow; onAct: (r: CloseRow, el: HTMLElement) => void }) {
   if (!row.action) return <span className="close-done">Money in</span>
+  if (needsKit(row))
+    return (
+      <Button variant="primary" size="sm" className="close-act" onClick={(e) => onAct(row, e.currentTarget)}>
+        Confirm in writing
+      </Button>
+    )
   const variant = row.action === 'record' || row.action === 'countersign' ? 'primary' : row.action === 'confirm' ? 'ghost' : 'secondary'
   return (
     <Button variant={variant} size="sm" className="close-act" onClick={(e) => onAct(row, e.currentTarget)}>
       {ACTION_LABEL[row.action]}
     </Button>
+  )
+}
+
+/** PST-291: close steps due today or overdue (the same list PST-297's Inbox reads), each opening the Close kit. */
+function DueSteps() {
+  const d = useRaise()
+  const c = useClose()
+  const [now] = useState(() => Date.now())
+  const due = useMemo(() => closeDue(now, { investors: d.investors, closings: c.closings, acts: d.acts }), [now, d.investors, c.closings, d.acts])
+  if (!due.length) return null
+  return (
+    <section className="kit-due card m-rise" aria-label="Close steps due">
+      <p className="eyebrow-mono">Due in the close · {due.length}</p>
+      <ul>
+        {due.map((x) => (
+          <li key={x.investorId + x.step}>
+            <span>
+              <strong>{x.name}</strong> · {x.label}
+            </span>
+            <span className="kit-due__when">{x.overdue ? 'Overdue · was due ' + istParts(x.dueAt).weekday + ' ' + istParts(x.dueAt).time : dueText({ key: x.step, done: false, dueAt: x.dueAt, projected: false }, now)}</span>
+            <Button size="sm" variant="secondary" onClick={() => openCloseKit(x.investorId)}>
+              Open kit
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }
 

@@ -16,7 +16,9 @@ import { randomToken } from './lib/token'
 import { siteOrigin } from './materials'
 import { vDraftType, vTweak } from './draftsSchema'
 import { vModel, vUsage } from './validators'
-import { blanks, firstLine, isEmail, LINK_SLOTS, mainContact, MAX_BODY, MAX_SUBJECT, touchNote, warmPathContact, type Known } from '../src/lib/drafts'
+import { blanks, firstLine, isAiType, isEmail, LINK_SLOTS, mainContact, MAX_BODY, MAX_SUBJECT, touchNote, warmPathContact, type Known } from '../src/lib/drafts'
+import { SAFE_LINK } from '../src/lib/closeKit'
+import { confirmationTarget, stampConfirmation } from './closings'
 import { fieldLabel, NO_AI_KEY } from '../src/lib/enrich'
 import { todayIST } from '../src/lib/dates'
 import { normEmail } from '../src/lib/google'
@@ -163,13 +165,16 @@ export const generate = action({
     current: v.optional(v.object({ subject: v.string(), body: v.string() })),
   },
   handler: async (ctx, a): Promise<{ draftId: Id<'drafts'>; subject: string; body: string; costUsd: number }> => {
+    // PST-291: the written confirmation and allocation emails are Close's fixed text, never Claude's.
+    if (!isAiType(a.type)) throw new ConvexError('Nest fills this one in from Close. Edit it by hand.')
+    const type = a.type
     if (!hasAIKey()) throw noKey()
     const c: DraftContext = await ctx.runQuery(internal.drafts.context, { investorId: a.investorId })
     if (a.tweak === 'deck' && !c.deck) throw new ConvexError('There’s no deck in Materials yet. Add it there, then Nest can link it.')
     const model = await ctx.runQuery(internal.enrich.modelOf, { feature: 'drafts' })
     let out
     try {
-      const r = await complete({ model, system: DRAFT_SYSTEM, prompt: draftPrompt(c, a.type, { tweak: a.tweak, current: a.current }), maxTokens: 2000 })
+      const r = await complete({ model, system: DRAFT_SYSTEM, prompt: draftPrompt(c, type, { tweak: a.tweak, current: a.current }), maxTokens: 2000 })
       out = { ...parseDraft(r.text), costUsd: r.costUsd, usage: usageRow(r.usage) }
     } catch (e) {
       if (e instanceof NoAIKey) throw noKey()
@@ -262,8 +267,11 @@ export const markSent = mutation({
     const d = await ctx.db.get(draftId)
     if (!d) throw new ConvexError('That draft was deleted')
     if (d.status === 'sent') return { logged: false }
-    await ctx.db.patch(draftId, { status: 'sent', sentAt: Date.now() })
+    const at = Date.now()
+    await ctx.db.patch(draftId, { status: 'sent', sentAt: at })
     await logTouch(ctx, userId, d)
+    // PST-291: a written confirmation that went starts the 48-hour offer.
+    if (d.type === 'confirm') await stampConfirmation(ctx, userId, d.investorId, at)
     return { logged: true }
   },
 })
@@ -279,6 +287,8 @@ export const prepareSend = internalMutation({
     if (!c.body) throw new ConvexError('Write the message first.')
     const n = blanks(c.subject + '\n' + c.body)
     if (n) throw new ConvexError('Fill in the ' + (n === 1 ? 'blank' : n + ' blanks') + ' ([__]) before sending.')
+    if (c.body.includes(SAFE_LINK)) throw new ConvexError('Paste the SAFE link in place of ' + SAFE_LINK + ' before sending.')
+    if (a.type === 'confirm') await confirmationTarget(ctx, a.investorId)
     const prev = a.draftId ? await ctx.db.get(a.draftId) : null
     if (prev?.status === 'sent') throw new ConvexError('This one has already gone. Start a new draft.')
     const body = await fillLinks(ctx, userId, a.investorId, c.body)
@@ -294,8 +304,11 @@ export const sentByEmail = internalMutation({
     const { userId } = await requireUser(ctx)
     const d = await ctx.db.get(draftId)
     if (!d || d.status === 'sent') return
-    await ctx.db.patch(draftId, { status: 'sent', via: 'nest', sentAt: Date.now() })
+    const at = Date.now()
+    await ctx.db.patch(draftId, { status: 'sent', via: 'nest', sentAt: at })
     await logTouch(ctx, userId, { ...d, via: 'nest' })
+    // PST-291: a written confirmation that went starts the 48-hour offer.
+    if (d.type === 'confirm') await stampConfirmation(ctx, userId, d.investorId, at)
   },
 })
 
@@ -312,6 +325,31 @@ export const send = action({
     }
     await ctx.runMutation(internal.drafts.sentByEmail, { draftId: p.draftId })
     return { draftId: p.draftId, to: p.to }
+  },
+})
+
+const MAX_MANY = 100
+
+/**
+ * PST-291: several drafts at once (Close › Allocation's "Draft N allocation
+ * emails"), each to the investor's main contact unless `to` names someone.
+ * Nothing is sent. Resolves with the new ids, in order.
+ */
+export const saveMany = mutation({
+  args: { drafts: v.array(v.object({ investorId: v.id('investors'), type: vDraftType, to: v.string(), subject: v.string(), body: v.string() })) },
+  handler: async (ctx, { drafts }) => {
+    const { userId } = await requireUser(ctx)
+    if (drafts.length > MAX_MANY) throw new ConvexError('That’s more than ' + MAX_MANY + ' drafts at once.')
+    const ids: Id<'drafts'>[] = []
+    for (const a of drafts) {
+      const inv = await ctx.db.get(a.investorId)
+      if (!inv) throw new ConvexError('One of those investors was deleted')
+      const c = clean(a)
+      const people = c.to ? [] : await ctx.db.query('people').withIndex('by_investor', (q) => q.eq('investorId', inv._id)).collect()
+      const to = c.to || mainContact(people, inv.email)?.email
+      ids.push(await ctx.db.insert('drafts', { investorId: inv._id, type: a.type, subject: c.subject, body: c.body, status: 'draft', costUsd: 0, createdAt: Date.now(), createdBy: userId, ...(to ? { to } : {}) }))
+    }
+    return ids
   },
 })
 

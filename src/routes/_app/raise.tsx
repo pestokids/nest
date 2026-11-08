@@ -9,6 +9,7 @@ import { UIContext, useAdvance, useFail, type OpenOptions, type UI } from '../..
 import { Button, buttonClass, Icon, SubTabs, useToast, type TabItem } from '../../components/ui'
 import { QandaHost } from '../../components/qanda/QandaHost'
 import { DraftHost } from '../../components/drafts/data'
+import { CloseKitHost } from '../../components/close/kitHost'
 import { PendingDeletes } from '../../lib/pendingDelete'
 import type { Investor } from '../../lib/pipeline'
 import { play } from '../../lib/sound'
@@ -181,6 +182,8 @@ function RaiseLayout() {
           {d.loaded ? <TargetHitWatcher /> : null}
           {d.loaded ? <QandaHost /> : null}
           {d.loaded ? <DraftHost /> : null}
+          {/* PST-291: the Close kit, from Close, the drawer or a move to Verbal. */}
+          {d.loaded ? <CloseKitHost /> : null}
         </div>
         {drawer ? null : (
           <button type="button" className="fab" aria-label="Add investor" onClick={() => open(null)}>

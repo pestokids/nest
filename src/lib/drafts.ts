@@ -4,9 +4,19 @@
 import { domainOf, isOurs, nameFromEmail, normEmail } from './google'
 import { COMMIT, type Stage } from './stages'
 
-export const DRAFT_TYPES = ['intro', 'followup', 'nudge', 'thanks', 'dataroom'] as const
+export const DRAFT_TYPES = ['intro', 'followup', 'nudge', 'thanks', 'dataroom', 'confirm', 'allocation'] as const
 export type DraftType = (typeof DRAFT_TYPES)[number]
-export const TYPE_LABEL: Record<DraftType, string> = { intro: 'Intro ask', followup: 'Follow-up', nudge: 'Nudge', thanks: 'Thank you', dataroom: 'Data room' }
+export const TYPE_LABEL: Record<DraftType, string> = {
+  intro: 'Intro ask', followup: 'Follow-up', nudge: 'Nudge', thanks: 'Thank you', dataroom: 'Data room', confirm: 'Written confirmation', allocation: 'Allocation',
+}
+/**
+ * The types Claude writes. PST-291: "confirm" (the written confirmation) and
+ * "allocation" are fixed templates from Close (src/lib/closeKit.ts): Nest fills
+ * in the amount, cap and dates from the records, and Claude never rewrites them.
+ */
+export const AI_DRAFT_TYPES = ['intro', 'followup', 'nudge', 'thanks', 'dataroom'] as const
+export type AiDraftType = (typeof AI_DRAFT_TYPES)[number]
+export const isAiType = (t: DraftType): t is AiDraftType => (AI_DRAFT_TYPES as readonly string[]).includes(t)
 
 /** The chips under the body: each regenerates the draft with one instruction. */
 export const TWEAKS = ['shorter', 'warmer', 'direct', 'deck'] as const
@@ -35,7 +45,7 @@ export const MAX_BODY = 6000
  * intro, an intro ask to the warm path; after a meeting, a follow-up (a nudge
  * when they've gone quiet); from a verbal yes on, a thank-you with the data room.
  */
-export function pickType(stage: Stage, o: { quiet?: boolean } = {}): DraftType {
+export function pickType(stage: Stage, o: { quiet?: boolean } = {}): AiDraftType {
   if (COMMIT.has(stage) || stage === 'passed') return 'thanks'
   if (stage === 'todo' || stage === 'ask' || stage === 'intro') return 'intro'
   if (o.quiet || stage === 'parked') return 'nudge'
@@ -113,6 +123,8 @@ export function draftTitle(type: DraftType, investor: string, warm?: Recipient |
     case 'nudge': return 'Nudge ' + investor
     case 'thanks': return 'Thank ' + investor
     case 'dataroom': return 'Share the data room with ' + investor
+    case 'confirm': return 'Confirm ' + investor + ' in writing'
+    case 'allocation': return 'Allocation for ' + investor
   }
 }
 

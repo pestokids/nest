@@ -9,7 +9,7 @@
 //   nokey     "AI isn't set up here" (no ANTHROPIC_API_KEY): write it yourself, Copy and Send still work
 //   noemail   Send hidden (no RESEND_API_KEY)              copied    after Copy, with "I sent it"
 //   failed    Claude failed (Try again)                    history   the drawer's History with the last drafts
-import { DECK_LINK, type Draft, type DraftType, type Known, type Tweak } from '../lib/drafts'
+import { DECK_LINK, type AiDraftType, type Draft, type DraftType, type Known, type Tweak } from '../lib/drafts'
 import type { Investor } from '../lib/pipeline'
 
 export const PREVIEW_DRAFTS = ['followup', 'intro', 'blurb', 'nudge', 'thanks', 'dataroom', 'writing', 'nokey', 'noemail', 'copied', 'failed', 'history'] as const
@@ -45,7 +45,7 @@ const fit = (i: Investor) => [
   'They write early checks of about [__], which fits the round.',
 ]
 
-function base(type: DraftType, i: Investor, deck: string, dataRoom: string): { subject: string; paras: string[] } {
+function base(type: AiDraftType, i: Investor, deck: string, dataRoom: string): { subject: string; paras: string[] } {
   const hi = 'Hi ' + (HI[i.name] ?? 'there') + ','
   switch (type) {
     case 'followup':
@@ -85,7 +85,7 @@ function base(type: DraftType, i: Investor, deck: string, dataRoom: string): { s
 }
 
 /** The preview's "Claude": fixed text per type, changed by a tweak the way Claude would. */
-export function previewDraftText(o: { type: DraftType; investor: Investor; tweak?: Tweak; current?: { subject: string; body: string }; deck: string; dataRoom: string }) {
+export function previewDraftText(o: { type: AiDraftType; investor: Investor; tweak?: Tweak; current?: { subject: string; body: string }; deck: string; dataRoom: string }) {
   const b = base(o.type, o.investor, o.deck, o.dataRoom)
   let paras = o.current?.body.trim() ? o.current.body.trim().split(/\n{2,}/) : b.paras
   const subject = o.current?.subject.trim() || b.subject

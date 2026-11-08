@@ -6,10 +6,19 @@
 //   captable     the cap table after the close          nocaptable  no founder shares entered yet
 //   closed       every SAFE wired (the "Round closed" banner)
 //   empty        nobody in Verbal yet
+// PST-291:
+//   kit          the Close kit on Heron Angels, verbal today: the written confirmation to send
+//   kit-sent     … the confirmation went two hours ago: the 48-hour offer is running
+//   allocation   oversubscribed ($2.05M wanted, $1.5M of room): Close › Allocation
+//   tranche2     … with tranche 2 set up at a $20M cap, Bramble Capital in it
 import type { CapTable, Closing, Step, StepKey } from '../lib/close'
+import type { Allocation, Tranche2 } from '../lib/closeKit'
 import type { Investor } from '../lib/pipeline'
 
-export const PREVIEW_CLOSE = ['default', 'record', 'status', 'remind', 'modeller', 'captable', 'nocaptable', 'closed', 'empty'] as const
+export const PREVIEW_CLOSE = ['default', 'record', 'status', 'remind', 'modeller', 'captable', 'nocaptable', 'closed', 'empty', 'kit', 'kit-sent', 'allocation', 'tranche2'] as const
+/** PST-291: the states that add Heron Angels (verbal today), and the oversubscribed ones. */
+export const isKitState = (s: PreviewClose | null) => s === 'kit' || s === 'kit-sent'
+export const isAllocState = (s: PreviewClose | null) => s === 'allocation' || s === 'tranche2'
 export type PreviewClose = (typeof PREVIEW_CLOSE)[number]
 
 const ON = import.meta.env.DEV || import.meta.env.VITE_PREVIEW_MODE === '1'
@@ -46,6 +55,10 @@ export function fixtureCloseInvestors(today: string, state: PreviewClose): Inves
     { name: 'Neel Ember', firm: '', type: 'Angel', warmth: 'warm', path: 'Ria', stage: closed ? 'wired' : 'signed', committed: 75000, expected: 75000, nextStep: 'Look out for the wire', nextDate: d(2), lastTouch: d(-3), email: 'neel@ember.example.com' },
     closed ? null : { name: 'Ravi Thistle', firm: '', type: 'Angel', warmth: 'warm', path: 'Mira (operator)', stage: 'dd', expected: 25000, nextStep: 'Confirm the amount', nextDate: d(2), lastTouch: d(-1) },
     closed ? null : { name: 'Wren Partners', firm: 'Wren Partners', type: 'Micro-VC', warmth: 'intro', path: 'Ankur', stage: 'm2', expected: 125000, nextStep: 'Partner call', nextDate: d(3), lastTouch: d(-2) },
+    isKitState(state) ? { name: 'Heron Angels', firm: 'Heron Angels', type: 'Angel', warmth: 'warm', path: 'Ria', stage: 'verbal', committed: 150000, expected: 150000, nextStep: 'Confirm in writing', nextDate: d(0), lastTouch: d(0), email: 'sam@heron.example.com' } : null,
+    isAllocState(state) ? { name: 'Alder Partners', firm: 'Alder Partners', type: 'Pre-seed fund', warmth: 'warm', path: 'Ankur', stage: 'verbal', lead: true, committed: 600000, expected: 600000, nextStep: 'Agree the allocation', nextDate: d(0), lastTouch: d(-1), email: 'lena@alder.example.com' } : null,
+    isAllocState(state) ? { name: 'Lumen Ventures', firm: 'Lumen Ventures', type: 'Micro-VC', warmth: 'intro', path: 'Mira', stage: 'dd', expected: 500000, nextStep: 'Partner vote', nextDate: d(1), lastTouch: d(-1), email: 'deals@lumen.example.com' } : null,
+    isAllocState(state) ? { name: 'Sorrel Capital', firm: 'Sorrel Capital', type: 'Seed fund', warmth: 'intro', path: 'Ria', stage: 'm2', expected: 400000, nextStep: 'Second meeting notes', nextDate: d(2), lastTouch: d(-2), email: 'team@sorrel.example.com' } : null,
   ]
   return rows.flatMap((r, i) =>
     r
@@ -60,8 +73,8 @@ export function fixtureCloseInvestors(today: string, state: PreviewClose): Inves
 const steps = (xs: [StepKey, string][]): Step[] => xs.map(([key, at]) => ({ key, at }))
 const terms = { instrument: 'post-money SAFE', cap: 16000000, proRata: false, mfn: false }
 
-/** The closing records and cap table for a preview state. */
-export function fixtureCloseStore(today: string, state: PreviewClose): { closings: Closing[]; capTable: CapTable | null } {
+/** The closing records, cap table, tranche 2 and allocation rows for a preview state. */
+export function fixtureCloseStore(today: string, state: PreviewClose, now = Date.now()): { closings: Closing[]; capTable: CapTable | null; tranche2: Tranche2 | null; allocations: Allocation[] } {
   const d = (n: number) => add(today, n)
   const all = (from: number): Step[] => steps([['sent', d(from)], ['viewed', d(from + 1)], ['signed', d(from + 2)], ['countersigned', d(from + 3)], ['wireSent', d(from + 3)], ['wired', d(from + 5)]])
   const closed = state === 'closed'
@@ -87,9 +100,24 @@ export function fixtureCloseStore(today: string, state: PreviewClose): { closing
           },
         ]
   if (closed) for (const c of closings) c.signedUrl ??= `https://files.example.com/safes/${c._id}.pdf`
+  if (state === 'kit-sent') closings.push({ _id: 'pc7', investorId: 'fxc7', amount: 150000, ...terms, signerName: 'Sam Heron', signerEmail: 'sam@heron.example.com', steps: [], confirmationSentAt: now - 2 * 3600_000 })
+  if (isAllocState(state)) closings.push({ _id: 'pc8', investorId: 'fxc8', amount: 600000, ...terms, proRata: true, signerName: 'Lena Alder', steps: [], confirmationSentAt: now - 26 * 3600_000, acceptedAt: now - 20 * 3600_000 })
+  const tranche2 = state === 'tranche2' ? { cap: 20000000 } : null
+  if (tranche2) for (const c of closings) if (c._id === 'pc3') Object.assign(c, { tranche: 2, cap: tranche2.cap })
+  const allocations: Allocation[] = isAllocState(state)
+    ? [
+        { investorId: 'fxc8', gets: 600000, why: 'Leading the round' },
+        { investorId: 'fxc9', gets: 350000, why: 'Second offer, same week' },
+        { investorId: 'fxc10', gets: 200000, why: 'Late to the race' },
+        { investorId: 'fxc0', why: 'In early, sent two intros' },
+        { investorId: 'fxc1', why: 'Introducer, kids operator' },
+        { investorId: 'fxc3', gets: 50000, why: 'Strategic: parent network' },
+        { investorId: 'fxc6', gets: 0, why: 'Came in last; next round' },
+      ]
+    : []
   const capTable: CapTable | null =
     state === 'nocaptable'
       ? null
       : { founders: [{ name: 'Dev', shares: 4500000 }, { name: 'Sam', shares: 4500000 }], optionPool: 1000000, safes: [{ name: 'Friends and family SAFE', amount: 50000, cap: 6000000 }] }
-  return { closings, capTable }
+  return { closings, capTable, tranche2, allocations }
 }

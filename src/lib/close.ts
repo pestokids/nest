@@ -34,7 +34,15 @@ export type ClosingTerms = {
   signerName?: string
   signerEmail?: string
 }
-export type Closing = ClosingTerms & { _id: string; investorId: string; steps: Step[] }
+/** PST-291: questionnaire status; absent means not sent yet. */
+export type Questionnaire = 'sent' | 'received'
+/**
+ * PST-291 (all optional): the tranche (absent = 1), when the written
+ * confirmation went (starts the 48-hour offer), when they accepted (epoch ms),
+ * and the investor questionnaire. See src/lib/closeKit.ts.
+ */
+export type ClosingKit = { tranche?: number; confirmationSentAt?: number; acceptedAt?: number; questionnaire?: Questionnaire }
+export type Closing = ClosingTerms & ClosingKit & { _id: string; investorId: string; steps: Step[] }
 
 /**
  * Each step, the step that has to be ticked before it, and whether it can be
@@ -450,15 +458,16 @@ export const isAngel = (type: string) => type === 'Angel' || type === 'Large ang
  * The SAFEs a scenario models: every commitment at the scenario's cap and
  * discount (pro-rata and MFN per investor), then either the money still to
  * raise as one more SAFE, or, when oversubscribed, the commitments cut to fit.
+ * PST-291: a commitment with its own `cap` (tranche 2) keeps it; the scenario's cap is tranche 1's.
  */
 export function scenarioSafes(
-  commitments: { id: string; name: string; amount: number; angel: boolean; proRata?: boolean; mfn?: boolean }[],
+  commitments: { id: string; name: string; amount: number; angel: boolean; proRata?: boolean; mfn?: boolean; cap?: number }[],
   { cap, discount, raise }: { cap: number; discount?: number; raise: number },
 ): { safes: Safe[]; cut: Cut[] | null; gap: number } {
   const total = commitments.reduce((a, c) => a + c.amount, 0)
   const cut = total > raise ? suggestCut(commitments, raise) : null
   const amountOf = (id: string, a: number) => cut?.find((c) => c.id === id)?.to ?? a
-  const safes: Safe[] = commitments.map((c) => ({ id: c.id, name: c.name, amount: amountOf(c.id, c.amount), cap, discount, mfn: c.mfn, proRata: c.proRata, angel: c.angel }))
+  const safes: Safe[] = commitments.map((c) => ({ id: c.id, name: c.name, amount: amountOf(c.id, c.amount), cap: c.cap ?? cap, discount, mfn: c.mfn, proRata: c.proRata, angel: c.angel }))
   const gap = Math.max(0, raise - total)
   if (gap > 0) safes.push({ id: 'gap', name: 'Still to raise', amount: gap, cap, discount })
   return { safes, cut, gap }

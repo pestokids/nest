@@ -14,6 +14,7 @@ import { useSaveAction } from '../system/useSaveAction'
 import { Button, buttonClass, Icon, Input } from '../ui'
 import { useClose } from './CloseData'
 import { useTick } from './useTick'
+import { openCloseKit } from './openKit'
 
 export function ClosingPanel({ row, onClose, onRecord, onRemind }: { row: CloseRow; onClose: () => void; onRecord: () => void; onRemind: () => void }) {
   const d = useRaise()
@@ -48,6 +49,9 @@ export function ClosingPanel({ row, onClose, onRecord, onRemind }: { row: CloseR
               {remind === 'sign' ? 'Send a reminder' : 'Remind about the wire'}
             </Button>
           ) : null}
+          <Button variant="secondary" onClick={() => openCloseKit(investor._id)}>
+            Close kit
+          </Button>
           {closing?.requestUrl ? (
             <a className={buttonClass({ variant: 'secondary' })} href={closing.requestUrl} target="_blank" rel="noopener noreferrer">
               Open the signing request

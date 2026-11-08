@@ -6,7 +6,9 @@ import { useAction, useMutation, useQuery } from 'convex/react'
 import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react'
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
-import { BLANK, blanks, DATA_ROOM_LINK, DECK_LINK, isEmail, LINK_SLOTS, mainContact, warmPathContact, type Draft, type DraftInput, type DraftType, type Generated, type InvestorDrafts, type Known, type Tweak } from '../../lib/drafts'
+import { BLANK, blanks, DATA_ROOM_LINK, DECK_LINK, isAiType, isEmail, LINK_SLOTS, mainContact, warmPathContact, type Draft, type DraftInput, type DraftType, type Generated, type InvestorDrafts, type Known, type Tweak } from '../../lib/drafts'
+import { SAFE_LINK } from '../../lib/closeKit'
+import { previewConfirmSent } from '../close/CloseData'
 import { NO_AI_KEY } from '../../lib/enrich'
 import { normEmail } from '../../lib/google'
 import { linkState, shareUrl, type MaterialKind } from '../../lib/materials'
@@ -46,6 +48,8 @@ export type DraftsValue = {
   /** "I sent it": the touch, once. */
   markSent: (draftId: string) => Promise<{ logged: boolean }>
   send: (d: DraftInput) => Promise<{ draftId: string; to: string }>
+  /** PST-291: several drafts at once (allocation emails), each to the investor's main contact when `to` is empty. Nothing is sent. */
+  saveMany: (ds: Omit<DraftInput, 'draftId'>[]) => Promise<string[]>
 }
 
 const DraftsContext = createContext<DraftsValue | null>(null)
@@ -79,6 +83,7 @@ function ConvexDrafts({ children }: { children: ReactNode }) {
   const copied = useMutation(api.drafts.copied)
   const markSent = useMutation(api.drafts.markSent)
   const send = useAction(api.drafts.send)
+  const saveMany = useMutation(api.drafts.saveMany)
   const value = useMemo<DraftsValue>(
     () => ({
       useInvestorDrafts,
@@ -87,8 +92,9 @@ function ConvexDrafts({ children }: { children: ReactNode }) {
       copied: (d, via) => copied({ ...ids(d), via }),
       markSent: (draftId) => markSent({ draftId: draftId as Id<'drafts'> }),
       send: (d) => send(ids(d)),
+      saveMany: (ds) => saveMany({ drafts: ds.map((d) => ({ ...d, investorId: d.investorId as Id<'investors'> })) }),
     }),
-    [generate, save, copied, markSent, send],
+    [generate, save, copied, markSent, send, saveMany],
   )
   return <DraftsContext.Provider value={value}>{children}</DraftsContext.Provider>
 }
@@ -177,13 +183,17 @@ function PreviewDrafts({ state, children }: { state: PreviewDrafts | null; child
     const touch = (id: string) => {
       const x = find(id)
       if (!x || x.status === 'sent') return false
-      writeDrafts((xs) => xs.map((y) => (y._id === id ? { ...y, status: 'sent', sentAt: Date.now() } : y)))
+      const at = Date.now()
+      writeDrafts((xs) => xs.map((y) => (y._id === id ? { ...y, status: 'sent', sentAt: at } : y)))
+      if (x.type === 'confirm') previewConfirmSent(x.investorId, at)
       void d.logNote(x.investorId, (x.via === 'whatsapp' ? 'On WhatsApp: ' : '') + x.subject, { touch: x.via === 'whatsapp' ? 'note' : 'email' })
       return true
     }
     return {
       useInvestorDrafts: usePreviewInvestorDrafts,
       generate: async (i) => {
+        if (!isAiType(i.type)) return reject('Nest fills this one in from Close. Edit it by hand.')
+        const type = i.type
         if (state === 'nokey') return Promise.reject({ data: { code: NO_AI_KEY, message: 'AI isn’t set up here.' } })
         if (state === 'writing') return new Promise<never>(() => {})
         await wait(state === 'failed' ? 600 : 900)
@@ -192,7 +202,7 @@ function PreviewDrafts({ state, children }: { state: PreviewDrafts | null; child
         if (!inv) return reject('That investor was deleted')
         const deck = linkOf(inv._id, 'deck')
         if (i.tweak === 'deck' && !deck.has) return reject('There’s no deck in Materials yet. Add it there, then Nest can link it.')
-        const text = previewDraftText({ type: i.type, investor: inv, tweak: i.tweak, current: i.current, deck: deck.url ?? DECK_LINK, dataRoom: linkOf(inv._id, 'data-room').url ?? DATA_ROOM_LINK })
+        const text = previewDraftText({ type, investor: inv, tweak: i.tweak, current: i.current, deck: deck.url ?? DECK_LINK, dataRoom: linkOf(inv._id, 'data-room').url ?? DATA_ROOM_LINK })
         const prev = find(i.draftId)
         const reuse = prev && prev.status !== 'sent' ? prev : undefined
         const costUsd = (reuse?.costUsd ?? 0) + 0.011
@@ -212,11 +222,24 @@ function PreviewDrafts({ state, children }: { state: PreviewDrafts | null; child
         if (!isEmail(to)) return reject('Add who it goes to: an email address.')
         const n = blanks(x.subject + '\n' + x.body)
         if (n) return reject('Fill in the ' + (n === 1 ? 'blank' : n + ' blanks') + ' (' + BLANK + ') before sending.')
+        if (x.body.includes(SAFE_LINK)) return reject('Paste the SAFE link in place of ' + SAFE_LINK + ' before sending.')
         if (find(x.draftId)?.status === 'sent') return reject('This one has already gone. Start a new draft.')
         await wait(700)
         const draftId = upsert({ ...x, to, body: fill(x.investorId, x.body.trim()) }, { via: 'nest' })
         touch(draftId)
         return { draftId, to }
+      },
+      saveMany: async (ds) => {
+        const made = ds.map((x, k) => {
+          const inv = d.investors.find((y) => y._id === x.investorId)
+          const to = normEmail(x.to) || normEmail(inv?.email)
+          return { ...x, _id: 'pd' + Date.now().toString(36) + k, to }
+        })
+        writeDrafts((xs) => [
+          ...made.map((x): Draft => ({ _id: x._id, investorId: x.investorId, type: x.type, subject: x.subject.trim(), body: x.body.trim(), status: 'draft', costUsd: 0, createdAt: Date.now(), ...(x.to ? { to: x.to } : {}) })),
+          ...xs,
+        ])
+        return made.map((x) => x._id)
       },
     }
   }, [d, linkOf, state])
