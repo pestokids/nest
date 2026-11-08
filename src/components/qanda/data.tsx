@@ -43,6 +43,9 @@ export type QandaActions = {
   matchUnmatched: (id: string, investorId: string) => Promise<unknown>
   dropUnmatched: (id: string) => Promise<unknown>
   restoreUnmatched: (id: string) => Promise<unknown>
+  /** PST-292: "Not the same" on a question Jev marked "Same as …" (Undo: restoreSame). */
+  notSame: (id: string) => Promise<unknown>
+  restoreSame: (id: string) => Promise<unknown>
 }
 
 export type QandaData = {

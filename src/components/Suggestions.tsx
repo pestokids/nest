@@ -41,7 +41,7 @@ export function Suggestions({ today }: { today: string }) {
   const ui = useUI()
   const save = useSaveAction()
   const preview = usePreviewState()
-  const [open, setOpen] = useState(() => ['all', 'tidy', 'agent'].includes(preview?.suggestions ?? ''))
+  const [open, setOpen] = useState(() => ['all', 'tidy', 'agent', 'jev'].includes(preview?.suggestions ?? ''))
 
   // Rows folding away, then hidden until their write lands.
   const [leaving, setLeaving] = useState<ReadonlyMap<string, Leaving>>(() => new Map())

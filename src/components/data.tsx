@@ -107,6 +107,8 @@ export type AIActions = {
   keepAll: (runId: string) => Promise<number>
   dismissAll: (runId: string) => Promise<number>
   setAuto: (patch: Partial<AISettings>) => Promise<unknown>
+  /** PST-292: Jev on or off, and its monthly cap in dollars. */
+  setJev: (patch: { on?: boolean; capUsd?: number }) => Promise<unknown>
   /** PST-273: the default model (no feature), or a feature's own (null: back to the default). */
   setModel: (feature: Feature | null, model: Model | null) => Promise<ModelChoice>
   /** Who's this?: a new investor (no id), or this person joins an existing one. Resolves with the investor's id. */

@@ -12,6 +12,7 @@ import { IDX, LABEL } from '../src/lib/stages'
 import { addressesOf, cleanDomains, cleanEmails, normEmail } from '../src/lib/google'
 import { internal } from './_generated/api'
 import { autoEnrich, forgetInvestor } from './lib/enrichQueue'
+import { checkDuplicatesLater } from './lib/jevHooks'
 import { forgetClosing } from './closings'
 import { forgetDrafts } from './drafts'
 
@@ -82,6 +83,8 @@ export async function saveInvestor(ctx: MutationCtx, userId: Id<'users'>, id: Id
   } else investorId = await ctx.db.insert('investors', doc)
   if (stage) await logStage(ctx, investorId, stage, userId, today)
   await rematchIfChanged(ctx, addressKey(prev), addressKey(body))
+  // PST-292: added or renamed: Jev checks it against the investors with a similar name.
+  if (!prev || prev.name !== body.name || prev.firm !== body.firm) await checkDuplicatesLater(ctx, investorId)
   return investorId
 }
 

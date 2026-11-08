@@ -3,6 +3,8 @@
 // email or meeting title wait here, one at a time, until Dev says whose they are
 // (they become that investor's note, and Nest reads them) or that they're not
 // about the round (Undo in the toast).
+// PST-292: when Jev picked one of the meeting's investors but wasn't sure enough to
+// attach the notes, the card says "Probably <name>" with a button to add them there.
 import { useMemo, useState } from 'react'
 import { todayIST } from '../../lib/dates'
 import { dayLabel } from '../../lib/investorView'
@@ -12,7 +14,7 @@ import { play } from '../../lib/sound'
 import { useRaise } from '../data'
 import { useUI } from '../raise-ui'
 import { useSaveAction } from '../system/useSaveAction'
-import { Badge, Card, Icon } from '../ui'
+import { Badge, Button, Card, Icon } from '../ui'
 import { useQanda } from './data'
 
 const SOURCE: Record<UnmatchedNote['source'], string> = { wispr: 'Wispr Flow', agent: 'an agent', paste: 'a paste' }
@@ -30,6 +32,7 @@ export function UnmatchedNotes() {
   const hide = (id: string, on: boolean) => setGone((s) => (on ? new Set(s).add(id) : new Set([...s].filter((x) => x !== id))))
   const today = todayIST()
   const preview = noteLines(u.text).slice(0, 2).map((l) => l.text)
+  const hinted = u.hint ? d.investors.find((i) => i._id === u.hint!.investorId) : undefined
 
   const link = (investorId: string) => {
     const i = d.investors.find((x) => x._id === investorId)
@@ -84,8 +87,14 @@ export function UnmatchedNotes() {
             {l}
           </p>
         ))}
+        {hinted ? <p className="gwho__meet nr-unmatched__hint">Probably {hinted.name}</p> : null}
       </div>
       <div className="gwho__actions">
+        {hinted ? (
+          <Button variant="primary" onClick={() => link(hinted._id)}>
+            Add to {hinted.name}
+          </Button>
+        ) : null}
         <button type="button" className="gask__text" onClick={drop}>
           Not about the round
         </button>

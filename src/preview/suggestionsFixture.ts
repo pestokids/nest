@@ -6,17 +6,19 @@ import type { Investor } from '../lib/pipeline'
 import type { CheckInput, SuggestionDraft } from '../lib/suggestions'
 import { addDays } from '../lib/today'
 
-/** &suggestions=all (the list open), tidy (cleared: "All tidy."), none (no card), agent (an agent's row arrives). */
-export const PREVIEW_SUGGESTIONS = ['default', 'all', 'tidy', 'none', 'agent'] as const
+/** &suggestions=all (the list open), tidy (cleared: "All tidy."), none (no card), agent (an agent's row arrives), jev (PST-292: a Duplicate Jev found). */
+export const PREVIEW_SUGGESTIONS = ['default', 'all', 'tidy', 'none', 'agent', 'jev'] as const
 export type PreviewSuggestions = (typeof PREVIEW_SUGGESTIONS)[number]
 
 const H = 36e5
 const D = 24 * H
 
-/** A second card for Lantern Ventures (a duplicate), and an intro with no next step. */
-export function fixtureSuggestionInvestors(today: string): Investor[] {
+/** A second card for Lantern Ventures (a duplicate), and an intro with no next step. PST-292 (`jev`): a misspelt second card for Juniper Seed. */
+export function fixtureSuggestionInvestors(today: string, jev = false): Investor[] {
   const base = { geo: 'India', lead: false, notes: '', source: 'Preview fixture' } as const
   return [
+    ...(jev ? [{ ...base, _id: 'fxs2', name: 'Junipr Seed', firm: 'Junipr Seed', type: 'Seed fund', warmth: 'cold', path: '', tier: 'C', wave: 3, stage: 'todo', maxStage: 'todo', nextStep: '' } as Investor] : []),
+
     { ...base, _id: 'fxs0', name: 'Lantern VC', firm: 'Lantern VC', type: 'Micro-VC', warmth: 'cold', path: '', tier: 'C', wave: 3, stage: 'todo', maxStage: 'todo', nextStep: '', notes: 'From an old angel list.' },
     {
       ...base, _id: 'fxs1', name: 'Tamarind Capital', firm: 'Tamarind Capital', type: 'Seed fund', warmth: 'warm', path: 'Mira', tier: 'B', wave: 1, stage: 'intro', maxStage: 'intro',
@@ -36,11 +38,19 @@ export function fixtureSuggestionMeetings(investors: readonly Investor[], now: n
   ]
 }
 
-/** An amount from call notes and enrichment facts to review: rows the checks don't make. */
+/** An amount from call notes and enrichment facts to review: rows the checks don't make. PST-292: Jev's Duplicate for a misspelt Juniper Seed. */
 export function fixtureExtraSuggestions(investors: readonly Investor[]): SuggestionDraft[] {
   const orchard = byName(investors, 'Orchard Capital')
   const juniper = byName(investors, 'Juniper Seed')
+  const junipr = byName(investors, 'Junipr Seed')
   return [
+    ...(juniper && junipr
+      ? [{
+          kind: 'duplicate' as const, investorId: juniper, otherInvestorId: junipr, title: 'Juniper Seed and “Junipr Seed” look like the same firm.', fix: 'Merge into Juniper Seed, keeping both histories',
+          patch: { op: 'merge' as const }, source: 'jev' as const, safe: false, key: 'jev:duplicate:' + [juniper, junipr].sort().join(':'),
+        }]
+      : []),
+
     ...(orchard
       ? [{
           kind: 'expected' as const, investorId: orchard, title: 'Orchard Capital said “around eighty” in yesterday’s call notes.', fix: 'Set Expected to $80K',

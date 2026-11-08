@@ -12,6 +12,7 @@ import { AIError, errorTag, extractJson, hasAIKey, NoAIKey, PRICES, research, us
 import { conform, SchemaError } from './lib/jsonSchema'
 import { factsFrom, investorPrompt, parseStep, senderPrompt, SYSTEM, vResearch } from './lib/research'
 import { aiSettings, CACHE_DAYS, capLeft, featureModel, modelChoice, pump, queue, syncReview } from './lib/enrichQueue'
+import { jevStatus } from './lib/jev'
 import { saveInvestor } from './investors'
 import { vNewFact, vStep, vVerdict } from './enrichSchema'
 import { vFeature, vModel, vUsage } from './validators'
@@ -100,14 +101,21 @@ export const data = query({
       const used = (lastRuns[k] as { usage?: RunUsage }[]).flatMap((r) => (r.usage ? [r.usage] : [])).slice(0, REAL_RUNS)
       features[k] = { month: rows[k].length, real: averageUsage(used) }
     }
+    // PST-292: Jev's month (its own model in the spend), and the people its pre-check said probably aren't investors.
+    const jev = await jevStatus(ctx, now)
+    const prechecked = []
+    for (const m of await ctx.db.query('jevMarks').withIndex('by_subject', (q) => q.eq('kind', 'who')).collect())
+      if (m.at >= now - CACHE_DAYS * DAY_MS) prechecked.push({ email: m.subject, likely: m.p })
     return {
       connected: hasAIKey(),
+      jev,
+      prechecked,
       settings: await aiSettings(ctx),
       models: await modelChoice(ctx),
       features,
       spend: { byModel, byFeature },
       month: {
-        usd: [...month, ...reads, ...asks, ...briefs, ...drafts].reduce((s, r) => s + r.costUsd, 0),
+        usd: [...month, ...reads, ...asks, ...briefs, ...drafts].reduce((s, r) => s + r.costUsd, 0) + jev.monthUsd,
         asks: asks.length,
         noteReads: reads.filter((r) => r.status !== 'reading').length,
         lookups: month.filter((r) => !r.investorId && !r.cached).length,

@@ -43,6 +43,13 @@
 //   &system=list-focus       the J/K focus ring on a list's second row (Investors, Pipeline, Today)
 //   &system=undo             a logged touch's toast with Undo
 //   &density=compact|comfortable  list density (⇧D), kept on this device
+//   ---------- PST-292: Jev ----------
+//   &ai=jev                  Settings › AI's Jev row set up (on, this month's spend of the cap) and Jev in the spend view
+//   &whos=prechecked         Who's this? with someone Jev said probably isn't an investor ("Look up anyway"; implies &google=connected)
+//   &suggestions=jev         a Duplicate Jev found (Juniper Seed and a misspelt second card)
+//   &notes=probably          Unmatched notes on Today with Jev's "Probably …" pick (Add to …)
+//   &qanda=jev               Q&A: a new question Jev marked "Same as …" one in the bank (Merge, Not the same)
+//   ---------- end PST-292 ----------
 //   &fail                    every write fails (save-failed toast with Retry)
 //   any unknown path         the 404, e.g. /nowhere?preview
 import { useEffect, useRef } from 'react'
@@ -105,6 +112,9 @@ export function Preview() {
   const extra = { loading: state.system === 'loading', mid: state.plan === 'mid', fail: q.has('fail'), insights: insights === 'default' || insights === 'behind' ? (insights as 'default' | 'behind') : undefined }
   const google: PreviewGoogle = (PREVIEW_GOOGLE as readonly string[]).includes(q.get('google') ?? '') ? (q.get('google') as PreviewGoogle) : drawer === 'emails' || q.get('qanda') === 'prep' || ask === 'prep' ? 'connected' : 'none'
   const ai: PreviewAI = (PREVIEW_AI as readonly string[]).includes(q.get('ai') ?? '') ? (q.get('ai') as PreviewAI) : 'default'
+  /* ---------- PST-292: &whos=prechecked (Jev's Who's this? pre-check) ---------- */
+  const whos = q.get('whos') === 'prechecked'
+  /* ---------- end PST-292 ---------- */
   return (
     <LocalSounds>
       <SessionContext.Provider value={session}>
@@ -115,9 +125,9 @@ export function Preview() {
             today={today}
             board={sessionStorage.getItem('nest_preview_board') === '1'}
             extra={extra}
-            google={google}
+            google={whos ? 'connected' : google}
             suggestions={suggestions}
-            ai={ai}
+            ai={whos ? 'prechecked' : ai}
             close={closePreview()}
             agents={agents}
             ask={ask}

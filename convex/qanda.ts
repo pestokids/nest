@@ -15,6 +15,7 @@ import type { Doc, Id } from './_generated/dataModel'
 import { firstName, requireUser } from './lib/access'
 import { vAskSource, type vSuggestionUndo } from './validators'
 import { startRead } from './lib/noteRead'
+import { checkRepeatLater } from './lib/jevHooks'
 import { isISODate, todayIST } from '../src/lib/dates'
 import { cleanQuestion, cleanTheme, guessTheme, LIMITS, needsAnswer, nextDeck, noteLines, sameText } from '../src/lib/qanda'
 
@@ -81,14 +82,19 @@ export const bank = query({
       return names.get(id)
     }
     const questions = []
-    for (const q of await ctx.db.query('questions').collect()) {
+    const all = await ctx.db.query('questions').collect()
+    const live = new Map(all.filter(isLive).map((q) => [q._id as string, q]))
+    for (const q of all) {
       if (!isLive(q)) continue
       const mine = asks.get(q._id) ?? []
+      // PST-292: Jev marked it "Same as …" another live question (Dev hasn't said no).
+      const mark = await ctx.db.query('jevMarks').withIndex('by_subject', (x) => x.eq('kind', 'same_question').eq('subject', q._id)).order('desc').first()
+      const same = mark && !mark.undoneAt && mark.target ? live.get(mark.target) : undefined
       const versions = []
       for (const x of q.answerVersions) versions.push({ text: x.text, at: x.at, by: await nameOf(x.by) })
       questions.push({
         _id: q._id, text: q.text, theme: q.theme, bestAnswer: q.bestAnswer, answerVersions: versions, slideRef: q.slideRef, onDeck: q.onDeck,
-        askedCount: mine.length, deckGap: q.deckGap, createdAt: q.createdAt, updatedAt: q.updatedAt,
+        askedCount: mine.length, deckGap: q.deckGap, createdAt: q.createdAt, updatedAt: q.updatedAt, ...(same ? { sameAs: { id: same._id, text: same.text } } : {}),
         asks: mine.map((a) => {
           const n = a.noteId ? noteById.get(a.noteId) : undefined
           const quote = n && a.noteLine !== undefined ? n.text.split(/\r?\n/)[a.noteLine]?.trim() : undefined
@@ -365,6 +371,8 @@ export const markLine = mutation({
     const questionId = same?._id ?? (await newQuestion(ctx, text))
     const askId = await ctx.db.insert('questionAsks', { questionId, investorId: note.investorId, date: note.date, source: 'notes', noteId, noteLine: line })
     await recount(ctx, questionId)
+    // PST-292: a new question from notes: does it repeat one in the bank?
+    if (!same) await checkRepeatLater(ctx, questionId)
     return { questionId, askId, created: !same }
   },
 })
@@ -423,6 +431,8 @@ export async function addNoteQuestions(ctx: MutationCtx, userId: Id<'users'>, no
       const id = await newQuestion(ctx, text)
       undo.created.push(id)
       q = (await ctx.db.get(id))!
+      // PST-292: does it repeat one in the bank?
+      await checkRepeatLater(ctx, id)
     }
     const noteLine = lineOf(note.text, it.quote)
     const asks = await asksOf(ctx, q._id)

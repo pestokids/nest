@@ -13,7 +13,8 @@ import { addDays } from './today'
 // PST-277 adds question and warm_path (from meeting notes).
 export const SUGGESTION_KINDS = ['stage', 'expected', 'missing_info', 'duplicate', 'next_step', 'question', 'warm_path', 'enrichment', 'touch', 'new_investor'] as const
 export type SuggestionKind = (typeof SUGGESTION_KINDS)[number]
-export const SUGGESTION_SOURCES = ['rule', 'calendar', 'gmail', 'notes', 'enrich', 'agent'] as const
+// PST-292 adds jev (Duplicate firms checked by Jev).
+export const SUGGESTION_SOURCES = ['rule', 'calendar', 'gmail', 'notes', 'enrich', 'agent', 'jev'] as const
 export type SuggestionSource = (typeof SUGGESTION_SOURCES)[number]
 export const SUGGESTION_STATUSES = ['open', 'accepted', 'dismissed'] as const
 export type SuggestionStatus = (typeof SUGGESTION_STATUSES)[number]
@@ -60,7 +61,7 @@ export const KIND_LABEL: Record<SuggestionKind, string> = {
   stage: 'Stage', expected: 'Expected', missing_info: 'Missing info', duplicate: 'Duplicate', next_step: 'Next step', question: 'Q&A', warm_path: 'Warm path', enrichment: 'Enrichment', touch: 'Touch',
   new_investor: 'New investor',
 }
-const SOURCE_LABEL: Record<Exclude<SuggestionSource, 'agent'>, string> = { rule: 'Nest', calendar: 'Calendar', gmail: 'Gmail', notes: 'Meeting notes', enrich: 'Enrich' }
+const SOURCE_LABEL: Record<Exclude<SuggestionSource, 'agent'>, string> = { rule: 'Nest', calendar: 'Calendar', gmail: 'Gmail', notes: 'Meeting notes', enrich: 'Enrich', jev: 'Jev' }
 /** "Calendar", "Grok Bot": shown as "From …". */
 export const sourceLabel = (s: Pick<Suggestion, 'source' | 'agentName'>) => (s.source === 'agent' ? s.agentName?.trim() || 'an agent' : SOURCE_LABEL[s.source])
 

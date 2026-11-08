@@ -10,6 +10,8 @@ import { draftTables } from './draftsSchema'
 import { askSettingsFields, askTables } from './askSchema'
 import { wisprTables } from './wisprSchema'
 import { feedbackTables } from './feedbackSchema' // PST-289
+// PST-292: Jev (jevRuns, jevCache, jevMarks; see jevSchema.ts).
+import { jevTables } from './jevSchema'
 import { roundFields, vGeo, vMeetingAnswer, vPipelineStage, vStage, vSyncSource, vTier, vTouch, vType, vWarmth, vWave } from './validators'
 import { vSuggestionKind, vSuggestionPatch, vSuggestionSource, vSuggestionStatus, vSuggestionUndo } from './validators'
 import { vAnswerVersion, vAskSource, vQuestionMerge } from './validators'
@@ -273,4 +275,7 @@ export default defineSchema({
   /* ---------- PST-289: Send feedback (feedback; see feedbackSchema.ts) ---------- */
   ...feedbackTables,
   /* ---------- end PST-289 ---------- */
+  /* ---------- PST-292: Jev (jevRuns, jevCache, jevMarks; see jevSchema.ts) ---------- */
+  ...jevTables,
+  /* ---------- end PST-292 ---------- */
 })

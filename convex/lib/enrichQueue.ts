@@ -6,6 +6,7 @@ import type { MutationCtx, QueryCtx } from '../_generated/server'
 import type { Doc, Id } from '../_generated/dataModel'
 import { internal } from '../_generated/api'
 import { hasAIKey } from './anthropic'
+import { precheckWho, type Invite } from './jevHooks'
 import { INVESTOR_STEPS, SENDER_STEPS } from './research'
 import { firmDomain, investorWrite } from '../../src/lib/enrich'
 import { todayIST } from '../../src/lib/dates'
@@ -153,19 +154,33 @@ export async function autoEnrich(ctx: MutationCtx, ids: Id<'investors'>[]) {
   }
 }
 
-/** New people in Who's this?: look each one up once when the toggle is on, within the daily cap. */
-export async function autoLookup(ctx: MutationCtx, emails: string[]) {
+/**
+ * New people in Who's this?: look each one up once when the toggle is on, within the daily cap.
+ * PST-292: `invites` (where each was met) lets Jev ask first whether they're likely an
+ * investor; the unlikely ones skip the lookup. Without Jev, everyone is looked up as before.
+ */
+export async function autoLookup(ctx: MutationCtx, emails: string[], invites: Record<string, Invite> = {}) {
   if (!emails.length || !hasAIKey() || !(await aiSettings(ctx)).lookups) return
   let left = await capLeft(ctx)
-  const since = Date.now() - CACHE_DAYS * DAY_MS
+  const fresh: string[] = []
   for (const raw of new Set(emails.map(normEmail))) {
-    if (!raw || isOurs(raw) || left <= 0) continue
-    const seen = await ctx.db.query('enrichRuns').withIndex('by_email', (q) => q.eq('email', raw).gte('startedAt', since)).collect()
-    if (seen.some((r) => r.status !== 'failed' && r.status !== 'stopped')) continue
+    if (!raw || isOurs(raw) || left <= 0 || (await lookedUp(ctx, raw))) continue
     left--
-    await queue(ctx, { email: raw, auto: true, ...(GENERIC_DOMAINS.has(domainOf(raw)) ? {} : { domain: domainOf(raw) }) })
+    fresh.push(raw)
   }
+  for (const email of await precheckWho(ctx, fresh, invites)) await queueSender(ctx, email)
 }
+
+/** Looked up in the last 30 days (a run that didn't fail or stop), or PST-292: Jev already said probably not. */
+export async function lookedUp(ctx: QueryCtx, email: string) {
+  const since = Date.now() - CACHE_DAYS * DAY_MS
+  const seen = await ctx.db.query('enrichRuns').withIndex('by_email', (q) => q.eq('email', email).gte('startedAt', since)).collect()
+  if (seen.some((r) => r.status !== 'failed' && r.status !== 'stopped')) return true
+  return !!(await ctx.db.query('jevMarks').withIndex('by_subject', (q) => q.eq('kind', 'who').eq('subject', email).gte('at', since)).first())
+}
+
+/** An automatic Who's this? lookup, by the firm's domain unless it's personal mail. */
+export const queueSender = (ctx: MutationCtx, email: string) => queue(ctx, { email, auto: true, ...(GENERIC_DOMAINS.has(domainOf(email)) ? {} : { domain: domainOf(email) }) })
 
 /** An investor was deleted: its people and facts go too. Its runs stay (they're this month's spend), unlinked, and stop if running. */
 export async function forgetInvestor(ctx: MutationCtx, id: Id<'investors'>) {

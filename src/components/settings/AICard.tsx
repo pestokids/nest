@@ -4,7 +4,10 @@
 // Convex's environment (ANTHROPIC_API_KEY); nothing here ever sees it.
 // PST-273: the Model section (a default model and each feature's own, with what a
 // run and a month at Dev's pace would cost) and this month's spend by model and feature.
+// PST-292: the Jev row (TypeSafe's yes/no model): on/off, this month's spend of its cap, the
+// cap itself and what it does. Jev shows in the spend view as its own model.
 import { useState } from 'react'
+import { JEV_MAX_CAP } from '../../lib/jev'
 import { cents, type AIData, type AISettings, type RecentRun } from '../../lib/enrich'
 import { todayIST } from '../../lib/dates'
 import { timeOf } from '../../lib/google'
@@ -113,7 +116,8 @@ export function AICard() {
           <span className="set-ai__counts">
             {plural(ai.month.lookups, 'lookup')} · {plural(ai.month.enrichments, 'enrichment')}
             {ai.month.noteReads ? ' · ' + plural(ai.month.noteReads, 'note') + ' read' : ''}
-            {ai.month.asks ? ' · ' + plural(ai.month.asks, 'question') : ''} · {ai.capLeft} automatic left today
+            {ai.month.asks ? ' · ' + plural(ai.month.asks, 'question') : ''}
+            {ai.jev.calls ? ' · ' + plural(ai.jev.calls, 'Jev check') : ''} · {ai.capLeft} automatic left today
           </span>
           {ai.month.usd > 0 ? <SpendSplit ai={ai} /> : null}
         </div>
@@ -136,6 +140,7 @@ export function AICard() {
           </li>
         ))}
       </ul>
+      <JevSection ai={ai} />
       <ModelSection ai={ai} off={off} saving={saving} onPick={pick} />
       {ai.recent.length ? (
         <>
@@ -159,6 +164,83 @@ export function AICard() {
         </>
       ) : null}
     </section>
+  )
+}
+
+const dollars = (usd: number) => '$' + usd.toFixed(2)
+
+/**
+ * PST-292: Jev, for quick yes/no checks: on/off, this month's spend of the cap, and the
+ * cap (Jev stops for the month when it's reached; everything works as before without it).
+ */
+function JevSection({ ai }: { ai: AIData }) {
+  const { aiDo } = useRaise()
+  const ui = useUI()
+  const j = ai.jev
+  const off = !j.connected
+  const [text, setText] = useState(j.capUsd.toFixed(2))
+  const [busy, setBusy] = useState<'on' | 'cap' | null>(null)
+  const cap = Number(text.replace(/^\s*\$/, '').trim())
+  const bad = !text.trim() || !Number.isFinite(cap) || cap < 0 || cap > JEV_MAX_CAP
+
+  async function save(k: 'on' | 'cap', patch: { on?: boolean; capUsd?: number }) {
+    setBusy(k)
+    try {
+      await aiDo.setJev(patch)
+    } catch (e) {
+      ui.fail(e)
+    } finally {
+      setBusy(null)
+    }
+  }
+  const saveCap = () => {
+    if (bad) return setText(j.capUsd.toFixed(2))
+    setText(cap.toFixed(2))
+    if (Math.round(cap * 100) !== Math.round(j.capUsd * 100)) void save('cap', { capUsd: cap })
+  }
+
+  return (
+    <>
+      <h3 className="set-sub" id="set-ai-jev">
+        Jev
+      </h3>
+      <ul className="set-ai__switches set-ai__jev" aria-labelledby="set-ai-jev">
+        <li className={off ? 'is-off' : undefined}>
+          <div>
+            <span className="set-ai__title" id="set-ai-jev-on">
+              Quick yes/no checks with Jev
+            </span>
+            <span className="set-ai__sub">Asks whether a new person is likely an investor before a lookup, whose notes are whose, and spots duplicate firms and repeat questions.</span>
+            <span className="set-ai__sub set-ai__jev-month">
+              {off ? 'Not set up: add TYPESAFE_API_KEY to this Convex deployment.' : 'This month ' + dollars(j.monthUsd) + ' of ' + dollars(j.capUsd) + (j.monthUsd >= j.capUsd ? ' · paused until next month' : '')}
+            </span>
+          </div>
+          <Toggle aria-labelledby="set-ai-jev-on" checked={!off && j.on} disabled={off || busy === 'on'} onChange={(e) => void save('on', { on: e.target.checked })} />
+        </li>
+        <li className={off ? 'is-off' : undefined}>
+          <div>
+            <span className="set-ai__title" id="set-ai-jev-cap">
+              Monthly cap
+            </span>
+            <span className="set-ai__sub">{bad ? 'Between $0 and $' + JEV_MAX_CAP + '.' : 'Jev stops for the month when its checks reach this.'}</span>
+          </div>
+          <span className="input set-ai__cap">
+            <input
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
+              aria-labelledby="set-ai-jev-cap"
+              aria-invalid={bad || undefined}
+              value={text}
+              disabled={off || busy === 'cap'}
+              onChange={(e) => setText(e.target.value)}
+              onBlur={saveCap}
+              onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+            />
+          </span>
+        </li>
+      </ul>
+    </>
   )
 }
 
@@ -263,8 +345,8 @@ function SpendSplit({ ai }: { ai: AIData }) {
   }
   return (
     <div className="set-ai__splits">
-      {bar('By model', MODELS.map((m) => ({ key: MODEL_INFO[m].name.toLowerCase(), label: MODEL_INFO[m].name, usd: ai.spend.byModel[m] })))}
-      {bar('By feature', FEATURES.map((f) => ({ key: f, label: FEATURE_LABEL[f], usd: ai.spend.byFeature[f] })))}
+      {bar('By model', [...MODELS.map((m) => ({ key: MODEL_INFO[m].name.toLowerCase(), label: MODEL_INFO[m].name, usd: ai.spend.byModel[m] })), { key: 'jev', label: 'Jev', usd: ai.jev.monthUsd }])}
+      {bar('By feature', [...FEATURES.map((f) => ({ key: f, label: FEATURE_LABEL[f], usd: ai.spend.byFeature[f] })), { key: 'jev', label: 'Jev checks', usd: ai.jev.monthUsd }])}
     </div>
   )
 }

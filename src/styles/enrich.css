@@ -246,6 +246,12 @@
 .set-ai__seg--drafts { background: var(--brand-lime-deep); }
 .set-ai__seg--ask { background: var(--brand-orange); }
 .set-ai__seg--brief { background: var(--brand-orange-soft); }
+/* PST-292: Jev in the spend view, and its row's cap. */
+.set-ai__seg--jev { background: var(--text-orange-deep); }
+.set-ai__jev-month { color: var(--text-secondary); }
+.set-ai__cap { flex: none; width: 112px; }
+.set-ai__cap::before { content: '$'; position: absolute; left: 14px; font: 400 15px/1 var(--font-ui); color: var(--text-muted); pointer-events: none; }
+.set-ai__cap input { padding-left: 28px; }
 @media (max-width: 720px) {
   .set-ai__models { grid-template-columns: 1fr; }
   .set-ai__features li { flex-wrap: wrap; }
