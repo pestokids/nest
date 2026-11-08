@@ -78,6 +78,7 @@ function base(type: AiDraftType, i: Investor, deck: string, dataRoom: string): {
         subject: 'Pesto · a yes or a no?',
         paras: [hi, 'Thanks for the time you’ve given Pesto so far.', 'Could you let me know by ' + dayMonth(addDays(todayIST(), 5)) + ' whether you’re in? A no is completely fine and helps me plan the round.', 'Dev'],
       }
+    case 'forwardable':
     case 'intro': {
       const warm = /ankur/i.test(i.path) ? 'Ankur' : /ria/i.test(i.path) ? 'Ria' : null
       return warm

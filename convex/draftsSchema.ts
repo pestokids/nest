@@ -30,6 +30,9 @@ export const draftTables = {
     sentAt: v.optional(v.number()),
     /** PST-273: the model of the latest write, and the usage of every write added up (like costUsd). */
     ...runModelFields,
+    // PST-294 (optional, additive): a forwardable intro's intro, and its second email (the note the introducer forwards).
+    introId: v.optional(v.id('intros')),
+    forward: v.optional(v.object({ subject: v.string(), body: v.string() })),
   })
     .index('by_investor', ['investorId', 'createdAt'])
     .index('by_created', ['createdAt']),

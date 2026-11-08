@@ -57,6 +57,11 @@
 //   &signal=decide           Decide rows and a new ask from an email in Today's Due today
 //   &google=metadata         Settings: connected on an old gmail.metadata grant ("Reconnect Google to read email bodies")
 //   ---------- end PST-293 ----------
+//   PST-294 introducers (see preview/introducersFixture.ts):
+//   &investors=introducers   Investors › Introducers (warm paths migrate on load)
+//   &introducer=panel|add|ask  one introducer's panel open (Ankur), on phones too; Add introducer; Ask for another intro
+//   &draft=forwardable       the forwardable intro draft: the ask, and the note to forward
+//   &drawer=warm-path        the drawer on Kite Angels, scrolled to the warm path and its steps
 //   &fail                    every write fails (save-failed toast with Retry)
 //   any unknown path         the 404, e.g. /nowhere?preview
 import { useEffect, useRef } from 'react'
@@ -73,6 +78,7 @@ import { PREVIEW_AGENTS, type PreviewAgents } from './agentsFixture'
 import { PREVIEW_MATERIALS, PreviewMaterials, type PreviewMaterials as MaterialsState } from './materialsFixture'
 import { OpenToasts } from '../components/materials/Opens'
 import { DraftsProvider } from '../components/drafts/data'
+import { IntroducersProvider } from '../components/introducers/data' // PST-294
 import { closePreview, rememberClosePreview } from './closeFixture'
 import { PREVIEW_DRAFTS, type PreviewDrafts } from './draftsFixture'
 import { PREVIEW_ASK, PREVIEW_BRIEF, type PreviewAsk, type PreviewBrief } from './askFixture'
@@ -106,7 +112,9 @@ export function Preview() {
   const home = (q.get('home') ?? 'default') as PreviewHome
   const today = (PREVIEW_TODAY as readonly string[]).includes(q.get('today') ?? '') ? (q.get('today') as PreviewToday) : 'default'
   const drafts = (PREVIEW_DRAFTS as readonly string[]).includes(q.get('drafts') ?? '') ? (q.get('drafts') as PreviewDrafts) : null
-  const drawer = (PREVIEW_DRAWER as readonly string[]).includes(q.get('drawer') ?? '') ? (q.get('drawer') as PreviewDrawer) : drafts === 'history' ? 'history' : undefined
+  // PST-294: &drawer=warm-path is the drawer's view, scrolled to the warm path.
+  const warmPath = q.get('drawer') === 'warm-path'
+  const drawer = warmPath ? 'view' : (PREVIEW_DRAWER as readonly string[]).includes(q.get('drawer') ?? '') ? (q.get('drawer') as PreviewDrawer) : drafts === 'history' ? 'history' : undefined
   const suggestions = (PREVIEW_SUGGESTIONS as readonly string[]).includes(q.get('suggestions') ?? '') ? (q.get('suggestions') as PreviewSuggestions) : 'default'
   const materials = (PREVIEW_MATERIALS as readonly string[]).includes(q.get('materials') ?? '') ? (q.get('materials') as MaterialsState) : 'default'
   const agents = (PREVIEW_AGENTS as readonly string[]).includes(q.get('agents') ?? '') ? (q.get('agents') as PreviewAgents) : 'default'
@@ -115,7 +123,7 @@ export function Preview() {
   const wispr: WisprPreview = (WISPR_PREVIEW as readonly string[]).includes(q.get('wispr') ?? '') ? (q.get('wispr') as WisprPreview) : 'off'
   // PST-289
   const feedback = (PREVIEW_FEEDBACK as readonly string[]).includes(q.get('feedback') ?? '') ? (q.get('feedback') as FeedbackState) : null
-  const state = { today, drawer, sheet: q.has('sheet'), investors: q.get('investors'), plan: q.get('plan'), settings: q.get('settings'), system: q.get('system'), suggestions, qanda: q.get('qanda'), materials, agents, notes: q.get('notes'), drafts, ask }
+  const state = { today, drawer, sheet: q.has('sheet'), investors: q.get('investors'), plan: q.get('plan'), settings: q.get('settings'), system: q.get('system'), suggestions, qanda: q.get('qanda'), materials, agents, notes: q.get('notes'), drafts, ask, introducer: q.get('introducer'), draft: q.get('draft'), warmPath }
   const insights = q.get('insights')
   const extra = { loading: state.system === 'loading', mid: state.plan === 'mid', fail: q.has('fail'), insights: insights === 'default' || insights === 'behind' ? (insights as 'default' | 'behind') : undefined }
   const google: PreviewGoogle = (PREVIEW_GOOGLE as readonly string[]).includes(q.get('google') ?? '') ? (q.get('google') as PreviewGoogle) : drawer === 'emails' || q.get('qanda') === 'prep' || ask === 'prep' ? 'connected' : 'none'
@@ -145,6 +153,8 @@ export function Preview() {
             brief={brief}
           >
             <PreviewMaterials state={materials}>
+              {/* PST-294 */}
+              <IntroducersProvider>
               <DraftsProvider>
                 {/* PST-293 */}
                 <DecisionsProvider>
@@ -160,6 +170,7 @@ export function Preview() {
                 </PreviewWispr>
                 </DecisionsProvider>
               </DraftsProvider>
+              </IntroducersProvider>
             </PreviewMaterials>
           </PreviewData>
         </PreviewStateContext.Provider>

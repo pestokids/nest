@@ -37,6 +37,10 @@ Other scripts: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`, `pnpm d
 
 Preview: `?preview` renders Home and every Raise view from a small made-up fixture (`src/preview/fixture.ts`) with in-memory writes, without signing in. It works on `http://localhost:3000/?preview` in local dev and on the Vercel preview build of every PR (`https://<preview-url>/?preview`), which always uses the fake fixture (never `internal/seed.json` or real data). Add `&seed` (local dev only) to use `internal/seed.json` instead, `&home=firstrun` or `&home=prepdone` for the Home states, `&signin=default|hover|checking|noaccess|error|signedout` for the sign-in states, `&today=nothingdue|win` for Raise · Today, `&drawer=view|edit|new|advance|touch|history|emails|delete` for the investor drawer (on any Raise view; add `&sheet` for the phone bottom sheet at any width), or `&pipeline=hidden|shown|end` (with `&stage=<key>` on a phone) for the Pipeline board states. Investors, Plan, Settings and the system states: `&investors=filtered|empty|bulk|exported|import1|import2|import3`, `&sort=priority` (Investors sorted by Priority), `&plan=mid`, `&insights=default|behind|empty` (Plan › Insights on track, behind, or with too little history), `&settings=errors`, `&system=cmdk|cmdk-empty|cmdk-none|offline|savefailed|loading`, any unknown path for the 404 (e.g. `/nowhere?preview`), `&suggestions=all|tidy|none|agent` for Suggested fixes (the list open, cleared, no card, or an agent's row arriving), `&google=connected|syncing|reconnect` for Calendar and Gmail (Today's meetings, Waiting on you and Who's this?, the Settings card, the palette's Gmail row; `&drawer=emails` implies `connected`), and `&fail` to make every write fail (the save-failed toast with Retry). It's stripped from production builds.
 
+<!-- PST-294 -->
+Introducers (PST-294): `&investors=introducers` (Investors › Introducers), `&introducer=panel|add|ask` (one introducer's panel, the Add introducer dialog, the Ask for an intro dialog), `&draft=forwardable` (the forwardable intro draft) and `&drawer=warm-path` (the drawer's warm path with its steps).
+<!-- end PST-294 -->
+
 Screenshots of every preview screen at 1440 × 900, 440 × 956 and 412 × 915: run `pnpm dev:web`, then `node scripts/screenshots.mjs http://localhost:3000` (writes to `.context/screens/`). They use the fixture, never real data. The script also reports any screen that scrolls sideways and, on phones, any control under 44 × 44 (`checks.json`).
 
 ## Environment variables
@@ -235,6 +239,22 @@ Without a key, or when Linear fails, the row stays "Not sent yet": Raise › Set
 
 Preview: `?preview&feedback=open|sent|unsent` (unsent also fills Settings › Feedback with rows waiting and no key).
 <!-- end PST-289 -->
+
+<!-- PST-294 -->
+## Introducers and the forwardable intro
+
+Investors › Introducers (`round5/investors-introducers.png`) lists the people who make intros: an `introducers` row (name, optional email, relation: portfolio founder, angel, friend or other, and notes) for each person, plus every committed investor, who shows up as an introducer without a stored row so you can ask them for intros too. Each row shows how many intros they were asked for, made, turned into meetings and into commitments, and what's next. Clicking one opens their panel with every intro.
+
+An `intros` row joins one introducer (or committed investor) to one investor and dates six steps: asked → they said yes → forwardable sent → intro made → thanked → reported back. Ticking a step ticks the ones before it on the same day; unticking one unticks the ones after it. They can be ticked from the panel and from the drawer's warm path (`round5/drawer-decision-lead-warm-path.png`), which shows the person and their steps. Rules are in `src/lib/introducers.ts`; `warmPathFor(investor, sources)` there (and `useWarmPathFor` in `src/components/introducers/data.tsx`) is what PST-296 reads.
+
+**Migration**: the old free-text warm path (`investors.path`) is turned into people automatically the first time Introducers or a drawer with an unmigrated warm path opens (`introducers.migrate`, signed in). Names are matched after normalising (case, spaces, accents and punctuation), and a lone first name matches the one person with that first name, so the same person across several investors becomes one introducer. Each intro keeps the text it came from in `fromPath`, so running it again does nothing, and the text itself stays on the investor because the list, Today, Insights and the MCP still read it. There's nothing to run by hand.
+
+**The forwardable intro** (`round5/draft-forwardable-intro.png`) is a draft type in the drafts system (Haiku by default, like the others). It writes two emails: the ask to the introducer, and a short note they can forward to the investor. It uses the investor's tracked deck link when Nest has one and `[deck link]` otherwise, and any number the input didn't give (amounts, percentages, multiples, counts) becomes `[__]`, so it never makes up traction or terms. Copy it, or send the ask from nest@ with reply-to you through the usual send; sending (or "I sent it") ticks "asked".
+
+**Today**: `src/lib/inbox.ts` has three selectors in a PST-294 block that PST-297's Inbox takes as they are: thank the introducer the same day the intro is made, report back after the investor decides (a Yes or No on their decision, or committed or passed), and nudge an introducer 3 days after an ask with no reply. Until then they show in Today's Due today and Gone quiet.
+
+Preview: see the PST-294 line under Local setup.
+<!-- end PST-294 -->
 
 ## Seed
 
