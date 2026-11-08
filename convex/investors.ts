@@ -18,6 +18,7 @@ import { forgetDrafts } from './drafts'
 import { forgetDecisions } from './decisions' // PST-293
 import { forgetIntros } from './introducers' // PST-294
 import { forgetLead } from './race' // PST-295
+import { logStageMove } from './lib/stageLog' // PST-302
 
 export const list = query({
   args: {},
@@ -58,8 +59,8 @@ async function rematchIfChanged(ctx: MutationCtx, before: string, after: string)
 }
 const vFields = v.object(investorFields)
 
-async function logStage(ctx: MutationCtx, investorId: Id<'investors'>, stage: InvestorFields['stage'], userId: Id<'users'>, date: string) {
-  await ctx.db.insert('activities', { investorId, kind: 'stage', stage, date, userId })
+async function logStage(ctx: MutationCtx, investorId: Id<'investors'>, from: InvestorFields['stage'] | undefined, stage: InvestorFields['stage'], userId: Id<'users'>, date: string) {
+  return await logStageMove(ctx, { investorId, from, to: stage, userId, date })
 }
 
 /**
@@ -83,12 +84,13 @@ export async function saveInvestor(ctx: MutationCtx, userId: Id<'users'>, id: Id
     // PST-295: the lead fields aren't on the form, so keep them. Changing "Can lead or anchor" is Dev's word, like the drawer's switch.
     const { canLead, leadAskedOn } = prev
     const leadOverride = prev.lead !== body.lead ? body.lead : prev.leadOverride
-    const lead = Object.fromEntries(Object.entries({ canLead, leadOverride, leadAskedOn }).filter(([, x]) => x !== undefined))
+    // PST-302: the application isn't on the form either, so it stays as it is.
+    const lead = Object.fromEntries(Object.entries({ canLead, leadOverride, leadAskedOn, application: prev.application }).filter(([, x]) => x !== undefined))
     // replace, so cleared optional fields are removed
     await ctx.db.replace(prev._id, { ...doc, ...(prev.slug ? { slug: prev.slug } : {}), ...lead })
     investorId = prev._id
   } else investorId = await ctx.db.insert('investors', doc)
-  if (stage) await logStage(ctx, investorId, stage, userId, today)
+  if (stage) await logStage(ctx, investorId, prev?.stage, stage, userId, today)
   await rematchIfChanged(ctx, addressKey(prev), addressKey(body))
   // PST-292: added or renamed: Jev checks it against the investors with a similar name.
   if (!prev || prev.name !== body.name || prev.firm !== body.firm) await checkDuplicatesLater(ctx, investorId)
@@ -126,7 +128,7 @@ export const importMany = mutation({
       seen.add(key(body.name, body.firm))
       const { lastTouch, maxStage, logStage: stage } = applySave(null, body, today)
       const id = await ctx.db.insert('investors', { ...body, lastTouch, maxStage, updatedAt: Date.now(), updatedBy: userId })
-      if (stage) await logStage(ctx, id, stage, userId, today)
+      if (stage) await logStage(ctx, id, undefined, stage, userId, today)
       ids.push(id)
       added++
       if (addressKey(body)) newAddresses = true
@@ -156,7 +158,7 @@ export const advance = mutation({
       ...(next.raiseMax && IDX[next.stage] !== undefined ? { maxStage: next.stage } : {}),
       ...(step ? { nextStep: step.step.trim(), nextDate: step.date && isISODate(step.date) ? step.date : undefined } : {}),
     })
-    await logStage(ctx, id, next.stage, userId, today)
+    await logStage(ctx, id, i.stage, next.stage, userId, today)
     return { stage: next.stage, label: LABEL[next.stage] }
   },
 })
@@ -263,7 +265,7 @@ export const move = mutation({
     const today = todayIST()
     const { patch, logStage } = applyMove(prev, stage, today, until)
     await ctx.db.patch(id, { ...patch, updatedAt: Date.now(), updatedBy: userId })
-    const activityId = logStage ? await ctx.db.insert('activities', { investorId: id, kind: 'stage', stage: logStage, date: today, userId }) : null
+    const activityId = logStage ? await logStageMove(ctx, { investorId: id, from: prev.stage, to: logStage, userId, date: today }) : null
     return { from, activityId }
   },
 })

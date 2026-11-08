@@ -5,6 +5,7 @@ import { PRIORITY_FORMULA } from '../../lib/priority'
 import { Button, Icon, Kbd } from '../ui'
 import type { SortKey } from './InvestorList'
 import { Modal, useTitleId } from '../system/Modal'
+import { APPLICATION_FILTER_LABEL, APPLICATION_FILTERS, type ApplicationFilter } from '../../lib/applications' // PST-302
 
 export type InvestorFilters = {
   q?: string
@@ -14,6 +15,8 @@ export type InvestorFilters = {
   geo?: Geo
   tier?: Tier
   wave?: 1 | 2 | 3
+  /** PST-302: Application: any, submitted (awaiting a decision) or none. */
+  app?: ApplicationFilter
 }
 type Set = (patch: Partial<InvestorFilters>) => void
 
@@ -49,6 +52,18 @@ function Selects({ s, set, sort, onSort, priority }: { s: InvestorFilters; set: 
               {ALL.map((x) => (
                 <option key={x.k} value={x.k}>
                   Stage: {STAGE_TILE[x.k]}
+                </option>
+              ))}
+            </select>
+            <Icon name="chevron-down" size={16} className="select__chevron" />
+          </span>
+          {/* PST-302 */}
+          <span className={`select inv-select${s.app ? ' is-on' : ''}`}>
+            <select aria-label="Application" value={s.app ?? ''} onChange={(e) => set({ app: (e.target.value || undefined) as ApplicationFilter | undefined })}>
+              <option value="">Application: All</option>
+              {APPLICATION_FILTERS.map((x) => (
+                <option key={x} value={x}>
+                  Application: {APPLICATION_FILTER_LABEL[x]}
                 </option>
               ))}
             </select>
@@ -95,7 +110,7 @@ export function FilterBar({ s, set, sort, onSort, count, onExport, exportLabel, 
 }) {
   const [sheet, setSheet] = useState(false)
   const titleId = useTitleId()
-  const n = [s.stage, s.type, s.wave, s.warmth, s.geo, s.tier].filter(Boolean).length
+  const n = [s.stage, s.type, s.wave, s.warmth, s.geo, s.tier, s.app].filter(Boolean).length
   return (
     <div className="inv-bar">
       <label className="inv-search">
@@ -149,6 +164,7 @@ export function FilterChips({ s, set, onClear, only, clearOnly }: { s: InvestorF
   const chips: { k: string; label: string; clear: () => void }[] = []
   if (only) chips.push({ k: 'only', label: `Just imported: ${only}`, clear: clearOnly })
   if (s.stage) chips.push({ k: 'stage', label: `Stage: ${stageText(s.stage)}`, clear: () => set({ stage: undefined }) })
+  if (s.app) chips.push({ k: 'app', label: `Application: ${APPLICATION_FILTER_LABEL[s.app]}`, clear: () => set({ app: undefined }) }) // PST-302
   if (s.type) chips.push({ k: 'type', label: `Type: ${s.type}`, clear: () => set({ type: undefined }) })
   if (s.wave) chips.push({ k: 'wave', label: `Wave: W${s.wave}`, clear: () => set({ wave: undefined }) })
   if (s.warmth) chips.push({ k: 'warmth', label: WARM[s.warmth], clear: () => set({ warmth: undefined }) })

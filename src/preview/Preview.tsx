@@ -69,6 +69,12 @@
 //   &pipeline=race-lead      two offers the same week (the lime card), and Orchard is leading
 //   &pipeline=update         the race, scrolled to Who to update;  &home=race  Home's Raise card with the race
 //   &drafts=lead             the "Ask if they'll lead" draft
+//   ---------- PST-302: applications and free stage moves (made-up investors in preview/fixture.ts) ----------
+//   &drawer=application      Northwind Accelerator's drawer with its Application row open to edit
+//   &card=awaiting-decision  Pipeline: Northwind's card with "Applied C12 · awaiting decision" and a calm foot (open /raise/pipeline)
+//   &suggestions=notes|outreach|application  an agent's notes (before and after), outreach or application fix
+//   &stage=correction        (on /raise/today: Investors reads &stage as its filter) Bluebird Seed's history after "Intro asked → Not contacted", with "Mark as a correction"
+//   ---------- end PST-302 ----------
 //   ---------- PST-296: Find more like these (see preview/findMoreFixture.ts) ----------
 //   &investors=find-more      the Find more panel open, before a run (Search the web plays a pretend run)
 //   &find=running|results|empty  with &investors=find-more: a run searching, eight new investors, a run that found nobody new
@@ -156,13 +162,16 @@ export function Preview() {
   /* ---------- PST-293: &signal=auto|decide and &pipeline=maybes ---------- */
   const decisionState = { signal: q.get('signal'), pipeline: q.get('pipeline') }
   /* ---------- end PST-293 ---------- */
+  /* ---------- PST-302: &card=awaiting-decision and &stage=correction ---------- */
+  const applicationState = { card: q.get('card'), stage: q.get('stage') }
+  /* ---------- end PST-302 ---------- */
   /* ---------- PST-292: &whos=prechecked (Jev's Who's this? pre-check) ---------- */
   const whos = q.get('whos') === 'prechecked'
   /* ---------- end PST-292 ---------- */
   return (
     <LocalSounds>
       <SessionContext.Provider value={session}>
-        <PreviewStateContext.Provider value={{ ...state, ...decisionState }}>
+        <PreviewStateContext.Provider value={{ ...state, ...decisionState, /* PST-302 */ ...applicationState }}>
           <PreviewData
             source={sessionStorage.getItem('nest_preview_data') === 'seed' ? 'seed' : 'fixture'}
             home={home}

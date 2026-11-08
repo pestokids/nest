@@ -10,6 +10,7 @@ import { play } from '../lib/sound'
 import {
   acceptsTogether, actionOf, filterChips, firstTidyToday, KIND_LABEL, sourceLabel, thingsToFix, type Suggestion, type SuggestionFilter,
 } from '../lib/suggestions'
+import { notesDiff, type SuggestionPatch } from '../lib/suggestions' // PST-302
 import { useRaise } from './data'
 import { NestSleeping } from './illustrations'
 import { usePreviewState } from './preview-state'
@@ -41,7 +42,7 @@ export function Suggestions({ today }: { today: string }) {
   const ui = useUI()
   const save = useSaveAction()
   const preview = usePreviewState()
-  const [open, setOpen] = useState(() => ['all', 'tidy', 'agent', 'jev'].includes(preview?.suggestions ?? ''))
+  const [open, setOpen] = useState(() => ['all', 'tidy', 'agent', 'jev', /* PST-302 */ 'notes', 'outreach', 'application'].includes(preview?.suggestions ?? ''))
 
   // Rows folding away, then hidden until their write lands.
   const [leaving, setLeaving] = useState<ReadonlyMap<string, Leaving>>(() => new Map())
@@ -191,6 +192,7 @@ function Row({ s, showSource, fresh, leaving, onAccept, onDismiss, onReview }: O
         </span>
         <div className="sg-row__text">
           <p className="sg-row__title">{s.title}</p>
+          {s.patch.op === 'notes' ? <NotesDiff p={s.patch} /> : null}
           <p className="sg-row__fix">
             <span aria-hidden="true">→ </span>
             {s.fix}
@@ -213,6 +215,25 @@ function Row({ s, showSource, fresh, leaving, onAccept, onDismiss, onReview }: O
         </div>
       </div>
     </li>
+  )
+}
+
+/** PST-302: a notes fix's before and after (what's there now and what it adds, for a correction). */
+function NotesDiff({ p }: { p: Extract<SuggestionPatch, { op: 'notes' }> }) {
+  const x = notesDiff(p)
+  return (
+    <div className="sg-diff">
+      {x.before ? (
+        <p className="sg-diff__line">
+          <span className="sg-diff__tag">{x.added ? 'Now' : 'Before'}</span>
+          {x.added ? <span className="sg-diff__now">{x.before}</span> : <del className="sg-diff__before">{x.before}</del>}
+        </p>
+      ) : null}
+      <p className="sg-diff__line">
+        <span className="sg-diff__tag">{x.added ? 'Adds' : 'After'}</span>
+        <ins className="sg-diff__after">{x.after}</ins>
+      </p>
+    </div>
   )
 }
 

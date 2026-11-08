@@ -6,7 +6,8 @@
 import { isEmail } from './csv'
 import { isISODate } from './dates'
 import { LIMITS } from './qanda'
-import { LABEL, STAGE_KEYS, STAGE_RULE, STAGE_TILE, TOUCH_PICK, type PipelineStage } from './stages'
+import { LABEL, STAGE_KEYS, STAGE_RULE, STAGE_TILE, TOUCH_PICK, WARM, WARMTHS, type PipelineStage } from './stages'
+import { APPLICATION_STATUSES } from './applications' // PST-302
 
 export const AGENT_SCOPES = ['read', 'suggest'] as const
 export type AgentScope = (typeof AGENT_SCOPES)[number]
@@ -173,17 +174,25 @@ export const AGENT_TOOLS: readonly AgentTool[] = [
     title: 'Suggest a change',
     scope: 'suggest',
     description:
-      'Suggest a new stage, next step or expected amount for an investor. Nothing changes until Dev accepts it. stage: value is a stage key, and the stage rules must hold. next_step: value is the step, with an optional date. expected: value is the amount in US dollars the investor actually said, e.g. 50000.',
+      'Suggest a fix to one investor. Nothing changes until Dev accepts it in Suggestions, and Dev can undo it after. stage: value is a stage key, and the stage rules must hold. next_step: value is a step Dev takes, with an optional date (waiting for a decision is never a next step). expected: value is the amount in US dollars the investor actually said, e.g. 50000. notes: text is the whole new notes (mode replace) or a correction to add at the end (mode append, the default). outreach: any of warmPath (who can introduce Dev, in words), warmth and source. application: value is the application status, with optional program, submittedOn and decisionBy. Nothing is added when the investor already has that value, when the same suggestion is already open, or when Dev dismissed it before; the reply says which.',
     inputSchema: {
       type: 'object',
       properties: {
         investorId: ID,
-        kind: { type: 'string', enum: ['stage', 'next_step', 'expected'], description: 'What to change.' },
-        value: { type: ['string', 'number'], maxLength: 200, description: `The new value. For a stage, one of: ${STAGE_LIST}.` },
+        kind: { type: 'string', enum: ['stage', 'next_step', 'expected', 'notes', 'outreach', 'application'], description: 'What to change.' },
+        value: { type: ['string', 'number'], maxLength: 200, description: 'For stage, next_step, expected and application. For a stage, one of: ' + STAGE_LIST + '. For an application, one of: ' + APPLICATION_STATUSES.join(', ') + '.' },
         why: { type: 'string', minLength: 1, maxLength: 300, description: 'One plain sentence on why, e.g. “Kite Angels said around fifty on today’s call.”' },
         date: { type: 'string', format: 'date', description: 'For next_step only: when it’s due, YYYY-MM-DD.' },
+        text: { type: 'string', minLength: 1, maxLength: 2000, description: 'For notes only: the new notes, or the correction to add.' },
+        mode: { type: 'string', enum: ['append', 'replace'], description: 'For notes only: append a correction (the default) or replace the notes.' },
+        warmPath: { type: 'string', maxLength: 200, description: 'For outreach only: the warm path text, e.g. “Ankur (ex-colleague)”. Not “applied”: an application is kind application.' },
+        warmth: { type: 'string', enum: WARMTHS, description: 'For outreach only: ' + WARMTHS.map((w) => w + ' (' + WARM[w] + ')').join(', ') + '.' },
+        source: { type: 'string', maxLength: 120, description: 'For outreach only: where Dev found them.' },
+        program: { type: 'string', maxLength: 40, description: 'For application only: the programme or batch, e.g. “W27”.' },
+        submittedOn: { type: 'string', format: 'date', description: 'For application only: the day it was submitted, YYYY-MM-DD.' },
+        decisionBy: { type: 'string', format: 'date', description: 'For application only: the day they said they’ll decide by, YYYY-MM-DD.' },
       },
-      required: ['investorId', 'kind', 'value', 'why'],
+      required: ['investorId', 'kind', 'why'],
       additionalProperties: false,
     },
   },
@@ -333,7 +342,7 @@ export function keyMeta(k: Pick<AgentKeyRow, 'lastUsedAt' | 'calls7d'>, now: num
 }
 
 /** The side card's "Agents can" list, and the one thing they never can. */
-export const AGENTS_CAN = ['Read investors, history, meetings and the Q&A bank', 'Log a touch, add an investor and add meeting notes', 'Suggest stage moves, next steps and fixes'] as const
+export const AGENTS_CAN = ['Read investors, history, meetings and the Q&A bank', 'Log a touch, add an investor and add meeting notes', 'Suggest stage moves, next steps, notes, outreach and application fixes'] as const
 export const AGENTS_NEVER = 'Never send an email, move a stage or delete anything'
 
 /* ---------- the Nest skill ---------- */
@@ -361,9 +370,23 @@ Nothing you do changes Nest directly. Every write becomes a row in Dev's Suggest
 
 ## Stage rules
 
-Suggest a stage only when its rule is true. Move one stage at a time, and when you're not sure, suggest a next step instead.
+Suggest a stage only when its rule is true. Suggest the stage the investor is really at, forward or back, and when you're not sure, suggest a next step instead.
 
 ${STAGE_LINES}
+
+## Applications
+
+An application to an accelerator or a fund's programme is its own field, not a stage. Use \`suggest_change\` with kind \`application\` (status \`drafting\` while Dev is still writing it, \`submitted\`, \`interview_invited\`, \`interview_done\`, \`accepted\`, \`rejected\` or \`withdrawn\`, plus \`program\`, \`submittedOn\` and \`decisionBy\`).
+
+- Never suggest a stage move to show an application. Submitting one is not an intro ask, a meeting or a commitment; the stage stays whatever Dev set.
+- \`drafting\` is Dev's own task, so a next step like "Finish the application" with a date is fine. Once it's \`submitted\`, "awaiting decision" is not a next step. While they decide, a next step is only something Dev does, with its own date, e.g. "Email the partners a progress update".
+- Only say interview when the status is \`interview_invited\` or \`interview_done\`.
+
+## Fixing notes and outreach
+
+- kind \`notes\`: append a short correction (the default), or replace the notes with the whole corrected text (mode \`replace\`). Dev sees the before and after.
+- kind \`outreach\`: the warm path text, warmth and source.
+- Nothing is added when the investor already has that value, when the same suggestion is already open, or when Dev dismissed it; the reply tells you which, so don't send it again.
 
 ## Numbers
 

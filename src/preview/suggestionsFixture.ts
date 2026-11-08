@@ -7,7 +7,7 @@ import type { CheckInput, SuggestionDraft } from '../lib/suggestions'
 import { addDays } from '../lib/today'
 
 /** &suggestions=all (the list open), tidy (cleared: "All tidy."), none (no card), agent (an agent's row arrives), jev (PST-292: a Duplicate Jev found). */
-export const PREVIEW_SUGGESTIONS = ['default', 'all', 'tidy', 'none', 'agent', 'jev'] as const
+export const PREVIEW_SUGGESTIONS = ['default', 'all', 'tidy', 'none', 'agent', 'jev', /* PST-302 */ 'notes', 'outreach', 'application'] as const
 export type PreviewSuggestions = (typeof PREVIEW_SUGGESTIONS)[number]
 
 const H = 36e5
@@ -74,4 +74,41 @@ export function fixtureAgentSuggestion(investors: readonly Investor[], today: st
     kind: 'touch', investorId: id, title: 'Grok Bot: you called Saltmarsh Angels this morning (from your WhatsApp).', fix: 'Log a call · today',
     patch: { op: 'touch', touch: 'call', note: 'Call (logged by Grok Bot from WhatsApp).', date: today }, source: 'agent', agentName: 'Grok Bot', safe: false, key: 'preview:agent:saltmarsh',
   }
+}
+
+/* ---------- PST-302: an agent's notes, outreach and application fixes (&suggestions=notes|outreach|application) ---------- */
+export function fixtureFixSuggestions(investors: readonly Investor[], state: PreviewSuggestions): SuggestionDraft[] {
+  const find = (name: string) => investors.find((i) => i.name === name)
+  const agent = { source: 'agent' as const, agentName: 'Claude', safe: false }
+  if (state === 'notes') {
+    const kite = find('Kite Angels')
+    if (!kite) return []
+    return [{
+      ...agent, kind: 'notes', investorId: kite._id, key: 'preview:pst302:notes',
+      title: 'Kite Angels asked about week-6 retention on the call, not week-4.',
+      fix: 'Replace the notes',
+      patch: { op: 'notes', mode: 'replace', before: kite.notes, text: kite.notes.replace('week-4', 'week-6') },
+    }]
+  }
+  if (state === 'outreach') {
+    const fern = find('Fernhill Fund')
+    if (!fern) return []
+    return [{
+      ...agent, kind: 'outreach', investorId: fern._id, key: 'preview:pst302:outreach',
+      title: 'Fernhill Fund: Mira worked with their partner for two years, so this one is warm.',
+      fix: 'Set warm path “Mira (worked with the partner)”, warm, direct, source “Mira’s list”',
+      patch: { op: 'outreach', path: 'Mira (worked with the partner)', warmth: 'warm', source: 'Mira’s list' },
+    }]
+  }
+  if (state === 'application') {
+    const north = find('Northwind Accelerator')
+    if (!north) return []
+    return [{
+      ...agent, kind: 'application', investorId: north._id, key: 'preview:pst302:application',
+      title: 'Northwind Accelerator emailed an interview invite for their C12 programme.',
+      fix: 'Set the application to “Interview invited · C12”',
+      patch: { op: 'application', status: 'interview_invited', program: 'C12', submittedOn: north.application?.submittedOn, decisionBy: north.application?.decisionBy },
+    }]
+  }
+  return []
 }

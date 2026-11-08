@@ -11,6 +11,7 @@ import type { AgentCall, AgentKeyRow, AgentScope, CreatedKey } from '../lib/agen
 import type { AskRun } from '../lib/ask'
 import type { Brief } from '../lib/brief'
 import type { Feature, Model, ModelChoice } from '../lib/models'
+import type { Application, ApplicationChanges } from '../lib/applications' // PST-302
 
 export type LogRow = RoundChange & { _id: string; at: number; by: string }
 
@@ -73,6 +74,13 @@ export type RaiseData = {
   brief: Brief | null | undefined
   /** Dismiss it (it collapses to one line) or show it again. */
   setBriefDismissed: (id: string, dismissed: boolean) => Promise<unknown>
+  /* ---------- PST-302 ---------- */
+  /** Set an investor's application (null: not applied). Shows at once; resolves with the one it replaced, for Undo. */
+  setApplication: (id: string, application: Application | null) => Promise<{ before: Application | null }>
+  /** Change only the touched fields, merged with the application as it is now (PST-303's save rule). Resolves with the one it replaced. */
+  changeApplication: (id: string, changes: ApplicationChanges) => Promise<{ before: Application | null }>
+  /** Mark a backward stage move as a correction (maxStage goes back to its stage), or take the mark off. */
+  markCorrection: (activityId: string, on: boolean) => Promise<unknown>
 }
 
 export type AgentsData = { loaded: boolean; serverUrl: string; keys: AgentKeyRow[] }

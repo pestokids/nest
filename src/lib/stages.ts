@@ -64,7 +64,7 @@ export const STAGE_TILE: Record<Stage, string> = {
 }
 /** The rule for moving a card into each stage ("Move a card only when the rule is true"). */
 export const STAGE_RULE: Partial<Record<PipelineStage, string>> = {
-  ask: 'You asked someone for an intro, or applied.',
+  ask: 'You asked someone for an intro.',
   intro: 'The intro email went out.',
   booked: 'A meeting is on the calendar.',
   m1: 'First call done. Set the next step.',
@@ -78,7 +78,7 @@ export const STAGE_RULE: Partial<Record<PipelineStage, string>> = {
 export function advanceConfirm(stage: PipelineStage, name: string): string {
   const who = name.trim().split(/\s+/)[0] || 'them'
   switch (stage) {
-    case 'ask': return `You asked for an intro to ${who}, or applied`
+    case 'ask': return `You asked for an intro to ${who}`
     case 'intro': return `The intro to ${who} went out`
     case 'booked': return `A meeting with ${who} is on the calendar`
     case 'm1': return `The first call with ${who} happened`

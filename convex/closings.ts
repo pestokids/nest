@@ -10,6 +10,7 @@ import { emailReady, sendEmail } from './lib/email'
 import { getRoundRow } from './lib/round'
 import { closingTermFields, vCapTable, vQuestionnaire, vStepKey } from './closeSchema'
 import { applyMove } from '../src/lib/board'
+import { logStageMove } from './lib/stageLog' // PST-302
 import { todayIST } from '../src/lib/dates'
 import { capTableSummary, checkTick, cleanCapTable, cleanTerms, planTick, reminderKind, setStep, validateCapTable, validateTerms } from '../src/lib/close'
 import { COMMIT } from '../src/lib/stages'
@@ -89,7 +90,7 @@ export const tick = mutation({
     if (!plan.to) return { to: null, firstMoney: false }
     const { patch, logStage } = applyMove(inv, plan.to, today)
     await ctx.db.patch(inv._id, { ...patch, updatedAt: now, updatedBy: userId })
-    if (logStage) await ctx.db.insert('activities', { investorId: inv._id, kind: 'stage', stage: logStage, date: today, userId })
+    if (logStage) await logStageMove(ctx, { investorId: inv._id, from: inv.stage, to: logStage, userId, date: today }) // PST-302
     return { to: plan.to, firstMoney: plan.to === 'wired' && inv.maxStage !== 'wired' }
   },
 })

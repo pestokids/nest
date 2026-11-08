@@ -14,6 +14,7 @@ import { searchQuestions } from '../../lib/qanda'
 import type { Investor } from '../../lib/pipeline'
 import { play } from '../../lib/sound'
 import { STAGE_TILE } from '../../lib/stages'
+import { applicationChip } from '../../lib/applications' // PST-302
 import { DRAFT_TYPES, type DraftType } from '../../lib/drafts'
 import { investorActions, parseActionQuery, type InvestorAction } from '../../lib/paletteActions'
 import { GO_TO, KEYS, keyLabel, matches, singleKeyOk } from '../../lib/shortcuts'
@@ -233,6 +234,9 @@ function Palette({
     (i: Investor, long: boolean) => {
       const quiet = isQuiet(i, today, round.quietDays)
       const bits = long ? [i.type, STAGE_TILE[i.stage]] : [STAGE_TILE[i.stage]]
+      // PST-302: the application, apart from the stage.
+      const app = applicationChip(i.application)
+      if (app) bits.push(app)
       if (quiet) bits.push('quiet')
       else if (long && i.nextDate && i.nextDate >= today) bits.push(`due ${dayLabel(i.nextDate, today).split(' ')[0]}`)
       return bits.join(' · ')

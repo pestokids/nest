@@ -23,6 +23,8 @@ import { cleanDomains, cleanEmails, DAY_MS } from '../src/lib/google'
 import { NEW_INVESTOR, touchDay } from '../src/lib/pipeline'
 import { IDX } from '../src/lib/stages'
 import { acceptsTogether, CHECK_PREFIX, reconcile, ruleSuggestions, sortSuggestions, sourceLabel, type SuggestionDraft } from '../src/lib/suggestions'
+import { applicationAfter, noOpReason, notesAfter, outreachChanges } from '../src/lib/suggestions' // PST-302
+import { logStageMove } from './lib/stageLog' // PST-302
 
 type Row = Doc<'suggestions'>
 type Inv = Doc<'investors'>
@@ -115,7 +117,7 @@ export const run = mutation({
 
 /* ---------- accept ---------- */
 
-type Fields = Partial<Pick<Inv, 'nextStep' | 'nextDate' | 'expected' | 'domains' | 'notes'>>
+type Fields = Partial<Pick<Inv, 'nextStep' | 'nextDate' | 'expected' | 'domains' | 'notes' | /* PST-302 */ 'path' | 'warmth' | 'source' | 'application'>>
 
 /** Patch some fields and remember what they were (a key missing from `before` was empty). */
 async function setFields(ctx: MutationCtx, i: Inv, set: Fields, stamp: Stamp): Promise<Undo> {
@@ -202,7 +204,8 @@ async function apply(ctx: MutationCtx, s: Row, userId: Id<'users'>): Promise<Und
       if (i.stage !== p.from) return null
       const { patch, logStage } = applyMove(i, p.to, today)
       await ctx.db.patch(i._id, { ...patch, ...stamp })
-      const activityId = logStage ? await ctx.db.insert('activities', { investorId: i._id, kind: 'stage', stage: logStage, date: today, userId }) : undefined
+      // PST-302: one activity, from → to, marked as an agent's when it came from one.
+      const activityId = logStage ? await logStageMove(ctx, { investorId: i._id, from: i.stage, to: logStage, userId, date: today, ...(s.source === 'agent' ? { via: 'agent' as const } : {}) }) : undefined
       return { op: 'stage', to: p.to, from: { stage: i.stage, lastTouch: i.lastTouch, maxStage: i.maxStage }, activityId }
     }
     case 'next_step':
@@ -237,6 +240,17 @@ async function apply(ctx: MutationCtx, s: Row, userId: Id<'users'>): Promise<Und
       if (i.notes.includes(line)) return null
       return await setFields(ctx, i, { notes: [i.notes.trim(), line].filter(Boolean).join('\n') }, stamp)
     }
+    // PST-302: agents' fixes. Nothing to do when the record already has it; a replace waits for the notes it was written against.
+    case 'notes':
+      if (noOpReason(i, p) || (p.mode === 'replace' && i.notes.trim() !== p.before.trim())) return null
+      return await setFields(ctx, i, { notes: notesAfter(i.notes, p) }, stamp)
+    case 'outreach': {
+      const set = outreachChanges(i, p)
+      return Object.keys(set).length ? await setFields(ctx, i, set, stamp) : null
+    }
+    case 'application':
+      if (noOpReason(i, p)) return null
+      return await setFields(ctx, i, { application: applicationAfter(i.application, p) }, stamp)
   }
 }
 

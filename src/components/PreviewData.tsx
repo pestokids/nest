@@ -7,7 +7,8 @@ import { todayIST } from '../lib/dates'
 import { applyAdvance, applySave, NEW_INVESTOR, touchDay, type Activity, type Investor, type TouchOptions } from '../lib/pipeline'
 import { DEFAULT_ROUND, diffRound, mergeRound, type Round } from '../lib/round'
 import { LABEL } from '../lib/stages'
-import { fixtureActs, fixtureBoardExtras, fixtureInvestors, fixtureMembers, fixtureMid, fixtureRound } from '../preview/fixture'
+import { fixtureActs, fixtureBoardExtras, fixtureCorrection, fixtureInvestors, fixtureMembers, fixtureMid, fixtureRound } from '../preview/fixture'
+import { usePreviewState } from './preview-state' // PST-302
 import { addDays } from '../lib/today'
 import { cleanDomains, cleanEmails, withContact, type GoogleData } from '../lib/google'
 import { fixtureGoogle, type PreviewGoogle } from '../preview/googleFixture'
@@ -17,7 +18,7 @@ import { fitsByInvestor } from '../lib/priority'
 import { fixtureInsights } from '../preview/insightsFixture'
 import { acceptsTogether, reconcile, ruleSuggestions, sortSuggestions, type CheckInput, type Suggestion, type SuggestionDraft } from '../lib/suggestions'
 import {
-  fixtureAgentSuggestion, fixtureExtraSuggestions, fixtureSuggestionInvestors, fixtureSuggestionMeetings, type PreviewSuggestions,
+  fixtureAgentSuggestion, fixtureExtraSuggestions, fixtureFixSuggestions, fixtureSuggestionInvestors, fixtureSuggestionMeetings, type PreviewSuggestions,
 } from '../preview/suggestionsFixture'
 import { fixtureCloseInvestors, type PreviewClose } from '../preview/closeFixture'
 import { RaiseContext, type LogRow, type RaiseData } from './data'
@@ -28,6 +29,8 @@ import { useAskPreview, type PreviewAsk, type PreviewBrief } from '../preview/as
 import { modelFor } from '../lib/models'
 import { fixtureRace } from '../preview/raceFixture' // PST-295
 import { applyTouch, undoTouchPatch } from '../lib/touch'
+import { applicationAfter, noOpReason, notesAfter, outreachChanges } from '../lib/suggestions' // PST-302
+import { changeApplication } from '../lib/applications' // PST-302
 
 type Seed = { round?: Partial<Round>; investors: (Omit<Investor, '_id'> & { slug: string })[] }
 export type PreviewHome = 'default' | 'firstrun' | 'prepdone'
@@ -67,6 +70,7 @@ export function PreviewData({
   brief?: PreviewBrief | null
   children: ReactNode
 }) {
+  const correction = usePreviewState()?.stage === 'correction' // PST-302
   const [investors, setInvestors] = useState<Investor[] | null>(null)
   const [acts, setActs] = useState<Activity[]>([])
   const [round, setRound] = useState<Round>(DEFAULT_ROUND)
@@ -96,7 +100,9 @@ export function PreviewData({
     if (emptyList) return setSuggestions([])
     const now = Date.now()
     const agent = suggestionsState === 'agent' ? null : fixtureAgentSuggestion(investors, todayIST(now))
-    setSuggestions([...ruleSuggestions(checkInput(investors, acts, google, now)), ...fixtureExtraSuggestions(investors), ...(agent ? [agent] : [])].map(stamp(now)))
+    // PST-302: &suggestions=notes|outreach|application add an agent's fix of that kind, first in the list.
+    const fixes = fixtureFixSuggestions(investors, suggestionsState)
+    setSuggestions([...fixes, ...ruleSuggestions(checkInput(investors, acts, google, now)), ...fixtureExtraSuggestions(investors), ...(agent ? [agent] : [])].map(stamp(now)))
   }, [investors, google, acts, suggestions, emptyList, suggestionsState])
   const ready = !!suggestions && !!investors
   useEffect(() => {
@@ -149,9 +155,11 @@ export function PreviewData({
               lastTouch: ACTIVE.has(i.stage) ? addDays(t, -1) : i.lastTouch,
             }))
           : inv
-      setInvestors(list)
+      // PST-302: &stage=correction adds a move back to Not contacted.
+      const fixed = correction ? fixtureCorrection(list, fixtureActs(list, t), t) : { investors: list, acts: fixtureActs(list, t) }
+      setInvestors(fixed.investors)
       setRound(r)
-      setActs(fixtureActs(list, t))
+      setActs(fixed.acts)
       if (home === 'prepdone') {
         const p = r.phases.find((x) => t >= x.from && t <= x.to)
         if (p) setTicks({ [p.k]: p.todo.map((_, i) => i) })
@@ -170,7 +178,7 @@ export function PreviewData({
           mergeRound(s.round),
         )
       })
-  }, [source, home, board, todayState, extra.mid, extra.insights, extra.race, suggestionsState, close])
+  }, [source, home, board, todayState, extra.mid, extra.insights, extra.race, suggestionsState, close, correction])
 
   const latest = useRef(investors)
   const latestActs = useRef(acts)
@@ -215,7 +223,7 @@ export function PreviewData({
         if (i.stage !== p.from) return null
         const r = applyMove(i, p.to, t)
         patchInv(i._id, r.patch)
-        const aid = r.logStage ? act({ investorId: i._id, kind: 'stage', stage: r.logStage }) : null
+        const aid = r.logStage ? act({ investorId: i._id, kind: 'stage', stage: r.logStage, fromStage: i.stage, ...(s.source === 'agent' ? { via: 'agent' as const } : {}) }) : null
         return () => {
           patchInv(i._id, { stage: i.stage, lastTouch: i.lastTouch, maxStage: i.maxStage })
           if (aid) setActs((xs) => xs.filter((a) => a._id !== aid))
@@ -250,6 +258,14 @@ export function PreviewData({
       }
       // PST-277: the preview's Q&A bank is its own store (PreviewQanda), so questions from notes change nothing here.
       if (p.op === 'questions') return () => {}
+      // PST-302: agents' notes, outreach and application fixes (nothing when the record already has it).
+      if (p.op === 'notes' || p.op === 'outreach' || p.op === 'application') {
+        if (noOpReason(i, p) || (p.op === 'notes' && p.mode === 'replace' && i.notes.trim() !== p.before.trim())) return null
+        const set: Partial<Investor> = p.op === 'notes' ? { notes: notesAfter(i.notes, p) } : p.op === 'outreach' ? outreachChanges(i, p) : { application: applicationAfter(i.application, p) }
+        const before = Object.fromEntries(Object.keys(set).map((k) => [k, i[k as keyof Investor]])) as Partial<Investor>
+        patchInv(i._id, set)
+        return () => patchInv(i._id, before)
+      }
       const set: Partial<Investor> =
         p.op === 'next_step'
           ? { nextStep: p.step, nextDate: p.date }
@@ -290,9 +306,10 @@ export function PreviewData({
           parkedUntil: f.stage === 'parked' ? f.parkedUntil || undefined : undefined, _creationTime: prev?._creationTime ?? Date.now(),
           // PST-295: the lead fields aren't on the form (as in convex/investors.ts).
           canLead: prev?.canLead, leadAskedOn: prev?.leadAskedOn, leadOverride: prev && prev.lead !== f.lead ? f.lead : prev?.leadOverride,
+          application: prev?.application, // PST-302: not on the form either
         }
         setInvestors((xs) => (prev ? (xs ?? []).map((i) => (i._id === id ? doc : i)) : [...(xs ?? []), doc]))
-        if (logStage) act({ investorId: nid, kind: 'stage', stage: logStage })
+        if (logStage) act({ investorId: nid, kind: 'stage', stage: logStage, ...(prev ? { fromStage: prev.stage } : {}) })
         return nid
       }),
       advance: w(async (id, next) => {
@@ -301,7 +318,7 @@ export function PreviewData({
         if (!i || !nx) return null
         const step = next ? { nextStep: next.step.trim(), nextDate: next.date || undefined } : {}
         setInvestors((xs) => (xs ?? []).map((x) => (x._id === id ? { ...x, stage: nx.stage, lastTouch: t, ...(nx.raiseMax ? { maxStage: nx.stage } : {}), ...step } : x)))
-        act({ investorId: id, kind: 'stage', stage: nx.stage })
+        act({ investorId: id, kind: 'stage', stage: nx.stage, fromStage: i.stage })
         return { stage: nx.stage, label: LABEL[nx.stage] }
       }),
       move: w(async (id, stage, o) => {
@@ -312,7 +329,7 @@ export function PreviewData({
         if (i.stage === stage && until === undefined) return { id, to: stage, from, activityId: null }
         const { patch, logStage } = applyMove(i, stage, t, until)
         setInvestors((xs) => (xs ?? []).map((x) => (x._id === id ? { ...x, ...patch } : x)))
-        const activityId = logStage ? act({ investorId: id, kind: 'stage', stage: logStage }) : null
+        const activityId = logStage ? act({ investorId: id, kind: 'stage', stage: logStage, fromStage: i.stage }) : null
         return { id, to: stage, from, activityId }
       }),
       undoMove: w(async (rec) => {
@@ -414,6 +431,32 @@ export function PreviewData({
           })
         },
       },
+      // PST-302: the application, and marking a move back as a correction (maxStage goes to its stage).
+      setApplication: w(async (id, application) => {
+        const i = (latest.current ?? []).find((x) => x._id === id)
+        if (!i) throw { data: 'That investor was deleted' }
+        patchInv(id, { application: application ?? undefined })
+        return { before: i.application ?? null }
+      }),
+      changeApplication: w(async (id, changes) => {
+        const i = (latest.current ?? []).find((x) => x._id === id)
+        if (!i) throw { data: 'That investor was deleted' }
+        const next = changeApplication(i.application, changes)
+        if (!next) throw { data: 'Pick a status for the application first.' }
+        patchInv(id, { application: next })
+        return { before: i.application ?? null }
+      }),
+      markCorrection: w(async (activityId, on) => {
+        const a = latestActs.current.find((x) => x._id === activityId)
+        const i = a && (latest.current ?? []).find((x) => x._id === a.investorId)
+        if (!a || !i || a.kind !== 'stage' || !a.stage) throw { data: 'That move is gone.' }
+        const newest = latestActs.current.filter((x) => x.investorId === i._id && x.kind === 'stage').sort((x, y) => (y._creationTime ?? 0) - (x._creationTime ?? 0))[0]
+        if (i.stage !== a.stage || newest?._id !== a._id) throw { data: 'It moved again since, so this can’t change now.' }
+        if (on === !!a.correction) return
+        const max = on ? (a.stage as Investor['maxStage']) : a.correction!.maxBefore
+        setActs((xs) => xs.map((x) => (x._id === activityId ? { ...x, correction: on ? { maxBefore: i.maxStage } : undefined } : x)))
+        patchInv(i._id, { maxStage: max })
+      }),
     }
   }, [investors, acts, round, roundExists, log, ticks, extra.fail, extra.loading, google, suggestions, emptyList])
 

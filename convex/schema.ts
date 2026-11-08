@@ -20,6 +20,8 @@ import { investorLeadFields, raceTables, roundLeadField } from './raceSchema' //
 // PST-296: Find more and Jev fit scores (findSettings, findRuns, findCandidates, jevScores; see findMoreSchema.ts).
 import { findMoreTables } from './findMoreSchema'
 import { inboxTables } from './inboxSchema' // PST-297
+// PST-302: applications on investors, and from/by/correction on stage activities (see applicationsSchema.ts).
+import { investorApplicationField, stageActivityFields } from './applicationsSchema'
 import { roundFields, vGeo, vMeetingAnswer, vPipelineStage, vStage, vSyncSource, vTier, vTouch, vType, vWarmth, vWave } from './validators'
 import { vSuggestionKind, vSuggestionPatch, vSuggestionSource, vSuggestionStatus, vSuggestionUndo } from './validators'
 import { vAnswerVersion, vAskSource, vQuestionMerge } from './validators'
@@ -58,6 +60,8 @@ export default defineSchema({
     updatedBy: v.optional(v.id('users')),
     // PST-295 (optional, additive): can they lead (enrichment, and Dev's override), and when Dev asked them to.
     ...investorLeadFields,
+    // PST-302 (optional, additive): an application's status, programme and dates; absent means not applied.
+    ...investorApplicationField,
   })
     .index('by_stage', ['stage'])
     .index('by_slug', ['slug']),
@@ -73,6 +77,8 @@ export default defineSchema({
     source: v.optional(vSyncSource),
     date: v.string(),
     userId: v.id('users'),
+    // PST-302 (optional, additive): a stage move's from stage, who made it, and a correction mark.
+    ...stageActivityFields,
   })
     .index('by_investor', ['investorId'])
     .index('by_date', ['date']),

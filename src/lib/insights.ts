@@ -5,19 +5,20 @@
 import { dayDiff, isISODate } from './dates'
 import { longDay } from './investorView'
 import { money } from './money'
-import { committedOf, maxIdx, type Activity, type Investor } from './pipeline'
+import { committedOf, maxIdx, withoutCorrections, type Activity, type Investor } from './pipeline'
+import { isAwaiting, type ApplicationFields } from './applications' // PST-302
 import type { Round } from './round'
 import { COMMIT, IDX, STAGE_SHORT, type PipelineStage, type Stage } from './stages'
 import { addDays } from './today'
 
-type Inv = Pick<Investor, '_id' | 'name' | 'stage' | 'maxStage' | 'warmth' | 'path' | 'expected' | 'committed'>
-type Act = Pick<Activity, 'investorId' | 'kind' | 'stage' | 'date'> & { _creationTime?: number }
+type Inv = Pick<Investor, '_id' | 'name' | 'stage' | 'maxStage' | 'warmth' | 'path' | 'expected' | 'committed'> & ApplicationFields
+type Act = Pick<Activity, 'investorId' | 'kind' | 'stage' | 'date'> & Partial<Pick<Activity, 'correction'>> & { _creationTime?: number }
 type Move = { stage: Stage; date: string }
 
-/** Each investor's stage moves, oldest first. */
+/** Each investor's stage moves, oldest first. PST-302: corrections, and the moves they took back, are left out. */
 export function stageHistory(acts: readonly Act[]): Map<string, Move[]> {
   const by = new Map<string, Move[]>()
-  const moves = acts
+  const moves = withoutCorrections(acts)
     .filter((a) => a.kind === 'stage' && a.stage)
     .sort((a, b) => a.date.localeCompare(b.date) || (a._creationTime ?? 0) - (b._creationTime ?? 0))
   for (const a of moves) {
@@ -33,7 +34,7 @@ export function reachedIdx(i: Pick<Investor, 'stage' | 'maxStage'>, history: rea
   return history.reduce((ix, m) => Math.max(ix, IDX[m.stage] ?? -1), maxIdx(i))
 }
 
-/** A cold or applied path, as opposed to a warm intro. */
+/** A cold path with no introducer (an "applied" warm path included), as opposed to a warm intro. */
 export const isColdPath = (i: Pick<Investor, 'warmth' | 'path'>) => i.warmth === 'cold' || /\b(cold|appl(y|ied|ication))\b/i.test(i.path ?? '')
 
 const plural = (n: number, one: string, many = one + 's') => `${n} ${n === 1 ? one : many}`
@@ -83,11 +84,12 @@ export function leakLine(s: FunnelStep): string {
   return s.moved ? `Biggest leak: only ${s.moved} of ${s.reached} ${noun} led to ${s.next}.` : `Biggest leak: none of the ${s.reached} ${noun} led to ${s.next} yet.`
 }
 
-/** Investors who reached the step's first stage and never the next. */
+/** Investors who reached the step's first stage and never the next. PST-302: not while an application awaits their decision. */
 export function stalledAt(s: Pick<FunnelStep, 'from' | 'to'>, inv: readonly Inv[], acts: readonly Act[]): string[] {
   const h = stageHistory(acts)
   return inv
     .filter((i) => {
+      if (isAwaiting(i.application)) return false
       const r = reachedIdx(i, h.get(i._id))
       return r >= IDX[s.from]! && r < IDX[s.to]!
     })
@@ -126,7 +128,7 @@ export const leakQuestionsLine = (q: LeakQuestions) => `The Q&A bank shows ${q.a
 
 export type PathShare = { asked: number; met: number; share: number | null }
 
-/** The share of asks that reached a first meeting, warm intros against cold or applied. */
+/** The share of asks that reached a first meeting, warm intros against cold paths with no introducer. */
 export function warmVsCold(inv: readonly Inv[], acts: readonly Act[]): { warm: PathShare; cold: PathShare } {
   const h = stageHistory(acts)
   const tally = (cold: boolean): PathShare => {
@@ -168,7 +170,8 @@ export function daysInStage(inv: readonly Inv[], acts: readonly Act[], today: st
     moves.forEach((m, k) => {
       const xs = days.get(m.stage)
       if (!xs) return
-      const end = moves[k + 1]?.date ?? (i.stage === m.stage ? today : null)
+      // PST-302: a stay that's still open while an application awaits their decision isn't slow on Dev's side.
+      const end = moves[k + 1]?.date ?? (i.stage === m.stage && !isAwaiting(i.application) ? today : null)
       if (end) xs.push(Math.max(0, dayDiff(end, m.date)))
     })
   }

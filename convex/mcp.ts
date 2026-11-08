@@ -9,7 +9,7 @@
 // says what it looked at (`seen`), for Ask's "From N investors…" line.
 import { v } from 'convex/values'
 import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from './_generated/server'
-import type { Id } from './_generated/dataModel'
+import type { Doc, Id } from './_generated/dataModel'
 import { vAgentScope } from './agentsSchema'
 import { insertSuggestion } from './suggestions'
 import { addMeetingNotes } from './noteReads'
@@ -32,6 +32,11 @@ import { priorities } from '../src/lib/priority'
 import { ACTIVE, LABEL, STAGE_KEYS, STAGE_TILE, TOUCH_LABEL, WARM, type TouchKind } from '../src/lib/stages'
 import type { SuggestionKind, SuggestionPatch } from '../src/lib/suggestions'
 import { nextMoves } from '../src/lib/today'
+// PST-302: applications, the no-op checks and the new suggestion kinds.
+import { APPLICATION_STATUSES, applicationChip, isApplicationStatus, isAwaiting, isDecisionPassed, isWaitingStep } from '../src/lib/applications'
+import { decisionPassedRows } from '../src/lib/inbox'
+import { applicationAfter, fixLine, noOpReason } from '../src/lib/suggestions'
+import { WARMTHS, type Warmth } from '../src/lib/stages'
 
 /** What a read looked at, by id (Ask adds them up across its calls). */
 export type Seen = { investors?: string[]; threads?: string[]; meetings?: string[] }
@@ -85,6 +90,8 @@ export async function movesNow(ctx: QueryCtx, now: number) {
 /** An investor in a list. */
 const brief = (i: Inv) => ({
   id: i._id, name: i.name, firm: i.firm, stage: LABEL[i.stage], wave: i.wave, nextStep: i.nextStep || null, nextDate: i.nextDate ?? null, lastTouch: lastContact(i) ?? null,
+  // PST-302: separate from the stage; null means not applied.
+  application: applicationChip(i.application),
 })
 
 /* ---------- read ---------- */
@@ -149,6 +156,8 @@ async function getInvestor(ctx: QueryCtx, a: Args): Promise<Out> {
       id: i._id, name: i.name, firm: i.firm, type: i.type, geo: i.geo, warmth: WARM[i.warmth], warmPath: i.path || null, tier: i.tier, wave: i.wave,
       stage: LABEL[i.stage], lead: i.lead, expected: i.expected ?? null, committed: i.committed ?? null, nextStep: i.nextStep || null, nextDate: i.nextDate ?? null,
       lastTouch: lastContact({ lastTouch: i.lastTouch, contact }) ?? null, parkedUntil: i.parkedUntil ?? null,
+      // PST-302: the application, apart from the stage (null: not applied). Awaiting a decision is not a next step.
+      application: i.application ? { ...i.application, summary: applicationChip(i.application), awaitingDecision: isAwaiting(i.application) } : null,
       email: i.email ?? null, otherEmails: i.emails ?? [], domains: i.domains ?? [], notes: i.notes || null, source: i.source || null,
     },
     people: people
@@ -156,7 +165,8 @@ async function getInvestor(ctx: QueryCtx, a: Args): Promise<Out> {
       .map((p) => ({ name: p.name, title: p.title, rank: p.rank, email: p.email, location: p.location, linkedin: p.linkedin, primary: p.primary })),
     history: acts.map((x) => ({
       date: x.date,
-      what: x.kind === 'stage' ? `Moved to ${x.stage ? LABEL[x.stage] : 'a new stage'}` : (x.note ?? ''),
+      what: x.kind === 'stage' ? (x.fromStage ? `Moved from ${LABEL[x.fromStage]} to ${x.stage ? LABEL[x.stage] : 'a new stage'}` : `Moved to ${x.stage ? LABEL[x.stage] : 'a new stage'}`) + (x.correction ? ' (a correction)' : '') : (x.note ?? ''),
+      ...(x.kind === 'stage' && x.via ? { by: x.via === 'agent' ? 'agent suggestion' : 'signal' } : {}),
       ...(x.touch ? { kind: TOUCH_LABEL[x.touch] } : {}),
       ...(x.source ? { from: x.source === 'calendar' ? 'Calendar' : 'Gmail' } : {}),
     })),
@@ -183,6 +193,9 @@ async function todaysMoves(ctx: QueryCtx): Promise<Out> {
         return { ...brief(i), quietFor: days === Infinity ? 'never touched' : `${days} days` }
       }),
       quietAfterDays: round.quietDays,
+      // PST-302: applications waiting on a decision are never quiet; once the decision-by day passes, Dev updates the status.
+      awaitingDecision: investors.filter((i) => isAwaiting(i.application) && !isDecisionPassed(i.application, today)).map((i) => ({ ...brief(i), decisionBy: i.application!.decisionBy ?? null })),
+      decisionDatePassed: decisionPassedRows(investors, today).map((r) => ({ id: r.investorId, name: r.name, decisionBy: r.due })),
       meetingsToday: meetings.sort((x, y) => x.start - y.start).map((m) => ({ id: m._id, title: m.title, time: timeOf(m.start) + ' IST', investors: m.investorIds.map((id) => names.get(id)).filter(Boolean) })),
       nextMoves: moves.map((m) => ({ title: m.title, why: m.why, ...('investorId' in m.action ? { investorId: m.action.investorId } : {}) })),
     },
@@ -332,13 +345,33 @@ function about(i: { name: string; firm: string }, text: string) {
 }
 
 /**
- * Queue one suggestion from an agent. Its key is a hash of what it suggests, so
- * the same suggestion is never queued twice and one Dev dismissed never comes back.
+ * Queue one suggestion from an agent. PST-302: nothing is queued when the record
+ * already has that value, when the same change (investor, kind and patch) is
+ * already open from anyone, or when Dev accepted or dismissed it before (its key
+ * is a hash of what it suggests). Each case says so in its own words.
  */
-async function suggest(ctx: MutationCtx, agent: Agent, s: { kind: SuggestionKind; investorId?: Id<'investors'>; title: string; fix: string; patch: AgentPatch }): Promise<Out> {
-  const key = 'agent:' + (await sha256Hex(JSON.stringify([s.kind, s.investorId ?? '', s.patch]))).slice(0, 32)
+async function suggest(ctx: MutationCtx, agent: Agent, s: { kind: SuggestionKind; investorId?: Id<'investors'>; title: string; fix: string; patch: AgentPatch }, inv?: Doc<'investors'>): Promise<Out> {
+  const not = (reason: 'duplicate' | 'accepted' | 'dismissed', message: string) => done({ suggested: false, reason, message })
+  // The record already has it: an error, as a stage it's already at always was.
+  const noop = inv ? noOpReason(inv, s.patch) : null
+  if (noop) return nope(noop + ' Nothing new was added.')
+  // A notes fix is the same fix whatever the notes said when it was written.
+  const strip = (p: unknown) => JSON.stringify(p, (k, x) => (k === 'before' ? undefined : x))
+  const key = 'agent:' + (await sha256Hex(JSON.stringify([s.kind, s.investorId ?? '', s.patch.op === 'notes' ? JSON.parse(strip(s.patch)) : s.patch]))).slice(0, 32)
+  const taken = await ctx.db
+    .query('suggestions')
+    .withIndex('by_key', (q) => q.eq('key', key))
+    .first()
+  if (taken?.status === 'dismissed') return not('dismissed', 'Dev dismissed this same suggestion before, so it wasn’t added again.')
+  if (taken?.status === 'accepted') return not('accepted', 'Dev already accepted this same suggestion. Nothing new was added.')
+  const open =
+    taken ??
+    (s.investorId
+      ? (await ctx.db.query('suggestions').withIndex('by_status', (q) => q.eq('status', 'open')).collect()).find((o) => o.investorId === s.investorId && o.kind === s.kind && strip(o.patch) === strip(s.patch))
+      : undefined)
+  if (open) return not('duplicate', 'That same suggestion is already waiting in Dev’s Suggestions. Nothing new was added.')
   const id = await insertSuggestion(ctx, { ...s, source: 'agent', agentName: agent.name, safe: false, key })
-  if (!id) return done({ suggested: false, message: 'That suggestion is already in Dev’s queue, or Dev dismissed it before. Nothing new was added.' })
+  if (!id) return not('duplicate', 'That same suggestion is already in Dev’s queue. Nothing new was added.')
   return done({ suggested: true, suggestionId: id, message: 'Added to Dev’s Suggestions queue. Nothing has changed yet: Dev will accept or dismiss it.' })
 }
 
@@ -376,24 +409,57 @@ async function suggestChange(ctx: MutationCtx, agent: Agent, a: Args): Promise<O
   const i = await investorById(ctx, a.investorId)
   if (!i) return nope(NO_INVESTOR)
   const title = about(i, a.why as string)
-  const value = a.value as string | number
+  const value = a.value as string | number | undefined
+  const text = value === undefined ? '' : String(value).trim()
+  const base = { investorId: i._id, title }
   if (a.kind === 'stage') {
-    const want = String(value).trim().toLowerCase()
+    const want = text.toLowerCase()
     const to = STAGE_KEYS.find((k) => k === want || LABEL[k].toLowerCase() === want || STAGE_TILE[k].toLowerCase() === want)
-    if (!to) return nope(`value must be a stage: ${STAGE_KEYS.join(', ')}.`)
-    if (to === i.stage) return nope(`${i.name} is already at ${LABEL[to]}.`)
-    return await suggest(ctx, agent, { kind: 'stage', investorId: i._id, title, fix: `Move to ${STAGE_TILE[to]}`, patch: { op: 'stage', from: i.stage, to } })
+    if (!to) return nope('value must be a stage: ' + STAGE_KEYS.join(', ') + '.')
+    // PST-302: an application is its own field, never an intro ask (the old "Asked/Applied").
+    if (to === 'ask' && /\b(appl(y|ied|ication|ications))\b/i.test(String(a.why))) return nope('Applications are their own field, not a stage. Use kind application (status drafting, submitted, interview_invited, interview_done, accepted, rejected or withdrawn) and leave the stage as it is.')
+    return await suggest(ctx, agent, { kind: 'stage', ...base, fix: 'Move to ' + STAGE_TILE[to], patch: { op: 'stage', from: i.stage, to } }, i)
   }
   if (a.kind === 'next_step') {
-    const step = String(value).trim()
     const date = a.date as string | undefined
-    if (!step) return nope('value must be the next step, e.g. “Send the data room”.')
-    const when = date ? ` · ${dayLabel(date, todayIST())}` : ''
-    return await suggest(ctx, agent, { kind: 'next_step', investorId: i._id, title, fix: `Set “${step}”${when}`, patch: { op: 'next_step', step, ...(date ? { date } : {}) } })
+    if (!text) return nope('value must be the next step, e.g. “Send the data room”.')
+    if (isWaitingStep(text)) return nope('Waiting for their decision isn’t a next step: it’s the application’s status (kind application). Suggest a step Dev takes, with its own date, e.g. “Email the partners a progress update”.')
+    const when = date ? ' · ' + dayLabel(date, todayIST()) : ''
+    return await suggest(ctx, agent, { kind: 'next_step', ...base, fix: 'Set “' + text + '”' + when, patch: { op: 'next_step', step: text, ...(date ? { date } : {}) } }, i)
   }
-  const amount = parseAmount(value)
-  if (!amount) return nope('value must be the amount in US dollars the investor said, e.g. 50000.')
-  return await suggest(ctx, agent, { kind: 'expected', investorId: i._id, title, fix: `Set Expected to ${money(amount)}`, patch: { op: 'expected', amount } })
+  if (a.kind === 'expected') {
+    const amount = value === undefined ? null : parseAmount(value)
+    if (!amount) return nope('value must be the amount in US dollars the investor said, e.g. 50000.')
+    return await suggest(ctx, agent, { kind: 'expected', ...base, fix: 'Set Expected to ' + money(amount), patch: { op: 'expected', amount } }, i)
+  }
+  // PST-302: notes, outreach labels and the application.
+  if (a.kind === 'notes') {
+    const body = typeof a.text === 'string' ? a.text : text
+    if (!body) return nope('text must be the notes: the whole new notes with mode replace, or the correction to add with mode append.')
+    const patch = { op: 'notes' as const, mode: a.mode === 'replace' ? ('replace' as const) : ('append' as const), text: body, before: i.notes }
+    return await suggest(ctx, agent, { kind: 'notes', ...base, fix: fixLine(patch), patch }, i)
+  }
+  if (a.kind === 'outreach') {
+    const patch = {
+      op: 'outreach' as const,
+      ...(typeof a.warmPath === 'string' ? { path: a.warmPath } : {}),
+      ...(typeof a.warmth === 'string' ? { warmth: a.warmth as Warmth } : {}),
+      ...(typeof a.source === 'string' ? { source: a.source } : {}),
+    }
+    if (patch.path === undefined && patch.warmth === undefined && patch.source === undefined) return nope('Give at least one of warmPath, warmth (' + WARMTHS.join(', ') + ') and source.')
+    return await suggest(ctx, agent, { kind: 'outreach', ...base, fix: fixLine(patch), patch }, i)
+  }
+  const status = text.toLowerCase().replace(/[\s-]+/g, '_')
+  if (!isApplicationStatus(status)) return nope('value must be the application status: ' + APPLICATION_STATUSES.join(', ') + '.')
+  const asked = {
+    op: 'application' as const,
+    status,
+    ...(typeof a.program === 'string' ? { program: a.program } : {}),
+    ...(typeof a.submittedOn === 'string' ? { submittedOn: a.submittedOn } : {}),
+    ...(typeof a.decisionBy === 'string' ? { decisionBy: a.decisionBy } : {}),
+  }
+  const patch = { ...applicationAfter(i.application, asked), op: 'application' as const }
+  return await suggest(ctx, agent, { kind: 'application', ...base, fix: fixLine(patch, i.application), patch }, i)
 }
 
 /** The existing enrichment, as an automatic run: it counts towards (and stops at) the daily cap. */

@@ -9,7 +9,10 @@ import { play } from '../../lib/sound'
 import { useUI } from '../raise-ui'
 import { Column } from './Column'
 import { DealCard } from './DealCard'
+import { StageMenu } from './StageMenu' // PST-302
 import { boardPreview } from './preview'
+import { usePreviewState } from '../preview-state' // PST-302
+import { isAwaiting } from '../../lib/applications' // PST-302
 import { Scrollbar } from './Scrollbar'
 import { Toolbar } from './Toolbar'
 import { useBoardDrag } from './useBoardDrag'
@@ -41,8 +44,16 @@ export function Board({ investors, total, filter, setFilter, today, quietDays, w
   const [settle, setSettle] = useState<string | null>(null)
   const [bump, setBump] = useState({ n: 0, stages: [] as string[] })
   const [focusId, setFocusId] = useState<string | null>(null)
+  // PST-302: a card's ⋯ menu, to move it to any stage (Not contacted too) in one move.
+  const [menu, setMenu] = useState<{ inv: Investor; anchor: HTMLElement } | null>(null)
   const scroller = useRef<HTMLDivElement>(null)
   const slotRef = useRef<HTMLDivElement>(null)
+  // PST-302: ?preview&card=awaiting-decision focuses the card of an application awaiting a decision.
+  const cardPreview = usePreviewState()?.card === 'awaiting-decision'
+  const awaitingId = cardPreview ? investors.find((i) => isAwaiting(i.application))?._id : undefined
+  useEffect(() => {
+    if (awaitingId) setFocusId(awaitingId)
+  }, [awaitingId])
   // PST-290: J and K through the cards, column by column; ↵ opens, D drafts. ] and [ still move a card.
   useListKeys(scroller)
 
@@ -208,6 +219,7 @@ export function Board({ investors, total, filter, setFilter, today, quietDays, w
                       onPointerDown={(e) => dnd.onPointerDown(e, inv._id)}
                       onClick={() => !dnd.consumeClick() && open(inv._id)}
                       onKeyDown={(e) => onKey(e, inv)}
+                      onMenu={(anchor) => setMenu({ inv, anchor })}
                     />,
                   ]
                 })}
@@ -236,6 +248,17 @@ export function Board({ investors, total, filter, setFilter, today, quietDays, w
           ) : null}
         </div>
       </Scrollbar>
+      {menu ? (
+        <StageMenu
+          inv={menu.inv}
+          anchor={menu.anchor}
+          onClose={() => setMenu(null)}
+          onPick={(to) => {
+            moveCard(menu.inv, to, { from: menu.anchor })
+            after(menu.inv._id, [menu.inv.stage, to])
+          }}
+        />
+      ) : null}
     </div>
   )
 }

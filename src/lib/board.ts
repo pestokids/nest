@@ -3,6 +3,7 @@
 // undo, and where a card lands in a column. Pure, shared by the UI and Convex.
 import { dayDiff } from './dates'
 import { applySave, quietFor, type Investor, type InvestorFields } from './pipeline'
+import { applicationChip, awaitingLine, isApplicationPath, isDecisionPassed, type ApplicationFields } from './applications' // PST-302
 import { COMMIT, IDX, type PipelineStage, type Stage } from './stages'
 import type { PlayOptions, SoundName } from './sound'
 
@@ -17,7 +18,7 @@ export const isHiddenStage = (s: Stage): s is (typeof HIDDEN_STAGES)[number] => 
 
 /** Column name, its rule (when a card belongs there) and dot colour, from the design. */
 export const BOARD: Record<BoardStage, { label: string; rule: string; dot: string }> = {
-  ask: { label: 'Asked', rule: 'You asked for an intro, or applied.', dot: '#7C8F84' },
+  ask: { label: 'Asked', rule: 'You asked someone for an intro.', dot: '#7C8F84' },
   intro: { label: 'Intro', rule: 'The intro email went out.', dot: '#5E9E7A' },
   booked: { label: 'Booked', rule: 'A meeting is on the calendar.', dot: '#10884C' },
   m1: { label: '1st meeting', rule: 'First call done. Set the next step.', dot: '#10884C' },
@@ -93,7 +94,7 @@ type Saved = Pick<Investor, 'stage' | 'lastTouch' | 'maxStage' | 'parkedUntil'>
 export function applyMove(prev: InvestorFields & { maxStage: PipelineStage }, to: Stage, today: string, parkedUntil?: string | null) {
   const r = applySave(prev, { ...prev, stage: to }, today)
   const patch: Saved = { stage: to, lastTouch: r.lastTouch, maxStage: r.maxStage, ...(parkedUntil !== undefined ? { parkedUntil: parkedUntil ?? undefined } : {}) }
-  return { patch, logStage: r.logStage }
+  return { patch, logStage: r.logStage, from: prev.stage }
 }
 
 /** Enough to put a moved card back exactly as it was. */
@@ -108,7 +109,7 @@ export function applyUndo(current: Pick<Investor, 'stage'>, rec: MoveRecord): Sa
 /* ---------- column contents ---------- */
 
 /** Today's "Gone quiet" rule (`quietFor` in pipeline.ts). */
-export const quietDaysOf = (i: Pick<Investor, 'stage' | 'lastTouch' | 'contact'>, today: string, quietDays: number): number | null => quietFor(i, today, quietDays)
+export const quietDaysOf = (i: Pick<Investor, 'stage' | 'lastTouch' | 'contact'> & ApplicationFields, today: string, quietDays: number): number | null => quietFor(i, today, quietDays)
 
 export type ColumnSort = 'attention' | 'amount' | 'name'
 export const COLUMN_SORTS: { k: ColumnSort; l: string }[] = [
@@ -181,14 +182,18 @@ const lowerFirst = (s: string) => (/^[A-Z][a-z]/.test(s) ? s[0].toLowerCase() + 
 export type CardText = {
   sub: string
   chip: string
+  /** PST-302: the application chip ("Applied W27 · awaiting decision"), when there's an application. */
+  app: string | null
   amount: string
   foot: string
-  tone: 'default' | 'quiet' | 'late' | 'closed'
+  /** PST-302: waiting is the calm "Awaiting decision" foot. */
+  tone: 'default' | 'quiet' | 'late' | 'closed' | 'waiting'
 }
 /** What a deal card says, from real fields (design: name, amount, "type · firm", warmth chip, next step or quiet warning). */
 export function cardText(i: Investor, today: string, quietDays: number, money: (n: number) => string): CardText {
   const sub = [i.type, i.firm && i.firm.trim().toLowerCase() !== i.name.trim().toLowerCase() ? i.firm : ''].filter(Boolean).join(' · ')
   const amt = amountOf(i)
+  const app = applicationChip(i.application)
   if (i.stage === 'passed' || i.stage === 'parked') {
     const ago = i.lastTouch ? dayDiff(today, i.lastTouch) : null
     const verb = i.stage === 'passed' ? 'Passed' : 'Parked'
@@ -198,13 +203,18 @@ export function cardText(i: Investor, today: string, quietDays: number, money: (
       amount: '–',
       foot: ago === null ? verb : ago <= 0 ? `${verb} today` : `${verb} ${ago} day${ago === 1 ? '' : 's'} ago`,
       tone: 'closed',
+      app,
     }
   }
   const path = i.path.trim()
-  const via = path && !/^(direct|cold|none|-|–)$/i.test(path) ? ` · via ${path}` : path.toLowerCase() === 'direct' ? ' · direct' : ''
+  // PST-302: "applied" in the warm path is no introducer, so no "via application" (the application chip says it instead).
+  const via = path && !isApplicationPath(path) && !/^(direct|cold|none|-|–)$/i.test(path) ? ` · via ${path}` : path.toLowerCase() === 'direct' ? ' · direct' : ''
   const chip = WARM_SHORT[i.warmth] + via
   const q = quietDaysOf(i, today, quietDays)
-  if (q !== null) return { sub, chip, amount: amt ? money(amt) : '–', foot: `${q === Infinity ? 'Quiet' : `${q} days quiet`} · nudge or park`, tone: 'quiet' }
+  if (q !== null) return { sub, chip, app, amount: amt ? money(amt) : '–', foot: `${q === Infinity ? 'Quiet' : `${q} days quiet`} · nudge or park`, tone: 'quiet' }
+  // PST-302: waiting on an application's decision, with no step of Dev's own: a calm foot instead of a quiet warning.
+  const wait = i.nextStep ? null : awaitingLine(i.application, today)
+  if (wait) return { sub, chip, app, amount: amt ? money(amt) : '–', foot: wait, tone: isDecisionPassed(i.application, today) ? 'late' : 'waiting' }
   const next = i.nextStep ? `Next: ${lowerFirst(i.nextStep)}${i.nextDate ? ` · ${dayLabel(i.nextDate)}` : ''}` : i.nextDate ? `Next step due ${dayLabel(i.nextDate)}` : 'No next step yet'
-  return { sub, chip, amount: amt ? money(amt) : '–', foot: next, tone: i.nextDate && i.nextDate < today && i.stage !== 'wired' ? 'late' : 'default' }
+  return { sub, chip, app, amount: amt ? money(amt) : '–', foot: next, tone: i.nextDate && i.nextDate < today && i.stage !== 'wired' ? 'late' : 'default' }
 }

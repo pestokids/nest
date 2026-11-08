@@ -10,6 +10,7 @@ import { hasTokenKey, signState } from './lib/crypto'
 import { consentUrl, oauthClient } from './lib/googleApi'
 import { vMeetingAnswer } from './validators'
 import { applyMove } from '../src/lib/board'
+import { logStageMove } from './lib/stageLog' // PST-302
 import { todayIST } from '../src/lib/dates'
 import { DAY_MS, dayOf, makeMatcher, normEmail, syncStageMove, WHO_BACK_DAYS } from '../src/lib/google'
 import { DONE } from '../src/lib/stages'
@@ -334,7 +335,7 @@ async function meetingAhead(ctx: MutationCtx, i: Inv, m: { title: string; start:
   if (to) {
     const r = applyMove(i, to, today)
     Object.assign(patch, r.patch)
-    if (r.logStage) await ctx.db.insert('activities', { investorId: i._id, kind: 'stage', stage: to, date: today, userId, source: 'calendar' })
+    if (r.logStage) await logStageMove(ctx, { investorId: i._id, from: i.stage, to, userId, date: today, source: 'calendar', via: 'signal' }) // PST-302
   }
   const day = dayOf(m.start)
   if (!DONE.has(i.stage) && (!i.nextDate || i.nextDate < today || day <= i.nextDate || i.nextStep.startsWith(MEETING_STEP))) {
