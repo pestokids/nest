@@ -77,10 +77,19 @@ function RaiseLayout() {
     // PST-293: &drawer=decision opens on Orchard Capital, whose decision has everything in it.
     // PST-303: &drawer=edit-vc|edit-accelerator|edit-angel opens the edit form on that kind of investor.
     const editOn = PREVIEW_EDIT_ON[preview.drawer]
-    const pick = (preview.drawer === 'decision' ? raw.investors.find((i) => i.name === 'Orchard Capital') : editOn ? raw.investors.find((i) => i.name === editOn) : undefined) ?? raw.investors.find((i) => i.stage === 'booked') ?? raw.investors[0]
+    // PST-302: &drawer=application opens on the made-up accelerator with an application, its Application row ready to edit.
+    const named = preview.drawer === 'decision' ? 'Orchard Capital' : preview.drawer === 'application' ? 'Northwind Accelerator' : editOn ?? null
+    const pick = (named ? raw.investors.find((i) => i.name === named) : undefined) ?? raw.investors.find((i) => i.stage === 'booked') ?? raw.investors[0]
     if (preview.drawer === 'new') setDrawer({ id: null, opts: NO_OPTS })
-    else if (pick) setDrawer({ id: pick._id, opts: NO_OPTS, start: editOn ? 'edit' : (preview.drawer as DrawerStart) })
+    else if (pick) setDrawer({ id: pick._id, opts: NO_OPTS, start: editOn ? 'edit' : preview.drawer === 'application' ? 'view' : (preview.drawer as DrawerStart) })
   }, [preview?.drawer, raw.loaded]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // PST-302: &stage=correction opens Bluebird Seed's history, its newest move a move back.
+  useEffect(() => {
+    if (preview?.stage !== 'correction' || !raw.loaded) return
+    const pick = raw.investors.find((i) => i.name === 'Bluebird Seed')
+    if (pick) setDrawer({ id: pick._id, opts: NO_OPTS, start: 'history' })
+  }, [preview?.stage, raw.loaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Delete with Undo: hide the row now and send the delete when the toast goes, or straight
   // away if the page is hidden or closed, or the Raise views unmount (src/lib/pendingDelete.ts).

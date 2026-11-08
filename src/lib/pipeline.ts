@@ -3,6 +3,7 @@
 import { dayDiff, isISODate } from './dates'
 import { currentPhase, targetValue, type Metric, type Phase, type Round } from './round'
 import type { LeadFields } from './race'
+import { isAwaiting, type ApplicationFields } from './applications' // PST-302
 import {
   ACTIVE, COMMIT, DONE, IDX, STAGES, TYPES,
   type Geo, type InvestorType, type PipelineStage, type Stage, type Tier, type TouchKind, type Warmth, type Wave,
@@ -39,7 +40,7 @@ export type InvestorFields = {
 export type Contact = { email?: string; meeting?: string }
 
 /** PST-295: LeadFields (can lead, Dev's override, asked to lead) come from Convex as they are; the form never sends them. */
-export type Investor = InvestorFields & LeadFields & { _id: string; maxStage: PipelineStage; slug?: string; updatedAt?: number; _creationTime?: number; contact?: Contact }
+export type Investor = InvestorFields & LeadFields & ApplicationFields & { _id: string; maxStage: PipelineStage; slug?: string; updatedAt?: number; _creationTime?: number; contact?: Contact }
 
 export type Activity = {
   _id: string
@@ -50,10 +51,17 @@ export type Activity = {
   touch?: TouchKind
   /** PST-263: written by Calendar or Gmail sync rather than by hand. */
   source?: 'calendar' | 'gmail'
+  /* PST-302: a stage move's stage before it, who made it (absent: a person), and whether Dev marked it a correction. */
+  fromStage?: Stage
+  via?: StageVia
+  correction?: { maxBefore: PipelineStage }
   date: string
   by?: string
   _creationTime?: number
 }
+
+/** PST-302: a stage move made by accepting an agent's suggestion, or by Nest from a signal (Calendar). */
+export type StageVia = 'agent' | 'signal'
 
 /** Options for logging a touch: its kind, the day it happened, and optionally a new next step. */
 export type TouchOptions = { touch?: TouchKind; date?: string; next?: { step: string; date?: string } }
@@ -143,8 +151,10 @@ export function lastContact(i: Pick<Investor, 'lastTouch' | 'contact'>): string 
  * in `quietDays`+ days. Returns how many days quiet (Infinity when never
  * touched), or null when it isn't quiet.
  */
-export function quietFor(i: Pick<Investor, 'stage' | 'lastTouch' | 'contact'>, today: string, quietDays: number): number | null {
+export function quietFor(i: Pick<Investor, 'stage' | 'lastTouch' | 'contact'> & ApplicationFields, today: string, quietDays: number): number | null {
   if (!ACTIVE.has(i.stage) || COMMIT.has(i.stage)) return null
+  // PST-302: never while an application waits on their decision (submitted, interview invited or done).
+  if (isAwaiting(i.application)) return null
   const last = lastContact(i)
   if (!last) return Infinity
   const d = dayDiff(today, last)
@@ -179,7 +189,29 @@ export function funnel(inv: Inv[]) {
 
 /** Stage moves into `stage` logged within the phase's dates. */
 export const stageMovesIn = (acts: Pick<Activity, 'kind' | 'stage' | 'date'>[], stage: string, p: Pick<Phase, 'from' | 'to'>) =>
-  acts.filter((a) => a.kind === 'stage' && a.stage === stage && a.date >= p.from && a.date <= p.to).length
+  withoutCorrections(acts).filter((a) => a.kind === 'stage' && a.stage === stage && a.date >= p.from && a.date <= p.to).length
+
+type CorrectableAct = Pick<Activity, 'kind' | 'stage' | 'date'> & Partial<Pick<Activity, 'investorId' | 'correction' | '_creationTime'>>
+/**
+ * PST-302: the stage moves the stats count. A move Dev marked as a correction is
+ * left out, and so is every earlier move of that investor past the stage it went
+ * back to: those stages were never really reached (maxStage was reset too).
+ */
+export function withoutCorrections<T extends CorrectableAct>(acts: readonly T[]): T[] {
+  const fixes = acts.filter((a) => a.kind === 'stage' && a.correction && a.investorId)
+  if (!fixes.length) return [...acts]
+  const before = (a: T, c: T) => a.date < c.date || (a.date === c.date && (a._creationTime ?? 0) < (c._creationTime ?? Infinity))
+  return acts.filter((a) => {
+    if (a.kind !== 'stage') return true
+    if (a.correction) return false
+    const ix = a.stage ? IDX[a.stage] : undefined
+    if (ix === undefined) return true
+    return !fixes.some((c) => c.investorId === a.investorId && before(a, c) && ix > (IDX[c.stage!] ?? -1))
+  })
+}
+
+/** PST-302: a move further back along the pipeline (Not contacted … Money in), the kind Dev can mark as a correction. */
+export const isBackward = (from: Stage | undefined, to: Stage) => from !== undefined && IDX[from] !== undefined && IDX[to] !== undefined && IDX[to]! < IDX[from]!
 
 export function phaseActual(p: Phase, m: Metric, inv: (Inv & { path?: string })[], acts: Pick<Activity, 'kind' | 'stage' | 'date'>[], committed: number) {
   if (m === 'count') return inv.length
@@ -219,14 +251,15 @@ export const mixByType = (inv: (Inv & { type: string })[]) =>
   }).filter((r) => r.n > 0)
 
 /**
- * The write rule for saving an investor (prototype `save()`): on a stage change
- * (other than to "Not contacted") set lastTouch to today and log a stage
- * activity; raise maxStage when the new stage is further along.
+ * The write rule for saving an investor (prototype `save()`): every stage change
+ * logs one stage activity (PST-302: back to "Not contacted" too, from any stage
+ * to any stage, nothing in between); a change to a live stage also sets
+ * lastTouch to today. maxStage only rises (a correction resets it on its own).
  */
 export function applySave(prev: (Inv & { maxStage: PipelineStage }) | null, body: InvestorFields, today: string) {
   const stageChanged = !prev || prev.stage !== body.stage
-  const logStage = stageChanged && body.stage !== 'todo'
-  const lastTouch = logStage ? today : body.lastTouch
+  const logStage = stageChanged && (!!prev || body.stage !== 'todo')
+  const lastTouch = stageChanged && body.stage !== 'todo' ? today : body.lastTouch
   const prevMax = prev ? maxIdx(prev) : -1
   let maxStage: PipelineStage
   if ((IDX[body.stage] ?? -1) > prevMax) maxStage = body.stage as PipelineStage

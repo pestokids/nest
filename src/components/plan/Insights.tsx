@@ -87,7 +87,7 @@ export function Insights() {
           {paths.warm.asked || paths.cold.asked ? (
             <div className="ins-paths">
               <PathRow label="Warm intro" p={paths.warm} />
-              <PathRow label="Cold or applied" p={paths.cold} cold />
+              <PathRow label="Cold, no introducer" p={paths.cold} cold />
             </div>
           ) : (
             <p className="ins-calm">No asks yet, warm or cold.</p>

@@ -12,6 +12,10 @@ export type Intent = { kind: ActionKind; stage?: PipelineStage; touch?: LogKind 
 
 type Word = { kind?: ActionKind; stage?: PipelineStage; touch?: LogKind }
 const WORDS: Record<string, Word> = {
+  // PST-302: any stage, back to Not contacted too ("kite not contacted", "orch todo").
+  todo: { stage: 'todo' },
+  contacted: { stage: 'todo' },
+  uncontacted: { stage: 'todo' },
   asked: { stage: 'ask' },
   intro: { stage: 'intro' },
   booked: { stage: 'booked' },
@@ -52,7 +56,7 @@ const WORDS: Record<string, Word> = {
   deadline: { kind: 'decide' },
 }
 /** Small words around a command ("mark kite as no", "move orch to dd"), dropped once a command word is there. */
-const FILLER = new Set(['to', 'a', 'an', 'the', 'with', 'for', 'as', 'mark', 'up', 'on', 'if', 'set', 'by', 'date', 'ask', 'they', 'theyll', 'will', 'until'])
+const FILLER = new Set(['not', 'back', 'to', 'a', 'an', 'the', 'with', 'for', 'as', 'mark', 'up', 'on', 'if', 'set', 'by', 'date', 'ask', 'they', 'theyll', 'will', 'until'])
 
 const tokens = (q: string) => q.toLowerCase().replace(/[’']/g, '').split(/[^a-z0-9]+/).filter(Boolean)
 

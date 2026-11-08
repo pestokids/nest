@@ -21,6 +21,8 @@ import { KEYS, matches, type KeyEventLike } from './shortcuts'
 
 const days = (n: number) => `${n} day${n === 1 ? '' : 's'}`
 
+import { isDecisionPassed, passedDetail } from './applications' // PST-302
+
 /* ---------- PST-293: decisions, for PST-297's Inbox ---------- */
 // Four row types: a decide-by date that has passed, the 3rd call done (ask or
 // drop), a new ask from an email, and a Decide row (an unsure signal). Today shows
@@ -549,7 +551,7 @@ export function rankInbox<R extends Pick<InboxRow, 'group' | 'due' | 'priority' 
 export function buildInbox(src: InboxSources): InboxRow[] {
   const byId = new Map(src.investors.map((i) => [i._id, i]))
   const raw = [
-    ...followUpRows(src, byId), ...replyRows(src, byId), ...introRows(src), ...decideRowsFor(src), ...closeRows(src, byId),
+    ...followUpRows(src, byId), ...replyRows(src, byId), ...introRows(src), ...decideRowsFor(src), /* PST-302 */ ...awaitingRows(src), ...closeRows(src, byId),
     ...dueRows(src), ...suggestionRows(src, byId), ...openRows(src, byId), ...quietRows(src), ...moveRows(src),
   ]
   return rankInbox(
@@ -591,3 +593,34 @@ export type InboxKey = 'down' | 'up' | 'done' | 'snooze' | 'draft' | 'open'
 const INBOX_KEYS: readonly InboxKey[] = ['down', 'up', 'done', 'snooze', 'draft', 'open']
 export const inboxKey = (e: KeyEventLike): InboxKey | null => INBOX_KEYS.find((k) => matches(e, KEYS[k])) ?? null
 /* ---------- end PST-297 ---------- */
+/* ---------- PST-302: applications (PST-297's Inbox takes these as they are) ---------- */
+// While an application waits on their decision there are no quiet rows or
+// nudges (quietFor). Once its decision-by day has passed, one calm row asks Dev
+// to update the status. An explicit next step stays its own due row, with its
+// own date: waiting for the decision is never a next step.
+
+export type DecisionPassedRow = { key: string; kind: 'decision_passed'; investorId: string; name: string; title: string; detail: string; due: string }
+
+/** Applications still awaiting a decision after their decision-by day, the oldest first. Passed and parked investors are left out. */
+export function decisionPassedRows(investors: readonly Pick<Investor, '_id' | 'name' | 'stage' | 'application'>[], today: string): DecisionPassedRow[] {
+  return investors
+    .filter((i) => i.stage !== 'passed' && i.stage !== 'parked' && isDecisionPassed(i.application, today))
+    .sort((a, b) => a.application!.decisionBy!.localeCompare(b.application!.decisionBy!) || a.name.localeCompare(b.name))
+    .map((i) => ({
+      key: 'decision_passed:' + i._id, kind: 'decision_passed' as const, investorId: i._id, name: i.name,
+      title: 'Decision date passed', detail: passedDetail(i.application!, today), due: i.application!.decisionBy!,
+    }))
+}
+
+/** The Inbox's `awaiting` rows: calm, in Today, with no deadline of their own; "Update status" opens the drawer's Application row. */
+function awaitingRows(src: InboxSources): Raw[] {
+  const byId = new Map(src.investors.map((i) => [i._id, i]))
+  return decisionPassedRows(src.investors, src.today).map((r) => {
+    const a = byId.get(r.investorId)!.application!
+    return {
+      key: 'awaiting:' + r.investorId, type: 'awaiting', group: 'today', name: r.name, investorId: r.investorId,
+      detail: r.title + ' · ' + r.detail, when: '', version: [a.status, a.decisionBy].join('|'), label: 'Update status', action: { kind: 'open' },
+    }
+  })
+}
+/* ---------- end PST-302 ---------- */

@@ -9,6 +9,7 @@ import { NO_GOOGLE, withContact, type GoogleData } from '../lib/google'
 import { DEFAULT_ROUND } from '../lib/round'
 import { NO_AI, type AIData, type Fit } from '../lib/enrich'
 import type { Suggestion } from '../lib/suggestions'
+import { changeApplication } from '../lib/applications' // PST-302
 import type { AgentScope } from '../lib/agents'
 import type { Feature, Model } from '../lib/models'
 import { RaiseContext, type RaiseData } from './data'
@@ -58,6 +59,16 @@ export function ConvexData({ children }: { children: ReactNode }) {
   const logTouch = useMutation(api.investors.logTouch).withOptimisticUpdate((store, a) => showTouch(store, a, me))
   const undoTouch = useMutation(api.investors.undoTouch).withOptimisticUpdate((store, a) => hideTouch(store, a))
   const remove = useMutation(api.investors.remove)
+  // PST-302: an application shows at once; a correction is a plain write.
+  const setApplication = useMutation(api.applications.set).withOptimisticUpdate((store, { id, application }) => {
+    const list = store.getQuery(api.investors.list, {})
+    if (list) store.setQuery(api.investors.list, {}, list.map((i) => (i._id === id ? { ...i, application: application ?? undefined } : i)))
+  })
+  const changeApp = useMutation(api.applications.change).withOptimisticUpdate((store, { id, changes }) => {
+    const list = store.getQuery(api.investors.list, {})
+    if (list) store.setQuery(api.investors.list, {}, list.map((i) => (i._id === id ? { ...i, application: changeApplication(i.application, changes) ?? i.application } : i)))
+  })
+  const markCorrection = useMutation(api.applications.markCorrection)
   const importMany = useMutation(api.investors.importMany)
   const updateRound = useMutation(api.settings.update)
   const setTick = useMutation(api.prep.set)
@@ -191,8 +202,12 @@ export function ConvexData({ children }: { children: ReactNode }) {
       useAskRun,
       brief,
       setBriefDismissed: (id, dismissed) => briefDismiss({ id: id as Id<'briefs'>, dismissed }),
+      // PST-302
+      setApplication: (id, application) => setApplication({ id: id as Id<'investors'>, application }),
+      changeApplication: (id, changes) => changeApp({ id: id as Id<'investors'>, changes }),
+      markCorrection: (activityId, on) => markCorrection({ activityId: activityId as Id<'activities'>, on }),
     }),
-    [investors, withSignals, acts, settings, me, upsert, advance, move, undoMove, logNote, logTouch, undoTouch, remove, importMany, updateRound, setTick, google, googleDo, suggestionRows, suggest, ai, aiDo, agents, agentsDo, askStart, brief, briefDismiss],
+    [investors, withSignals, acts, settings, me, upsert, advance, move, undoMove, logNote, logTouch, undoTouch, remove, importMany, updateRound, setTick, google, googleDo, suggestionRows, suggest, ai, aiDo, agents, agentsDo, askStart, brief, briefDismiss, setApplication, changeApp, markCorrection],
   )
   return (
     <RaiseContext.Provider value={value}>

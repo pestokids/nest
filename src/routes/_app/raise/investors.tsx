@@ -23,6 +23,7 @@ import { isQuiet } from '../../../lib/investorView'
 import type { Investor } from '../../../lib/pipeline'
 import { priorities, PRIORITY_FORMULA } from '../../../lib/priority'
 import { ACTIVE, GEOS, IDX, isStage, STAGE_TILE, TIERS, TYPES, WARMTHS, type Stage } from '../../../lib/stages'
+import { APPLICATION_FILTERS, matchesApplication } from '../../../lib/applications' // PST-302
 
 const SORT_KEYS: SortKey[] = ['name', 'type', 'stage', 'wave', 'path', 'lastTouch', 'nextStep', 'expected', 'priority']
 /** Sorts that put the biggest first unless you flip them. */
@@ -50,6 +51,7 @@ export const Route = createFileRoute('/_app/raise/investors')({
     geo: oneOf(GEOS, s.geo),
     tier: oneOf(TIERS, s.tier),
     wave: oneOf([1, 2, 3] as const, s.wave),
+    app: oneOf(APPLICATION_FILTERS, s.app), // PST-302
     sort: oneOf(SORT_KEYS, s.sort),
     dir: oneOf(['asc', 'desc'] as const, s.dir),
     import: s.import === true || s.import === '1' || s.import === 'true' ? true : undefined,
@@ -133,7 +135,8 @@ function Investors() {
         (!s.type || i.type === s.type) &&
         (!s.geo || i.geo === s.geo) &&
         (!s.tier || i.tier === s.tier) &&
-        (!s.wave || i.wave === s.wave),
+        (!s.wave || i.wave === s.wave) &&
+        matchesApplication(i, s.app), // PST-302
     )
     const key = s.sort ?? 'lastTouch'
     const dir = s.dir === 'asc' ? 1 : s.dir === 'desc' ? -1 : DESC_FIRST.has(key) ? -1 : 1
@@ -148,9 +151,9 @@ function Investors() {
       const y = val(b)
       return (x > y ? 1 : x < y ? -1 : 0) * dir || a.name.localeCompare(b.name)
     })
-  }, [inv, only, q, s.stage, s.warmth, s.type, s.geo, s.tier, s.wave, s.sort, s.dir, prio])
+  }, [inv, only, q, s.stage, s.warmth, s.type, s.geo, s.tier, s.wave, s.app, s.sort, s.dir, prio])
 
-  useEffect(() => setLimit(PAGE), [q, s.stage, s.type, s.wave, s.warmth, s.geo, s.tier])
+  useEffect(() => setLimit(PAGE), [q, s.stage, s.type, s.wave, s.warmth, s.geo, s.tier, s.app])
   // Drop selections that no longer exist (deleted elsewhere).
   useEffect(() => {
     setSelected((sel) => {
@@ -174,10 +177,10 @@ function Investors() {
   })
 
   const shown = rows.slice(0, limit)
-  const filtered = !!(q || s.stage || s.type || s.wave || s.warmth || s.geo || s.tier || only)
+  const filtered = !!(q || s.stage || s.type || s.wave || s.warmth || s.geo || s.tier || s.app || only)
   const clearAll = () => {
     setOnly(null)
-    setSearch({ q: undefined, stage: undefined, type: undefined, wave: undefined, warmth: undefined, geo: undefined, tier: undefined })
+    setSearch({ q: undefined, stage: undefined, type: undefined, wave: undefined, warmth: undefined, geo: undefined, tier: undefined, app: undefined })
   }
 
   const countText = selected.size ? `${selected.size} selected` : filtered ? `${rows.length} of ${inv.length}` : `${inv.length} investor${inv.length === 1 ? '' : 's'}`

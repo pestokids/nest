@@ -6,12 +6,14 @@ import { dayDiff } from './dates'
 import { addressesOf, cleanDomains, dayOf, domainOf, GENERIC_DOMAINS, isOurs, normEmail } from './google'
 import { dayLabel } from './investorView'
 import { maxIdx } from './pipeline'
-import { ACTIVE, COMMIT, IDX, STAGE_TILE, STAGES, type InvestorType, type PipelineStage, type Stage, type TouchKind, type Wave } from './stages'
+import { ACTIVE, COMMIT, IDX, LABEL, STAGE_TILE, STAGES, WARM, type InvestorType, type PipelineStage, type Stage, type TouchKind, type Warmth, type Wave } from './stages'
+import { applicationChip, cleanApplication, sameApplication, type Application } from './applications' // PST-302
 import { addDays } from './today'
 
 // PST-276 adds new_investor (an agent's add_investor; accepting creates the investor).
 // PST-277 adds question and warm_path (from meeting notes).
-export const SUGGESTION_KINDS = ['stage', 'expected', 'missing_info', 'duplicate', 'next_step', 'question', 'warm_path', 'enrichment', 'touch', 'new_investor'] as const
+// PST-302 adds notes, outreach and application (agents, through suggest_change).
+export const SUGGESTION_KINDS = ['stage', 'expected', 'missing_info', 'duplicate', 'next_step', 'question', 'warm_path', 'enrichment', 'touch', 'new_investor', 'notes', 'outreach', 'application'] as const
 export type SuggestionKind = (typeof SUGGESTION_KINDS)[number]
 // PST-292 adds jev (Duplicate firms checked by Jev).
 export const SUGGESTION_SOURCES = [
@@ -37,6 +39,10 @@ export type SuggestionPatch =
   // PST-277: questions from a meeting note into the Q&A bank, and a warm path onto the investor's notes.
   | { op: 'questions'; noteId: string; items: { text: string; questionId?: string; answer?: string; quote: string }[] }
   | { op: 'warm_path'; text: string }
+  // PST-302: replace the notes or append a correction (`before`: the notes it was written against), the outreach labels, the application.
+  | { op: 'notes'; mode: 'replace' | 'append'; text: string; before: string }
+  | { op: 'outreach'; path?: string; warmth?: Warmth; source?: string }
+  | ({ op: 'application' } & Application)
 
 export type SuggestionDraft = {
   kind: SuggestionKind
@@ -64,7 +70,7 @@ export const CHECK_PREFIX = 'check:'
 
 export const KIND_LABEL: Record<SuggestionKind, string> = {
   stage: 'Stage', expected: 'Expected', missing_info: 'Missing info', duplicate: 'Duplicate', next_step: 'Next step', question: 'Q&A', warm_path: 'Warm path', enrichment: 'Enrichment', touch: 'Touch',
-  new_investor: 'New investor',
+  new_investor: 'New investor', notes: 'Notes', outreach: 'Outreach', application: 'Application',
 }
 const SOURCE_LABEL: Record<Exclude<SuggestionSource, 'agent'>, string> = { rule: 'Nest', calendar: 'Calendar', gmail: 'Gmail', notes: 'Meeting notes', enrich: 'Enrich', jev: 'Jev', find_more: 'Find more' }
 /** "Calendar", "Grok Bot": shown as "From …". */
@@ -74,6 +80,7 @@ export const sourceLabel = (s: Pick<Suggestion, 'source' | 'agentName'>) => (s.s
 export type SuggestionFilter = 'all' | SuggestionKind | 'agents'
 const FILTER_LABEL: Record<Exclude<SuggestionFilter, 'all'>, string> = {
   stage: 'Stage', expected: 'Expected', missing_info: 'Missing info', duplicate: 'Duplicates', next_step: 'Next steps', question: 'Q&A', warm_path: 'Warm paths', enrichment: 'Enrichment', touch: 'Touches', new_investor: 'New investors',
+  notes: 'Notes', outreach: 'Outreach', application: 'Applications',
   agents: 'From agents',
 }
 export const filterOf = (s: Pick<Suggestion, 'kind' | 'source'>): Exclude<SuggestionFilter, 'all'> => (s.source === 'agent' ? 'agents' : s.kind)
@@ -375,4 +382,66 @@ export function firstTidyToday(today: string, store: Pick<Storage, 'getItem' | '
   } catch {
     return false
   }
+}
+
+/* ---------- PST-302: no-op checks and the new kinds' wording ---------- */
+
+type PatchTarget = { stage: Stage; nextStep: string; nextDate?: string; expected?: number; notes: string; path: string; warmth: Warmth; source: string; application?: Application }
+const same = (a: string | undefined, b: string | undefined) => (a ?? '').trim().toLowerCase() === (b ?? '').trim().toLowerCase()
+
+/** The notes once a notes patch is applied. */
+export const notesAfter = (notes: string, p: Extract<SuggestionPatch, { op: 'notes' }>) =>
+  p.mode === 'replace' ? p.text.trim() : [notes.trim(), p.text.trim()].filter(Boolean).join('\n\n')
+
+/** The application once an application patch is applied: a programme or date it leaves out stays as it was. */
+export function applicationAfter(cur: Application | undefined, p: Extract<SuggestionPatch, { op: 'application' }>): Application {
+  return cleanApplication({ status: p.status, program: p.program ?? cur?.program, submittedOn: p.submittedOn ?? cur?.submittedOn, decisionBy: p.decisionBy ?? cur?.decisionBy })!
+}
+
+/** Only the outreach fields that would change. */
+export function outreachChanges(i: Pick<PatchTarget, 'path' | 'warmth' | 'source'>, p: Extract<SuggestionPatch, { op: 'outreach' }>) {
+  const out: { path?: string; warmth?: Warmth; source?: string } = {}
+  if (p.path !== undefined && !same(p.path, i.path)) out.path = p.path.trim()
+  if (p.warmth !== undefined && p.warmth !== i.warmth) out.warmth = p.warmth
+  if (p.source !== undefined && !same(p.source, i.source)) out.source = p.source.trim()
+  return out
+}
+
+/**
+ * Why a suggestion would change nothing: the record already has that value.
+ * Null when it would change something. Agents get this back instead of a new row.
+ */
+export function noOpReason(i: PatchTarget & { name: string }, p: SuggestionPatch): string | null {
+  switch (p.op) {
+    case 'stage':
+      return i.stage === p.to ? i.name + ' is already at ' + LABEL[p.to] + '.' : null
+    case 'next_step':
+      return same(i.nextStep, p.step) && (i.nextDate ?? '') === (p.date ?? '') ? i.name + '’s next step is already “' + i.nextStep + '”' + (i.nextDate ? ' on ' + i.nextDate : '') + '.' : null
+    case 'expected':
+      return i.expected === p.amount ? i.name + '’s Expected is already ' + p.amount + '.' : null
+    case 'notes':
+      if (p.mode === 'replace') return i.notes.trim() === p.text.trim() ? i.name + '’s notes already say exactly that.' : null
+      return i.notes.includes(p.text.trim()) ? i.name + '’s notes already include that.' : null
+    case 'outreach':
+      return Object.keys(outreachChanges(i, p)).length ? null : i.name + ' already has that warm path, warmth and source.'
+    case 'application':
+      return sameApplication(i.application, applicationAfter(i.application, p)) ? i.name + '’s application is already “' + applicationChip(i.application) + '”.' : null
+    default:
+      return null
+  }
+}
+
+/** The "→ change" line for the new kinds. */
+export function fixLine(p: Extract<SuggestionPatch, { op: 'notes' | 'outreach' | 'application' }>, cur?: Application): string {
+  if (p.op === 'notes') return p.mode === 'replace' ? 'Replace the notes' : 'Add a correction to the notes'
+  if (p.op === 'application') return 'Set the application to “' + applicationChip(applicationAfter(cur, p)) + '”'
+  const bits = [p.path !== undefined ? 'warm path “' + p.path.trim() + '”' : '', p.warmth ? WARM[p.warmth].toLowerCase() : '', p.source !== undefined ? 'source “' + p.source.trim() + '”' : ''].filter(Boolean)
+  return 'Set ' + bits.join(', ')
+}
+
+/** A notes suggestion's before and after, for the row's diff. Long notes are cut around the change. */
+export function notesDiff(p: Extract<SuggestionPatch, { op: 'notes' }>, max = 280): { before: string; after: string; added: boolean } {
+  const cut = (x: string, fromEnd = false) => (x.length <= max ? x : fromEnd ? '…' + x.slice(-max) : x.slice(0, max) + '…')
+  if (p.mode === 'append') return { before: cut(p.before.trim(), true), after: cut(p.text.trim()), added: true }
+  return { before: cut(p.before.trim()), after: cut(p.text.trim()), added: false }
 }

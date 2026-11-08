@@ -4,7 +4,11 @@ import { EggHatching } from '../illustrations'
 import { Icon, type IconName } from './Icon'
 
 export type ToastTone = 'success' | 'win' | 'error' | 'info' | 'hatch'
-export type ToastInput = { tone?: ToastTone; message: ReactNode; action?: { label: string; onClick: () => void }; icon?: IconName; durationMs?: number }
+export type ToastInput = {
+  tone?: ToastTone; message: ReactNode; action?: { label: string; onClick: () => void }; icon?: IconName; durationMs?: number
+  /** PST-302: a second action before the main one (a backward move's "Mark as a correction" beside Undo). */
+  secondary?: { label: string; onClick: () => void }
+}
 type Shown = ToastInput & { id: number; leaving?: boolean }
 
 const ToastCtx = createContext<((t: ToastInput | string) => void) | null>(null)
@@ -65,14 +69,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastCtx.Provider value={value}>
       {children}
       <div className="toast-region" role="status" aria-live="polite" ref={region}>
-        {t ? <Toast key={t.id} {...t} onAction={() => { t.action?.onClick(); dismiss() }} /> : null}
+        {t ? <Toast key={t.id} {...t} onAction={() => { t.action?.onClick(); dismiss() }} onSecondary={() => { t.secondary?.onClick(); dismiss() }} /> : null}
       </div>
     </ToastCtx.Provider>
   )
 }
 
 /** One toast. Exported for previews; use useToast() in the app. */
-export function Toast({ tone = 'success', message, action, icon, leaving, onAction }: ToastInput & { leaving?: boolean; onAction?: () => void }) {
+export function Toast({ tone = 'success', message, action, secondary, icon, leaving, onAction, onSecondary }: ToastInput & { leaving?: boolean; onAction?: () => void; onSecondary?: () => void }) {
   const lead =
     tone === 'win' ? (
       <img className="toast__cheer" src="/mascot/cheer.webp" alt="" width={56} height={51} />
@@ -87,6 +91,11 @@ export function Toast({ tone = 'success', message, action, icon, leaving, onActi
     <div className={['toast', `toast--${tone}`, leaving && 'toast--leaving'].filter(Boolean).join(' ')}>
       {lead}
       <span className="toast__msg">{message}</span>
+      {secondary ? (
+        <button type="button" className="toast__action toast__action--secondary" onClick={onSecondary}>
+          {secondary.label}
+        </button>
+      ) : null}
       {action ? (
         <button type="button" className="toast__action" onClick={onAction}>
           {action.label}

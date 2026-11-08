@@ -4,7 +4,7 @@ import type { PreviewRace } from '../preview/raceFixture'
 // DEV/preview only: which state `?preview` should show (Today, the drawer, and the
 // Investors / Plan / Settings / system states). Null outside preview.
 export const PREVIEW_TODAY = ['default', 'nothingdue', 'win', /* PST-297 */ 'inbox', 'phone', 'clear'] as const
-export const PREVIEW_DRAWER = ['view', 'edit', 'new', 'advance', 'touch', 'history', 'emails', 'materials', 'notes', 'delete', /* PST-293 */ 'decision', /* PST-303 */ 'edit-vc', 'edit-accelerator', 'edit-angel'] as const
+export const PREVIEW_DRAWER = ['view', 'edit', 'new', 'advance', 'touch', 'history', 'emails', 'materials', 'notes', 'delete', /* PST-293 */ 'decision', /* PST-303 */ 'edit-vc', 'edit-accelerator', 'edit-angel', /* PST-302 */ 'application'] as const
 export type PreviewToday = (typeof PREVIEW_TODAY)[number]
 export type PreviewDrawer = (typeof PREVIEW_DRAWER)[number]
 /* ---------- PST-303 ---------- */
@@ -53,6 +53,12 @@ export type PreviewState = {
   /* ---------- end PST-294 ---------- */
   /** PST-295 `&pipeline=race|race-lead|update` and `&home=race` (see src/preview/raceFixture.ts) */
   race?: PreviewRace | null
+  /* ---------- PST-302 ---------- */
+  /** `&card=awaiting-decision`: Pipeline with the card of an application awaiting a decision focused */
+  card?: string | null
+  /** `&stage=correction`: the drawer's history after a move back, with "Mark as a correction" */
+  stage?: string | null
+  /* ---------- end PST-302 ---------- */
 }
 
 /** PST-279 `&ask=…`: the question ⌘K asks as it opens in Ask mode (empty: just Ask mode). See src/preview/askFixture.ts. */

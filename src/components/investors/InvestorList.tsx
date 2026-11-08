@@ -12,6 +12,7 @@ import { Menu, type MenuItem } from '../system/Menu'
 import { useInstant } from '../system/useInstant'
 import { useSaveAction } from '../system/useSaveAction'
 import { Chip, Icon, type ChipTone } from '../ui'
+import { applicationChip, applicationTone, isApplicationPath } from '../../lib/applications' // PST-302
 
 export type SortKey = 'name' | 'type' | 'stage' | 'wave' | 'path' | 'lastTouch' | 'nextStep' | 'expected' | 'priority'
 
@@ -170,6 +171,7 @@ function Row({ i, run, prio, today, quiet, checked, onCheck, onOpen }: RowProps 
           <Chip tone={chip.tone} dot={chip.dot} className="inv-stage">
             {STAGE_TILE[i.stage]}
           </Chip>
+          <AppChip i={i} />
         </span>
         <span className="c-wave" role="cell">
           W{i.wave}
@@ -203,6 +205,7 @@ function Row({ i, run, prio, today, quiet, checked, onCheck, onOpen }: RowProps 
         <Chip tone={chip.tone} dot={chip.dot} className="inv-stage">
           {STAGE_TILE[i.stage]}
         </Chip>
+        <AppChip i={i} />
       </span>
       <span className="c-wave" role="cell">
         W{i.wave}
@@ -276,8 +279,9 @@ function CardRow({ i, prio, today, quiet, checked, onCheck, onOpen }: RowProps) 
           <Chip tone={chip.tone} dot={chip.dot} className="inv-stage">
             {STAGE_TILE[i.stage]}
           </Chip>
+          <AppChip i={i} />
           <span className="inv-c__wave">W{i.wave}</span>
-          {i.path ? <span className="inv-c__path">via {i.path}</span> : null}
+          {i.path && !isApplicationPath(i.path) ? <span className="inv-c__path">via {i.path}</span> : null}
         </div>
         {i.nextStep || i.nextDate || i.lastTouch ? (
           <div className="inv-c__foot">
@@ -290,6 +294,17 @@ function CardRow({ i, prio, today, quiet, checked, onCheck, onOpen }: RowProps) 
         <RowMenu i={i} />
       </span>
     </li>
+  )
+}
+
+/** PST-302: the application, beside the stage and apart from it ("Applied W27 · awaiting decision"). */
+function AppChip({ i }: { i: Investor }) {
+  const label = applicationChip(i.application)
+  if (!label || !i.application) return null
+  return (
+    <Chip tone={applicationTone(i.application)} dot={false} className="inv-app">
+      {label}
+    </Chip>
   )
 }
 

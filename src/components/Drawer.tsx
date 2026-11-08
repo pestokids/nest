@@ -12,11 +12,11 @@ import {
 import { dayMonth, monDay } from '../lib/home'
 import { confetti, replay, shake, shine } from '../lib/motion'
 import { money } from '../lib/money'
-import { fieldsOf, NEW_INVESTOR, quietList, type Activity, type Investor, type InvestorFields } from '../lib/pipeline'
+import { fieldsOf, isBackward, NEW_INVESTOR, quietList, type Activity, type Investor, type InvestorFields } from '../lib/pipeline'
 import { changedFields, fieldCopy, keepUntouched } from '../lib/investorForm' // PST-303
 import { play } from '../lib/sound'
 import {
-  advanceConfirm, ALL, GEOS, IDX, nextStage, STAGE_RULE, STAGE_SHORT, STAGE_TILE, STAGES, TIERS, TOUCH_LABEL, TOUCH_PICK, TYPES, WARM, WAVES,
+  advanceConfirm, ALL, GEOS, IDX, LABEL, nextStage, STAGE_RULE, STAGE_SHORT, STAGE_TILE, STAGES, TIERS, TOUCH_LABEL, TOUCH_PICK, TYPES, WARM, WAVES,
   type PipelineStage, type Stage, type TouchKind, type Wave,
 } from '../lib/stages'
 import { neighbour } from '../lib/listOrder'
@@ -38,6 +38,8 @@ import { Link } from '@tanstack/react-router'
 import { DecisionSection, useDecisionHistory } from './decisions/DecisionSection' // PST-293
 import { useDecide, useDecisions } from './decisions/data'
 import { WarmPath } from './introducers/WarmPath' // PST-294
+import { ApplicationSection } from './applications/ApplicationSection' // PST-302
+import { StageMenu } from './pipeline/StageMenu' // PST-302
 
 export type DrawerStart = 'view' | 'edit' | 'advance' | 'touch' | 'history' | 'emails' | 'materials' | 'notes' | 'delete' | /* PST-293 */ 'decision'
 type Mode = 'view' | 'edit' | 'advance' | 'touch' | 'park' | 'delete'
@@ -165,6 +167,9 @@ export function Drawer({ id, start = 'view', forceSheet, onClose }: { id: string
   const box = useRef<HTMLDivElement>(null)
   const confirmBox = useRef<HTMLDivElement>(null)
   const stageChip = useRef<HTMLSpanElement>(null)
+  // PST-302: the stage chip opens a picker of every stage, backward or forward.
+  const [picking, setPicking] = useState(false)
+  const stageBtn = useRef<HTMLButtonElement>(null)
   const uid = useId()
   const log = d.useLog(inv ? inv._id : null)
   const decisions = useDecisions() // PST-293
@@ -314,9 +319,12 @@ export function Drawer({ id, start = 'view', forceSheet, onClose }: { id: string
                   </p>
                 ) : null}
                 <div className="drawer__chips">
-                  <Chip ref={stageChip} tone={STAGE_TONE(inv.stage)} dot={false}>
-                    {STAGE_TILE[inv.stage]}
-                  </Chip>
+                  <button ref={stageBtn} type="button" className="drawer__stagebtn" aria-haspopup="menu" aria-expanded={picking} aria-label={`Stage: ${STAGE_TILE[inv.stage]}. Move to another stage`} onClick={() => setPicking((x) => !x)}>
+                    <Chip ref={stageChip} tone={STAGE_TONE(inv.stage)} dot={false}>
+                      {STAGE_TILE[inv.stage]}
+                      <Icon name="chevron-down" size={14} className="drawer__stagecaret" />
+                    </Chip>
+                  </button>
                   <Chip tone="outline" dot={false}>
                     Wave {inv.wave}
                   </Chip>
@@ -325,6 +333,17 @@ export function Drawer({ id, start = 'view', forceSheet, onClose }: { id: string
                   </Chip>
                   {inv.stage === 'parked' && inv.parkedUntil ? <Chip tone="muted" dot={false}>Until {dayMonth(inv.parkedUntil)}</Chip> : null}
                 </div>
+                {picking ? (
+                  <StageMenu
+                    inv={inv}
+                    anchor={stageBtn.current}
+                    onClose={() => setPicking(false)}
+                    onPick={(to) => {
+                      instant.move(inv, to, { from: stageChip.current })
+                      requestAnimationFrame(() => shine(stageChip.current))
+                    }}
+                  />
+                ) : null}
                 <HeadActions inv={inv} sheet={sheet} busy={headerBusy} mode={mode} onAdvance={() => { setAdvanceTo(null); setMode('advance') }} onTouch={() => setMode('touch')} onReopen={() => void reopen(inv)} />
                 <StageProgress inv={inv} labels={!sheet} />
               </>
@@ -562,6 +581,8 @@ function Details({ inv, log, sheet, onDelete, onEdit }: { inv: Investor; log: Ac
   if (inv.committed) rows.splice(1, 0, ['Committed', money(inv.committed)])
   return (
     <div className="details">
+      {/* PST-302: the application, apart from the stage */}
+      <ApplicationSection inv={inv} />
       {/* PST-293 */}
       <DecisionSection inv={inv} />
       {/* PST-295: The lead */}
@@ -597,6 +618,11 @@ function Details({ inv, log, sheet, onDelete, onEdit }: { inv: Investor; log: Ac
 function eventText(a: Activity): [string, string] {
   if (a.kind === 'stage') {
     const st = a.stage as Stage
+    // PST-302: from → to, as one move ("Intro asked → Not contacted").
+    if (a.fromStage) {
+      const sub = a.correction ? 'Marked as a correction.' : isBackward(a.fromStage, st) ? 'Moved back.' : (STAGE_RULE[st as PipelineStage] ?? (st === 'passed' ? 'Not this round.' : st === 'parked' ? 'On hold for now.' : ''))
+      return [`${LABEL[a.fromStage]} → ${LABEL[st] ?? st}`, sub]
+    }
     return [`Moved to ${STAGE_TILE[st] ?? st}`, STAGE_RULE[st as PipelineStage] ?? (st === 'passed' ? 'Not this round.' : st === 'parked' ? 'On hold for now.' : '')]
   }
   if (a.touch) return [TOUCH_LABEL[a.touch], a.note ?? '']
@@ -610,10 +636,14 @@ function History({ inv, log, fresh }: { inv: Investor; log: Activity[] | undefin
   const { google } = useRaise()
   const decisions = useDecisionHistory(inv._id) // PST-293
   if (log === undefined) return <div className="history history--loading" aria-busy="true" />
-  type Item = { key: string; date: string; title: string; sub: string; by?: string; from?: keyof typeof SOURCE_LABEL; at?: number }
+  type Item = { key: string; date: string; title: string; sub: string; by?: string; from?: keyof typeof SOURCE_LABEL; at?: number; /* PST-302 */ fix?: Activity }
+  // PST-302: the newest move, when it went back and they're still there, can be marked as a correction.
+  const newest = log.find((a) => a.kind === 'stage')
+  const fixable = newest && newest.stage === inv.stage && isBackward(newest.fromStage, inv.stage) ? newest : undefined
   const items: Item[] = log.map((a) => {
     const [t, sub] = eventText(a)
-    return { key: a._id, date: a.date, title: t, sub, by: a.by, from: a.source }
+    const by = a.kind === 'stage' && a.via ? (a.via === 'agent' ? 'Agent suggestion' : 'Signal') : a.by
+    return { key: a._id, date: a.date, title: t, sub, by, from: a.source, at: a._creationTime, fix: a === fixable ? a : undefined }
   })
   // Meetings from Calendar (either founder's), newest first among the log by day.
   const now = Date.now()
@@ -645,9 +675,26 @@ function History({ inv, log, fresh }: { inv: Investor; log: Activity[] | undefin
             {x.from ? <span className="history__src">{SOURCE_LABEL[x.from]}</span> : null}
           </span>
           {x.sub ? <span className="history__sub">{x.sub}</span> : null}
+          {x.fix ? <CorrectionToggle act={x.fix} /> : null}
         </li>
       ))}
     </ol>
+  )
+}
+
+/** PST-302: "Mark as a correction" on the newest move back, or take the mark off. */
+function CorrectionToggle({ act }: { act: Activity }) {
+  const d = useRaise()
+  const ui = useUI()
+  const on = !!act.correction
+  const toggle = () => {
+    play(on ? 'undo' : 'rule-check', { volume: 0.7 })
+    d.markCorrection(act._id, !on).then(() => ui.toast({ tone: 'info', message: on ? 'Not a correction any more.' : 'Marked as a correction. It’s left out of the funnel and conversion numbers.' }), ui.fail)
+  }
+  return (
+    <button type="button" className="drawer__link history__fix" onClick={toggle}>
+      {on ? 'Not a correction' : 'Mark as a correction'}
+    </button>
   )
 }
 

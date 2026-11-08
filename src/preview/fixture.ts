@@ -48,14 +48,16 @@ export function fixtureInvestors(today: string): Investor[] {
     },
     { name: 'Juniper Seed', firm: 'Juniper', type: 'Seed fund', warmth: 'intro', path: 'Mira', stage: 'ask', expected: 50000, nextStep: 'Intro to a partner at Juniper', nextDate: d(0), lastTouch: d(-1), wave: 1 },
     { name: 'Saltmarsh Angels', firm: 'Saltmarsh', type: 'Angel', warmth: 'intro', path: 'Ria', stage: 'ask', expected: 30000, nextStep: 'Awaiting decision', lastTouch: d(-5), wave: 1 },
-    { name: 'Northwind Accelerator', firm: 'Northwind', type: 'Accelerator', warmth: 'cold', path: 'Applied', stage: 'ask', expected: 125000, nextStep: 'A yes goes to the whole pipeline', lastTouch: d(-7), wave: 1 },
+    // PST-302: an application awaiting a decision (the warm path still says "Applied", as older records do).
+    { name: 'Northwind Accelerator', firm: 'Northwind', type: 'Accelerator', warmth: 'cold', path: 'Applied', stage: 'ask', expected: 125000, nextStep: '', lastTouch: d(-7), wave: 1, application: { status: 'submitted', program: 'C12', submittedOn: d(-7), decisionBy: d(19) } },
     { name: 'Pebble Partners', firm: 'Pebble', type: 'Micro-VC', warmth: 'cold', path: 'cold', stage: 'passed', expected: 50000, nextStep: '', lastTouch: d(-8), wave: 2 },
     { name: 'Morrow Ventures', firm: 'Morrow', type: 'Seed fund', warmth: 'intro', path: 'Ria', stage: 'todo', expected: 200000, nextStep: '', wave: 1 },
     { name: 'Bluebird Seed', firm: 'Bluebird', type: 'Pre-seed fund', warmth: 'intro', path: 'Ankur', stage: 'todo', expected: 100000, nextStep: '', wave: 1 },
     { name: 'Quill Capital', firm: 'Quill', type: 'Multi-stage VC', warmth: 'cold', path: '', stage: 'todo', expected: 250000, nextStep: '', wave: 2 },
     { name: 'Tidewater Angels', firm: 'Tidewater', type: 'Angel', warmth: 'warm', path: 'Direct', stage: 'todo', expected: 20000, nextStep: '', wave: 1 },
     { name: 'Cedar Collective', firm: 'Cedar', type: 'Large angel', warmth: 'intro', path: 'Mira', stage: 'todo', expected: 50000, nextStep: '', wave: 2 },
-    { name: 'Harbor Light', firm: 'Harbor Light', type: 'Accelerator', warmth: 'intro', path: '', stage: 'todo', expected: 125000, nextStep: '', wave: 3 },
+    // PST-302: its decision date has passed, and Dev's own next step is a separate row with its own date.
+    { name: 'Harbor Light', firm: 'Harbor Light', type: 'Accelerator', warmth: 'intro', path: '', stage: 'todo', expected: 125000, nextStep: 'Email the partners a progress update', nextDate: d(0), wave: 3, application: { status: 'submitted', program: 'Autumn', submittedOn: d(-20), decisionBy: d(-2) } },
     { name: 'Willow Street', firm: 'Willow Street', type: 'Angel', warmth: 'intro', path: 'Ria', stage: 'todo', expected: 25000, nextStep: '', wave: 1 },
   ]
   return rows.map((r, i) => ({
@@ -78,7 +80,7 @@ export function fixtureBoardExtras(today: string): Investor[] {
   const d = (n: number) => add(today, n)
   const rows: Row[] = [
     { name: 'Saffron Seed', firm: 'Saffron', type: 'Pre-seed fund', warmth: 'warm', path: 'Mira', stage: 'ask', expected: 250000, nextStep: 'Nudge for the intro', nextDate: d(1), lastTouch: d(-6), wave: 1 },
-    { name: 'Northstar Labs', firm: 'Northstar Labs', type: 'Accelerator', warmth: 'intro', path: '', stage: 'ask', expected: 120000, nextStep: 'Follow up', nextDate: d(2), lastTouch: d(-1), wave: 1 },
+    { name: 'Northstar Labs', firm: 'Northstar Labs', type: 'Accelerator', warmth: 'intro', path: '', stage: 'ask', expected: 120000, nextStep: 'Follow up', nextDate: d(2), lastTouch: d(-1), wave: 1, application: { status: 'interview_invited', program: 'B4' } }, // PST-302
     { name: 'Juniper Angel', firm: 'Juniper', type: 'Angel', warmth: 'warm', path: 'Ankur', stage: 'ask', expected: 25000, nextStep: 'Follow up', nextDate: d(2), lastTouch: d(-1), wave: 2 },
     { name: 'Copperleaf', firm: 'Copperleaf', type: 'Seed fund', warmth: 'intro', path: 'Ria', stage: 'ask', expected: 150000, nextStep: 'Follow up', nextDate: d(3), lastTouch: d(-2), wave: 2 },
     { name: 'Rowan Operator', firm: 'Rowan', type: 'Angel', warmth: 'warm', path: 'Ria', stage: 'intro', expected: 25000, nextStep: 'Send the deck', nextDate: d(5), lastTouch: d(-1), wave: 1 },
@@ -181,3 +183,14 @@ export const fixtureMembers = [
   { email: 'dev@example.com', name: 'Dev', me: true },
   { email: 'sam@example.com', name: 'Sam', me: false },
 ]
+
+/** PST-302 `&stage=correction`: Bluebird Seed was asked for an intro, then moved back to Not contacted (made up). */
+export function fixtureCorrection(inv: Investor[], acts: Activity[], today: string): { investors: Investor[]; acts: Activity[] } {
+  const b = inv.find((i) => i.name === 'Bluebird Seed')
+  if (!b) return { investors: inv, acts }
+  const moves: Activity[] = [
+    { _id: 'fc1', investorId: b._id, kind: 'stage', stage: 'todo', fromStage: 'ask', date: add(today, -1), by: 'Dev' },
+    { _id: 'fc0', investorId: b._id, kind: 'stage', stage: 'ask', fromStage: 'todo', date: add(today, -6), by: 'Dev' },
+  ]
+  return { investors: inv.map((i) => (i === b ? { ...i, maxStage: 'ask' } : i)), acts: [...acts, ...moves].sort((x, y) => y.date.localeCompare(x.date)) }
+}

@@ -142,7 +142,7 @@ describe('card text', () => {
   const money = (n: number) => `$${n / 1000}K`
   it('next step with weekday, warmth and path', () => {
     const c = cardText(inv({ name: 'Kite', firm: 'Kite Co', type: 'Angel', warmth: 'warm', path: 'Ria', stage: 'intro', expected: 25000, nextStep: 'Send deck', nextDate: '2030-03-14', lastTouch: T }), T, 4, money)
-    expect(c).toEqual({ sub: 'Angel · Kite Co', chip: 'Warm · via Ria', amount: '$25K', foot: 'Next: send deck · Thu 14', tone: 'default' })
+    expect(c).toEqual({ sub: 'Angel · Kite Co', chip: 'Warm · via Ria', app: null, amount: '$25K', foot: 'Next: send deck · Thu 14', tone: 'default' })
   })
   it('quiet cards say how long', () => {
     const c = cardText(inv({ name: 'Q', stage: 'ask', lastTouch: '2030-03-04', path: 'Direct', warmth: 'warm' }), T, 4, money)

@@ -4,15 +4,15 @@
 import { useCallback } from 'react'
 import { classifyMove, moveSounds, moveToast, type Move, type MoveRecord } from '../../lib/board'
 import { confetti, MOTION } from '../../lib/motion'
-import type { Investor } from '../../lib/pipeline'
+import { isBackward, type Investor } from '../../lib/pipeline'
 import { play } from '../../lib/sound'
-import type { Stage } from '../../lib/stages'
+import { STAGE_TILE, type Stage } from '../../lib/stages'
 import { errorMessage, useRaise } from '../data'
 import { useToast } from '../ui'
 import { confirmAction } from '../close/openKit'
 
 export function useMoveCard() {
-  const { move, undoMove } = useRaise()
+  const { move, undoMove, markCorrection } = useRaise()
   const toast = useToast()
   return useCallback(
     (inv: Investor, to: Stage, opts: { from?: Element | null } = {}): Move => {
@@ -28,8 +28,25 @@ export function useMoveCard() {
       })
       const message = moveToast(inv.name, to, m)
       let undone = false
+      // PST-302: a move back can be marked as a correction (the furthest stage goes back too, and stats leave it out).
+      const correction = isBackward(inv.stage, to)
+        ? {
+            label: 'Mark as a correction',
+            onClick: () => {
+              play('rule-check', { volume: 0.7 })
+              saved
+                .then((rec) => (rec.activityId ? markCorrection(rec.activityId, true) : null))
+                .then(() => toast({ tone: 'info', message: `Marked as a correction. ${inv.name} never got past ${STAGE_TILE[to]}.` }))
+                .catch((e) => {
+                  play('nope')
+                  toast({ tone: 'error', message: errorMessage(e) })
+                })
+            },
+          }
+        : undefined
       if (message)
         toast({
+          secondary: correction,
           tone: m.win ? 'win' : m.kind === 'skip' ? 'info' : 'success',
           icon: m.kind === 'skip' ? 'alert' : undefined,
           message,
@@ -54,6 +71,6 @@ export function useMoveCard() {
         }, MOTION.toast.holdMs)
       return m
     },
-    [move, undoMove, toast],
+    [move, undoMove, markCorrection, toast],
   )
 }

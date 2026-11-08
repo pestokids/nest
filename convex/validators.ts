@@ -1,6 +1,7 @@
 import { v } from 'convex/values'
 import { ALL, GEOS, METRICS_LIST, PIPELINE_LIST, SUGGESTION_KINDS, SUGGESTION_SOURCES, SUGGESTION_STATUSES, TIERS, TOUCHES, TYPES, WARMTHS } from './lib/enums'
 import { FEATURES, MODELS } from '../src/lib/models'
+import { APPLICATION_STATUSES } from '../src/lib/applications' // PST-302
 
 // v.union over a list of literals, typed as the union of its members.
 const lit = <T extends string>(xs: readonly T[]) => v.union(...xs.map((x) => v.literal(x)))
@@ -103,7 +104,30 @@ export const vSuggestionPatch = v.union(
     items: v.array(v.object({ text: v.string(), questionId: v.optional(v.id('questions')), answer: v.optional(v.string()), quote: v.string() })),
   }),
   v.object({ op: v.literal('warm_path'), text: v.string() }),
+  // PST-302: an agent's fix to the notes (replace them, or append a correction; `before` is the notes it was written against),
+  // to the outreach labels (warm path text, warmth, source), and to the application.
+  v.object({ op: v.literal('notes'), mode: v.union(v.literal('replace'), v.literal('append')), text: v.string(), before: v.string() }),
+  v.object({ op: v.literal('outreach'), path: v.optional(v.string()), warmth: v.optional(vWarmth), source: v.optional(v.string()) }),
+  v.object({ op: v.literal('application'), status: lit(APPLICATION_STATUSES), program: v.optional(v.string()), submittedOn: v.optional(v.string()), decisionBy: v.optional(v.string()) }),
 )
+
+/* ---------- PST-302: applications ---------- */
+
+export const vApplicationStatus = lit(APPLICATION_STATUSES)
+export const vApplication = v.object({
+  status: vApplicationStatus,
+  /** The programme or batch, e.g. "W27". */
+  program: v.optional(v.string()),
+  submittedOn: v.optional(v.string()),
+  decisionBy: v.optional(v.string()),
+})
+/** Only the Application row's touched fields; null clears one. */
+export const vApplicationChanges = v.object({
+  status: v.optional(vApplicationStatus),
+  program: v.optional(v.union(v.string(), v.null())),
+  submittedOn: v.optional(v.union(v.string(), v.null())),
+  decisionBy: v.optional(v.union(v.string(), v.null())),
+})
 const vIdsBefore = <T extends 'meetings' | 'emailTouches'>(table: T) => v.array(v.object({ id: v.id(table), investorIds: v.array(v.id('investors')) }))
 /** What Undo needs after an accept: the values it replaced, the activity it wrote, or the card a merge deleted. */
 export const vSuggestionUndo = v.union(
