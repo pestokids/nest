@@ -64,6 +64,10 @@ const SCREENS = [
   ['google-cmdk-gmail', '/raise/today?preview&system=cmdk&google=connected'],
   // PST-285: Wispr Flow
   ...['off', 'connected', 'reconnect', 'fetching'].map((s) => [`wispr-settings-${s}`, `/raise/settings?preview&wispr=${s}`]),
+  // PST-289: Send feedback (⌘.), and Settings › Feedback with rows waiting
+  ['feedback-open', '/raise/pipeline?preview&feedback=open'],
+  ['feedback-sent', '/raise/today?preview&feedback=sent'],
+  ['feedback-unsent', '/raise/settings?preview&feedback=unsent'],
   // PST-275: Suggested fixes
   ['suggestions-today', '/raise/today?preview'],
   ['suggestions-all', '/raise/today?preview&suggestions=all'],

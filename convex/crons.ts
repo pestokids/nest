@@ -10,4 +10,6 @@ crons.daily('suggestion checks', { hourUTC: 3, minuteUTC: 30 }, internal.suggest
 crons.daily('morning brief', { hourUTC: 2, minuteUTC: 30 }, internal.brief.run, {})
 // PST-285: Wispr Flow notes after investor meetings, one run per connected teammate.
 crons.interval('wispr notes', { minutes: 15 }, internal.wispr.tick, {})
+// PST-289: feedback that couldn't reach Linear (no key yet, or Linear said no), retried hourly.
+crons.interval('feedback retry', { hours: 1 }, internal.feedback.retry, {})
 export default crons

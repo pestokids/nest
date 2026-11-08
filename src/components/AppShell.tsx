@@ -2,11 +2,12 @@ import { Outlet } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import { CommandPalette } from './system/CommandPalette'
 import { OfflineBanner } from './system/Connection'
+import { Feedback } from './system/Feedback'
 import { usePreviewState } from './preview-state'
 import { TopBar } from './TopBar'
 import { ToastProvider } from './ui'
 
-/** Top bar over the active section. Toasts, the offline banner and ⌘K are app-wide. */
+/** Top bar over the active section. Toasts, the offline banner, ⌘K and ⌘. (feedback) are app-wide. */
 export function AppShell({ children }: { children?: ReactNode }) {
   const preview = usePreviewState()
   return (
@@ -17,6 +18,8 @@ export function AppShell({ children }: { children?: ReactNode }) {
         <Outlet />
       </div>
       <CommandPalette />
+      {/* PST-289: Send feedback (⌘.) */}
+      <Feedback />
       {children}
     </ToastProvider>
   )
