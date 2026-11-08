@@ -4,7 +4,7 @@ import { RaiseContext, useRaise, type RaiseData } from '../../components/data'
 import { Drawer, type DrawerStart } from '../../components/Drawer'
 import { TargetHitWatcher } from '../../components/plan/targetHits'
 import { ViewSkeleton } from '../../components/system/Skeleton'
-import { usePreviewState } from '../../components/preview-state'
+import { usePreviewState, PREVIEW_EDIT_ON } from '../../components/preview-state'
 import { UIContext, useAdvance, useFail, type OpenOptions, type UI } from '../../components/raise-ui'
 import { Button, buttonClass, Icon, SubTabs, useToast, type TabItem } from '../../components/ui'
 import { QandaHost } from '../../components/qanda/QandaHost'
@@ -75,9 +75,11 @@ function RaiseLayout() {
   useEffect(() => {
     if (!preview?.drawer || !raw.loaded) return
     // PST-293: &drawer=decision opens on Orchard Capital, whose decision has everything in it.
-    const pick = (preview.drawer === 'decision' ? raw.investors.find((i) => i.name === 'Orchard Capital') : undefined) ?? raw.investors.find((i) => i.stage === 'booked') ?? raw.investors[0]
+    // PST-303: &drawer=edit-vc|edit-accelerator|edit-angel opens the edit form on that kind of investor.
+    const editOn = PREVIEW_EDIT_ON[preview.drawer]
+    const pick = (preview.drawer === 'decision' ? raw.investors.find((i) => i.name === 'Orchard Capital') : editOn ? raw.investors.find((i) => i.name === editOn) : undefined) ?? raw.investors.find((i) => i.stage === 'booked') ?? raw.investors[0]
     if (preview.drawer === 'new') setDrawer({ id: null, opts: NO_OPTS })
-    else if (pick) setDrawer({ id: pick._id, opts: NO_OPTS, start: preview.drawer })
+    else if (pick) setDrawer({ id: pick._id, opts: NO_OPTS, start: editOn ? 'edit' : (preview.drawer as DrawerStart) })
   }, [preview?.drawer, raw.loaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Delete with Undo: hide the row now and send the delete when the toast goes, or straight

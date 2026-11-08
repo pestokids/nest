@@ -283,6 +283,14 @@ Home's Raise card shows in the race, offers and the lead in PST-289's slot (`src
 Code: `convex/race.ts` and `convex/raceSchema.ts`; the UI in `src/components/race/` and `src/styles/race.css`. Preview: `/raise/pipeline?preview&pipeline=race` (or `race-lead`, `update`), `/?preview&home=race` and `&drafts=lead`.
 <!-- end PST-295 -->
 
+<!-- PST-303 -->
+## Investor fields by type
+
+The drawer's edit form and Add investor name their fields by type, and the labels change as soon as Type does (`src/lib/investorForm.ts`). VCs: Partner, Fund, Partner's email (one card per fund). Accelerators: Programme (and batch), Accelerator, Contact email (optional). Angels: Name, Title or company, Their email. Other emails and domains go one per line under More details. Fields Dev didn't touch show the investor as it is now and Save never writes them, so a type set by enrichment, a suggestion or Jev while the form is open stays. The Investors table's first column is "Name · Firm / title", with a tooltip saying what goes there for each type.
+
+Preview: `/raise/pipeline?preview&drawer=edit-vc` (or `edit-accelerator`, `edit-angel`).
+<!-- end PST-303 -->
+
 ## Seed
 
 ```sh

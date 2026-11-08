@@ -13,6 +13,7 @@ import { dayMonth, monDay } from '../lib/home'
 import { confetti, replay, shake, shine } from '../lib/motion'
 import { money } from '../lib/money'
 import { fieldsOf, NEW_INVESTOR, quietList, type Activity, type Investor, type InvestorFields } from '../lib/pipeline'
+import { changedFields, fieldCopy, keepUntouched } from '../lib/investorForm' // PST-303
 import { play } from '../lib/sound'
 import {
   advanceConfirm, ALL, GEOS, IDX, nextStage, STAGE_RULE, STAGE_SHORT, STAGE_TILE, STAGES, TIERS, TOUCH_LABEL, TOUCH_PICK, TYPES, WARM, WAVES,
@@ -59,7 +60,7 @@ type Form = Omit<InvestorFields, 'expected' | 'committed' | 'nextDate' | 'lastTo
   lastTouch: string
   email: string
   parkedUntil: string
-  /** Comma-separated in the form. */
+  /** One per line in the form (PST-303). */
   emails: string
   domains: string
 }
@@ -74,8 +75,8 @@ const toForm = (v: InvestorFields): Form => ({
   lastTouch: v.lastTouch ?? '',
   email: v.email ?? '',
   parkedUntil: v.parkedUntil ?? '',
-  emails: (v.emails ?? []).join(', '),
-  domains: (v.domains ?? []).join(', '),
+  emails: (v.emails ?? []).join('\n'),
+  domains: (v.domains ?? []).join('\n'),
 })
 
 /** Validate and convert; errors when a field can't be read. */
@@ -739,29 +740,34 @@ function Emails({ inv, onEdit }: { inv: Investor; onEdit: () => void }) {
 
 /* ---------- edit / new ---------- */
 
-function EditForm({ inv, onDone, onCelebrate }: { inv: Investor | null; onDone: () => void; onCelebrate?: () => void }) {
+export function EditForm({ inv, onDone, onCelebrate }: { inv: Investor | null; onDone: () => void; onCelebrate?: () => void }) {
   const d = useRaise()
   const ui = useUI()
   // "New" from a Pipeline column's + starts in that column's stage.
-  const [form, setForm] = useState<Form>(() =>
-    toForm(inv ? fieldsOf(inv) : { ...NEW_INVESTOR, stage: ui.opening.stage ?? NEW_INVESTOR.stage, name: ui.opening.name?.trim() ?? NEW_INVESTOR.name, email: ui.opening.email ?? NEW_INVESTOR.email }),
+  const [blank] = useState<Form>(() =>
+    toForm({ ...NEW_INVESTOR, stage: ui.opening.stage ?? NEW_INVESTOR.stage, name: ui.opening.name?.trim() ?? NEW_INVESTOR.name, email: ui.opening.email ?? NEW_INVESTOR.email }),
   )
+  // PST-303: only what Dev changed is kept here. Every other field shows the investor as it is now,
+  // so a type set elsewhere while the form is open (enrichment, a suggestion, Jev) shows, and Save keeps it.
+  const [edits, setEdits] = useState<Partial<Form>>({})
+  const form: Form = { ...(inv ? toForm(fieldsOf(inv)) : blank), ...edits }
+  const copy = fieldCopy(form.type)
   const [errors, setErrors] = useState<FormErrors>({})
   const [busy, setBusy] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
   const set = <K extends keyof Form>(k: K, v: Form[K]) => {
-    setForm((f) => ({ ...f, [k]: v }))
+    setEdits((f) => ({ ...f, [k]: v }))
     if (k in errors) setErrors((e) => ({ ...e, [k]: undefined }))
   }
   const text = (k: 'name' | 'firm' | 'path' | 'nextStep' | 'source' | 'email' | 'expected' | 'committed' | 'emails' | 'domains') => ({
     value: form[k],
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => set(k, e.target.value),
+    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => set(k, e.target.value),
     error: k in errors ? errors[k as keyof FormErrors] : undefined,
   })
 
   async function submit(e: FormEvent) {
     e.preventDefault()
-    const { body, errors: errs } = fromForm(form)
+    const { body: parsed, errors: errs } = fromForm(form)
     if (Object.values(errs).some(Boolean)) {
       setErrors(errs)
       play('nope')
@@ -770,6 +776,9 @@ function EditForm({ inv, onDone, onCelebrate }: { inv: Investor | null; onDone: 
       first?.focus()
       return
     }
+    // PST-303: Save never changes a field Dev didn't touch.
+    const body = inv ? keepUntouched(fieldsOf(inv), parsed, Object.keys(edits)) : parsed
+    if (inv && !changedFields(fieldsOf(inv), body).length) return onDone()
     setBusy(true)
     try {
       await d.save(inv ? inv._id : null, body)
@@ -794,12 +803,12 @@ function EditForm({ inv, onDone, onCelebrate }: { inv: Investor | null; onDone: 
   }
 
   const field = {
-    name: <Input label={inv ? 'Name' : 'Name *'} placeholder="Who is it?" required data-autofocus {...text('name')} />,
-    firm: <Input label="Firm or title" placeholder="Fund, company or role" {...text('firm')} />,
-    email: <Input label="Email" type="email" inputMode="email" placeholder="Optional" {...text('email')} />,
+    name: <Input label={inv ? copy.name.label : `${copy.name.label} *`} placeholder={copy.name.placeholder} help={copy.name.help} required data-autofocus {...text('name')} />,
+    firm: <Input label={copy.firm.label} placeholder={copy.firm.placeholder} {...text('firm')} />,
+    email: <Input label={copy.email.label} type="email" inputMode="email" placeholder={copy.email.placeholder} help={copy.email.help} {...text('email')} />,
     type: (
       <Select label="Type" value={form.type} onChange={(e) => set('type', e.target.value as Form['type'])}>
-        {TYPES.map((x) => <option key={x}>{x}</option>)}
+        {TYPES.map((x) => <option key={x} value={x}>{x}</option>)}
       </Select>
     ),
     expected: <Input label="Expected amount" inputMode="decimal" placeholder="e.g. 25K" {...text('expected')} />,
@@ -821,7 +830,7 @@ function EditForm({ inv, onDone, onCelebrate }: { inv: Investor | null; onDone: 
           <div className="dform__row">{field.name}{field.firm}</div>
           <div className="dform__row">{field.email}{field.type}</div>
           <div className="dform__row">{field.expected}{field.wave}</div>
-          <Input label="Warm path" placeholder="Who can introduce you?" help="Who can introduce you, and how you know them." {...text('path')} />
+          <Input label={copy.path.label} placeholder={copy.path.placeholder} help={copy.path.help} {...text('path')} />
           <div className="dform__row dform__row--wide">
             <Input label="Next step" placeholder="What happens next, in one line" {...text('nextStep')} />
             <Input label="Due" type="date" value={form.nextDate} onChange={(e) => set('nextDate', e.target.value)} />
@@ -849,8 +858,8 @@ function EditForm({ inv, onDone, onCelebrate }: { inv: Investor | null; onDone: 
               <Input label="Last touch" type="date" value={form.lastTouch} onChange={(e) => set('lastTouch', e.target.value)} />
             </div>
             <div className="dform__row">
-              <Input label="Other emails" inputMode="email" placeholder="e.g. partner@northstar.vc" help="Matched with Calendar and Gmail, like Email." {...text('emails')} />
-              <Input label="Firm domains" placeholder="e.g. northstar.vc" help="Anyone at these domains counts. Personal mail never does." {...text('domains')} />
+              <Textarea label={copy.emails.label} rows={3} inputMode="email" placeholder={copy.emails.placeholder} help={copy.emails.help} {...text('emails')} />
+              <Textarea label={copy.domains.label} rows={3} placeholder={copy.domains.placeholder} help={copy.domains.help} {...text('domains')} />
             </div>
             <Input label="Source" {...text('source')} />
             <Checkbox label="Can lead or anchor" checked={form.lead} onChange={(e) => set('lead', e.target.checked)} />
@@ -861,7 +870,7 @@ function EditForm({ inv, onDone, onCelebrate }: { inv: Investor | null; onDone: 
           {field.name}
           <div className="dform__row">{field.firm}{field.type}</div>
           <div className="dform__row">{field.stage}{field.wave}</div>
-          <Input label="Warm path" placeholder="Who can introduce you?" {...text('path')} />
+          <Input label={copy.path.label} placeholder={copy.path.placeholder} help={copy.path.help} {...text('path')} />
           <div className="dform__row">{field.expected}{field.email}</div>
           <p className="drawer-tip">
             <Egg size={28} />

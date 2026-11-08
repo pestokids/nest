@@ -4,9 +4,13 @@ import type { PreviewRace } from '../preview/raceFixture'
 // DEV/preview only: which state `?preview` should show (Today, the drawer, and the
 // Investors / Plan / Settings / system states). Null outside preview.
 export const PREVIEW_TODAY = ['default', 'nothingdue', 'win', /* PST-297 */ 'inbox', 'phone', 'clear'] as const
-export const PREVIEW_DRAWER = ['view', 'edit', 'new', 'advance', 'touch', 'history', 'emails', 'materials', 'notes', 'delete', /* PST-293 */ 'decision'] as const
+export const PREVIEW_DRAWER = ['view', 'edit', 'new', 'advance', 'touch', 'history', 'emails', 'materials', 'notes', 'delete', /* PST-293 */ 'decision', /* PST-303 */ 'edit-vc', 'edit-accelerator', 'edit-angel'] as const
 export type PreviewToday = (typeof PREVIEW_TODAY)[number]
 export type PreviewDrawer = (typeof PREVIEW_DRAWER)[number]
+/* ---------- PST-303 ---------- */
+/** `&drawer=edit-vc|edit-accelerator|edit-angel`: the edit form on a fund, an accelerator and an angel from the fixture. */
+export const PREVIEW_EDIT_ON: Partial<Record<PreviewDrawer, string>> = { 'edit-vc': 'Orchard Capital', 'edit-accelerator': 'Northwind Accelerator', 'edit-angel': 'Kite Angels' }
+/* ---------- end PST-303 ---------- */
 export type PreviewState = {
   today: PreviewToday
   drawer?: PreviewDrawer

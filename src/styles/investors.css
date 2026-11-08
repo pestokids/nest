@@ -566,3 +566,32 @@
   .fm-ghost--why { grid-column: 1 / -1; }
 }
 /* ---------- end PST-296 ---------- */
+/* ---------- PST-303: what goes under Name and Firm / title, by type ---------- */
+.inv-row--head { z-index: 2; }
+.inv-head-tipped { position: relative; }
+.inv-head-tip {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: max-content;
+  max-width: 320px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--brand-forest);
+  color: var(--text-on-dark);
+  font: 500 13px/1.4 var(--font-ui);
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+.inv-head-tipped:hover .inv-head-tip,
+.inv-head-tipped:focus-within .inv-head-tip { opacity: 1; transform: none; transition-delay: 300ms; }
+@media (prefers-reduced-motion: reduce) {
+  .inv-head-tip { transform: none; }
+}
+/* ---------- end PST-303 ---------- */
