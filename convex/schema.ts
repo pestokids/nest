@@ -13,6 +13,8 @@ import { wisprTables } from './wisprSchema'
 import { feedbackTables } from './feedbackSchema' // PST-289
 // PST-292: Jev (jevRuns, jevCache, jevMarks; see jevSchema.ts).
 import { jevTables } from './jevSchema'
+// PST-293: decisions and signals (decisions, decisionLog, signals; see decisionsSchema.ts).
+import { decisionTables } from './decisionsSchema'
 import { roundFields, vGeo, vMeetingAnswer, vPipelineStage, vStage, vSyncSource, vTier, vTouch, vType, vWarmth, vWave } from './validators'
 import { vSuggestionKind, vSuggestionPatch, vSuggestionSource, vSuggestionStatus, vSuggestionUndo } from './validators'
 import { vAnswerVersion, vAskSource, vQuestionMerge } from './validators'
@@ -283,4 +285,8 @@ export default defineSchema({
   /* ---------- PST-291: close kit and allocation (allocations; closings and the round row gain optional fields; see closeSchema.ts) ---------- */
   ...closeKitTables,
   /* ---------- end PST-291 ---------- */
+
+  /* ---------- PST-293: decisions and signals (decisions, decisionLog, signals; see decisionsSchema.ts) ---------- */
+  ...decisionTables,
+  /* ---------- end PST-293 ---------- */
 })

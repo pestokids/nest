@@ -2,6 +2,7 @@
 // about the investor, and nothing else: no web tools, no made-up numbers.
 import { BLANK, DATA_ROOM_LINK, DECK_LINK, MAX_BODY, MAX_SUBJECT, normBlanks, stripFiller, type AiDraftType, type Recipient, type Tweak } from '../../src/lib/drafts'
 import { AIError, extractJson } from './anthropic'
+import { dayMonth } from '../../src/lib/home'
 
 export const DRAFT_SYSTEM = [
   'You write short emails and messages for Dev, a founder of Pesto, a kids and family company raising a pre-seed round. Dev sends them himself, so they must sound like him.',
@@ -29,6 +30,9 @@ const WHAT: Record<AiDraftType, (c: DraftContext) => string> = {
   thanks: (c) =>
     'A thank-you to ' + c.investor.name + ' for their yes. Confirm the next step towards signing, and share the data room' + (c.dataRoom ? '' : ' if the input has one; if it has none, leave the data room out') + '.',
   dataroom: (c) => 'Sharing the data room with ' + c.investor.name + ': one line on what is in it, the link, and one ask.' + (c.dataRoom ? '' : ' There is no data room in Materials, so say it’s coming and ask what they’d like to see first.'),
+  // PST-293
+  decision: (c) =>
+    'Ask ' + c.investor.name + ' for a decision, yes or no, by ' + dayMonth(c.askBy) + '. Short and polite: three sentences at most. Thank them for their time, say a no is completely fine and helps Dev plan the round, and ask for their answer by that date. No pressure, no guilt, no new pitch.',
 }
 
 const TWEAK_TEXT: Record<Tweak, string> = {
@@ -56,6 +60,8 @@ export type DraftContext = {
   dataRoom: LinkedMaterial | null
   /** Dev's last emails to them, newest first: the subject and, when Nest sent it, the first line. */
   sent: { date: string; subject: string; firstLine?: string }[]
+  /** PST-293: the day "Ask for a yes or no" asks them to decide by. */
+  askBy: string
 }
 
 const block = (title: string, lines: string[]) => (lines.length ? '## ' + title + '\n' + lines.join('\n') + '\n' : '## ' + title + '\nNothing.\n')

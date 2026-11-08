@@ -5,6 +5,7 @@ import { AuthGate } from '../components/AuthGate'
 import { ConvexData } from '../components/ConvexData'
 import { ConvexMaterials } from '../components/materials/data'
 import { DraftsProvider } from '../components/drafts/data'
+import { DecisionsProvider } from '../components/decisions/data' // PST-293
 import { OpenToasts } from '../components/materials/Opens'
 import { ConvexSounds } from '../components/session'
 import { installSound } from '../lib/sound'
@@ -40,9 +41,11 @@ function AppLayout() {
         <ConvexData>
           <ConvexMaterials>
             <DraftsProvider>
-              <AppShell>
-                <OpenToasts />
-              </AppShell>
+              <DecisionsProvider>
+                <AppShell>
+                  <OpenToasts />
+                </AppShell>
+              </DecisionsProvider>
             </DraftsProvider>
           </ConvexMaterials>
         </ConvexData>

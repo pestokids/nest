@@ -178,7 +178,7 @@ export function GoogleCard() {
         </div>
       </div>
       {!reconnect ? lastTry : null}
-      <p className="set-google__note">Read-only. Nest keeps meeting titles, subjects, dates and addresses. Never email bodies.</p>
+      <p className="set-google__note">Read-only. Nest keeps meeting titles, subjects, dates and addresses, never email bodies. Jev reads each new email from an investor once, for signals.</p>
       {confirm ? (
         <div className="set-google__confirm" role="group" aria-label="Disconnect Google">
           <p>Disconnect and delete the meetings and emails synced from {me.email}? Stage moves already made stay.</p>

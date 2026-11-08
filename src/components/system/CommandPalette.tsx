@@ -273,7 +273,8 @@ function Palette({
     const people: Group | null = found.length ? { title: 'Investors', items: found.map((i) => person(i, true)) } : null
     if (people && !intent) out.push(people)
     if (top) {
-      const features = { decideBy: typeof (d as { setDecideBy?: unknown }).setDecideBy === 'function', askLead: !!LEAD_DRAFT }
+      // PST-293: the decide-by date is in the drawer's decision.
+      const features = { decideBy: true, askLead: !!LEAD_DRAFT }
       const run = (a: InvestorAction) => {
         rememberInvestor(top._id)
         if (a.kind === 'move' && a.stage) instant.move(top, a.stage)
@@ -282,7 +283,8 @@ function Palette({
         else if (a.kind === 'park') actions.openInvestor(top, { mode: 'park' })
         else if (a.kind === 'draft') actions.draft(top, 'followup')
         else if (a.kind === 'lead' && LEAD_DRAFT) actions.draft(top, LEAD_DRAFT)
-        // The decide-by date lives in the drawer's decision (PST-293).
+        // PST-293: opens on the decision's decide-by date.
+        else if (a.kind === 'decide') actions.openInvestor(top, { decide: true })
         else actions.openInvestor(top)
       }
       out.push({
@@ -309,7 +311,7 @@ function Palette({
     const asked = searchQuestions(questions, query, 3)
     if (asked.length) out.push({ title: 'Questions', items: asked.map(({ q, quote }) => ({ id: 'q-' + q._id, icon: 'spark', label: q.text, meta: quote ?? (q.bestAnswer.trim() ? q.theme : 'Needs an answer'), run: close(() => actions.openQuestion(q._id)) })) })
     return out
-  }, [query, investors, actions, meta, onClose, recentsFallback, google, suggestions.length, questions, d, instant])
+  }, [query, investors, actions, meta, onClose, recentsFallback, google, suggestions.length, questions, instant])
 
   const none = !!query && !groups.length
   const items: Item[] = none ? [{ id: 'add-new', icon: 'plus', label: `Add “${titleCase(query)}” as an investor`, keys: ['↵'], run: () => (onClose(), actions.addInvestor(titleCase(query))) }] : groups.flatMap((g) => g.items)

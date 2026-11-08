@@ -31,7 +31,7 @@ function fakeFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Respon
   const form = new URLSearchParams(typeof init?.body === 'string' ? init.body : '')
   if (url.href.startsWith('https://oauth2.googleapis.com/token')) {
     if (form.get('grant_type') === 'authorization_code')
-      return Promise.resolve(json({ access_token: 'access-new', refresh_token: 'refresh-from-code', scope: 'openid email https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/gmail.metadata' }))
+      return Promise.resolve(json({ access_token: 'access-new', refresh_token: 'refresh-from-code', scope: 'openid email https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/gmail.readonly' }))
     if (form.get('refresh_token') === 'refresh-revoked') return Promise.resolve(json({ error: 'invalid_grant' }, 400))
     return Promise.resolve(json({ access_token: 'access-1' }))
   }
@@ -301,7 +301,7 @@ describe('connect and disconnect', () => {
     const s = await setup()
     const url = new URL(await s.asDev.action(api.google.connect, {}))
     expect(url.origin + url.pathname).toBe('https://accounts.google.com/o/oauth2/v2/auth')
-    expect(url.searchParams.get('scope')).toBe('https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/gmail.metadata')
+    expect(url.searchParams.get('scope')).toBe('https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/gmail.readonly')
     expect(url.searchParams.get('access_type')).toBe('offline')
     expect(url.searchParams.get('prompt')).toBe('consent')
     expect(url.searchParams.get('include_granted_scopes')).toBe('true')

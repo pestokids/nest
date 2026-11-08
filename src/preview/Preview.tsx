@@ -50,6 +50,12 @@
 //   &notes=probably          Unmatched notes on Today with Jev's "Probably …" pick (Add to …)
 //   &qanda=jev               Q&A: a new question Jev marked "Same as …" one in the bank (Merge, Not the same)
 //   ---------- end PST-292 ----------
+//   ---------- PST-293: decisions and signals (see preview/decisionsFixture.ts) ----------
+//   &drawer=decision         the drawer's decision on Orchard Capital: status, decide-by, 2 of 3 calls, read from notes
+//   &pipeline=maybes         Pipeline › Maybes (also /raise/pipeline?view=maybes): the maybes, longest first
+//   &signal=auto             a note arrives and Nest marks Kite Angels a maybe by itself: toast with Undo (&drawer=history: "Auto")
+//   &signal=decide           Decide rows and a new ask from an email in Today's Due today
+//   ---------- end PST-293 ----------
 //   &fail                    every write fails (save-failed toast with Retry)
 //   any unknown path         the 404, e.g. /nowhere?preview
 import { useEffect, useRef } from 'react'
@@ -75,6 +81,7 @@ import { PREVIEW_FEEDBACK, PreviewFeedback, type PreviewFeedback as FeedbackStat
 import { saveLocalDensity } from '../lib/density'
 import { useRaise } from '../components/data'
 import { useInstant } from '../components/system/useInstant'
+import { DecisionsProvider } from '../components/decisions/data' // PST-293
 
 const session = { me: { firstName: 'Dev', name: 'Dev Preview', email: 'dev@example.com' }, signOut: () => {} }
 
@@ -112,13 +119,16 @@ export function Preview() {
   const extra = { loading: state.system === 'loading', mid: state.plan === 'mid', fail: q.has('fail'), insights: insights === 'default' || insights === 'behind' ? (insights as 'default' | 'behind') : undefined }
   const google: PreviewGoogle = (PREVIEW_GOOGLE as readonly string[]).includes(q.get('google') ?? '') ? (q.get('google') as PreviewGoogle) : drawer === 'emails' || q.get('qanda') === 'prep' || ask === 'prep' ? 'connected' : 'none'
   const ai: PreviewAI = (PREVIEW_AI as readonly string[]).includes(q.get('ai') ?? '') ? (q.get('ai') as PreviewAI) : 'default'
+  /* ---------- PST-293: &signal=auto|decide and &pipeline=maybes ---------- */
+  const decisionState = { signal: q.get('signal'), pipeline: q.get('pipeline') }
+  /* ---------- end PST-293 ---------- */
   /* ---------- PST-292: &whos=prechecked (Jev's Who's this? pre-check) ---------- */
   const whos = q.get('whos') === 'prechecked'
   /* ---------- end PST-292 ---------- */
   return (
     <LocalSounds>
       <SessionContext.Provider value={session}>
-        <PreviewStateContext.Provider value={state}>
+        <PreviewStateContext.Provider value={{ ...state, ...decisionState }}>
           <PreviewData
             source={sessionStorage.getItem('nest_preview_data') === 'seed' ? 'seed' : 'fixture'}
             home={home}
@@ -135,6 +145,8 @@ export function Preview() {
           >
             <PreviewMaterials state={materials}>
               <DraftsProvider>
+                {/* PST-293 */}
+                <DecisionsProvider>
                 <PreviewWispr state={wispr} fail={extra.fail}>
                   {/* PST-289 */}
                   <PreviewFeedback state={feedback} fail={extra.fail}>
@@ -145,6 +157,7 @@ export function Preview() {
                     </AppShell>
                   </PreviewFeedback>
                 </PreviewWispr>
+                </DecisionsProvider>
               </DraftsProvider>
             </PreviewMaterials>
           </PreviewData>

@@ -20,6 +20,8 @@ export type OpenOptions = {
   touch?: TouchKind
   /** PST-290: ← and → in the drawer: swap the investor in place (no slide, no sound; focus still goes back to the list). */
   swap?: boolean
+  /** PST-293: open on the decision's decide-by date (⌘K "Set a decide-by date", Maybes' "Set a date"). */
+  decide?: boolean
 }
 
 /*

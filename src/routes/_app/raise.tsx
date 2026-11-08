@@ -10,6 +10,7 @@ import { Button, buttonClass, Icon, SubTabs, useToast, type TabItem } from '../.
 import { QandaHost } from '../../components/qanda/QandaHost'
 import { DraftHost } from '../../components/drafts/data'
 import { CloseKitHost } from '../../components/close/kitHost'
+import { SignalToasts } from '../../components/decisions/SignalToasts' // PST-293
 import { PendingDeletes } from '../../lib/pendingDelete'
 import type { Investor } from '../../lib/pipeline'
 import { play } from '../../lib/sound'
@@ -73,7 +74,8 @@ function RaiseLayout() {
   // Preview: open the drawer in the asked-for state (no sound on load).
   useEffect(() => {
     if (!preview?.drawer || !raw.loaded) return
-    const pick = raw.investors.find((i) => i.stage === 'booked') ?? raw.investors[0]
+    // PST-293: &drawer=decision opens on Orchard Capital, whose decision has everything in it.
+    const pick = (preview.drawer === 'decision' ? raw.investors.find((i) => i.name === 'Orchard Capital') : undefined) ?? raw.investors.find((i) => i.stage === 'booked') ?? raw.investors[0]
     if (preview.drawer === 'new') setDrawer({ id: null, opts: NO_OPTS })
     else if (pick) setDrawer({ id: pick._id, opts: NO_OPTS, start: preview.drawer })
   }, [preview?.drawer, raw.loaded]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -184,6 +186,7 @@ function RaiseLayout() {
           {d.loaded ? <DraftHost /> : null}
           {/* PST-291: the Close kit, from Close, the drawer or a move to Verbal. */}
           {d.loaded ? <CloseKitHost /> : null}
+          {d.loaded ? <SignalToasts /> : null}
         </div>
         {drawer ? null : (
           <button type="button" className="fab" aria-label="Add investor" onClick={() => open(null)}>

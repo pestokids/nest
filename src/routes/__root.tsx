@@ -26,6 +26,7 @@ import drafts from '../styles/drafts.css?url'
 import ask from '../styles/ask.css?url'
 import wispr from '../styles/wispr.css?url'
 import feedback from '../styles/feedback.css?url' // PST-289
+import decisions from '../styles/decisions.css?url' // PST-293
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
@@ -66,6 +67,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       ...[tokens, base, motion, ui, shell, signin, home, raise, pipeline, today, drawer, system, investors, plan, settings, suggestions, enrich, qanda, materials, close, agents, drafts, ask, wispr].map((href) => ({ rel: 'stylesheet', href })),
       { rel: 'stylesheet', href: feedback }, // PST-289
+      { rel: 'stylesheet', href: decisions }, // PST-293
     ],
   }),
   component: () => (

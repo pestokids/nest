@@ -1,9 +1,13 @@
 // PST-263: the few Google endpoints Nest calls, and how their answers become rows.
-// Read-only: Calendar events (calendar.readonly) and Gmail headers (gmail.metadata).
+// Read-only: Calendar events (calendar.readonly) and Gmail (gmail.readonly: headers for
+// email touches, and PST-293's one read of a new investor email's text for Jev, never stored).
 // Nothing here logs a token, and errors never include one.
 import { CALENDAR_AHEAD_DAYS, CALENDAR_BACK_DAYS, DAY_MS, gmailThreadLink, isOurs, normEmail, parseAddresses } from '../../src/lib/google'
+import { isAutomated, type GPart } from '../../src/lib/signals'
 
-export const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly', 'https://www.googleapis.com/auth/gmail.metadata'] as const
+// PST-293: gmail.readonly instead of gmail.metadata, so signals can read a new email's text.
+// A connection made before keeps working on headers; its signals read the subject alone.
+export const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly', 'https://www.googleapis.com/auth/gmail.readonly'] as const
 export const CALLBACK_PATH = '/google/callback'
 
 /** Google no longer accepts the refresh token (revoked, expired, or a scope was taken away): the user has to reconnect. */
@@ -204,14 +208,40 @@ export function listThreads(token: string, pageToken?: string) {
   return get<{ threads?: { id: string }[]; nextPageToken?: string }>(`${GMAIL}/threads?${q}`, token, 'gmail threads')
 }
 
-export type GMessage = { id: string; threadId: string; internalDate?: string; labelIds?: string[]; payload?: { headers?: { name: string; value: string }[] } }
+export type GMessage = { id: string; threadId: string; internalDate?: string; labelIds?: string[]; payload?: GPart & { headers?: { name: string; value: string }[] } }
 export type GThread = { id: string; messages?: GMessage[] }
 
-/** A thread's headers only (From, To, Cc, Subject). Never bodies or snippets. */
+/** A thread's headers only (From, To, Cc, Subject; PST-293: and the ones that mark an auto-reply). Never bodies or snippets. */
 export function getThread(token: string, id: string, hooks?: Hooks) {
   const q = new URLSearchParams({ format: 'metadata' })
-  for (const h of ['From', 'To', 'Cc', 'Subject']) q.append('metadataHeaders', h)
+  for (const h of ['From', 'To', 'Cc', 'Subject', ...AUTO_HEADERS]) q.append('metadataHeaders', h)
   return get<GThread>(`${GMAIL}/threads/${encodeURIComponent(id)}?${q}`, token, 'gmail thread', hooks)
+}
+
+/* ---------- PST-293: new investor emails, for signals ---------- */
+
+const AUTO_HEADERS = ['Auto-Submitted', 'Precedence', 'X-Autoreply', 'X-Autorespond']
+
+/** One message with its text (gmail.readonly; a 403 under the older gmail.metadata grant). Read once for Jev, never stored. */
+export function getMessage(token: string, id: string, hooks?: Hooks) {
+  return get<GMessage>(`${GMAIL}/messages/${encodeURIComponent(id)}?format=full`, token, 'gmail message', hooks)
+}
+
+/** A new message someone else sent: its id, sender, subject and time. */
+export type Inbound = { messageId: string; threadId: string; from: string; subject: string; at: number }
+
+/** The messages in `added` (new since the last sync) from someone outside, minus auto-replies and no-reply senders. */
+export function inboundMessages(t: GThread, self: string, added: ReadonlySet<string>): Inbound[] {
+  const out: Inbound[] = []
+  for (const m of t.messages ?? []) {
+    if (!added.has(m.id) || m.labelIds?.some((l) => [...SKIP_LABELS, 'SENT'].includes(l)) || !(Number(m.internalDate) > 0)) continue
+    const header = (n: string) => m.payload?.headers?.find((h) => h.name.toLowerCase() === n.toLowerCase())?.value ?? ''
+    const from = parseAddresses(header('From'))[0] ?? ''
+    const subject = header('Subject').replace(/\s+/g, ' ').trim().slice(0, 300)
+    if (!from || isOurs(from, self) || isAutomated(from, subject, header)) continue
+    out.push({ messageId: m.id, threadId: t.id, from, subject, at: Number(m.internalDate) })
+  }
+  return out
 }
 
 /** Threads with new messages since `startHistoryId`. A 404 means it's too old: read the last 30 days again. */

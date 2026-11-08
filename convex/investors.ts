@@ -15,6 +15,7 @@ import { autoEnrich, forgetInvestor } from './lib/enrichQueue'
 import { checkDuplicatesLater } from './lib/jevHooks'
 import { forgetClosing } from './closings'
 import { forgetDrafts } from './drafts'
+import { forgetDecisions } from './decisions' // PST-293
 
 export const list = query({
   args: {},
@@ -228,6 +229,7 @@ export const remove = mutation({
     await forgetInvestor(ctx, id)
     await forgetClosing(ctx, id)
     await forgetDrafts(ctx, id)
+    await forgetDecisions(ctx, id) // PST-293
     // Its meetings and email touches lose the match (threads with nobody else go).
     if (prev && addressKey(prev)) await ctx.scheduler.runAfter(0, internal.google.rematch, { rescan: false })
     return acts.length

@@ -15,9 +15,10 @@ import { decryptToken, MissingKey } from './lib/crypto'
 import { mapLimit } from './lib/mapLimit'
 import { pacer } from './lib/pace'
 import {
-  accessToken, getThread, GoogleError, gmailProfile, listEvents, listHistory, listThreads, parseEvent, parseThread, revoke, Revoked,
-  type ParsedMeeting, type ParsedThread,
+  accessToken, getThread, GoogleError, gmailProfile, inboundMessages, listEvents, listHistory, listThreads, parseEvent, parseThread, revoke, Revoked,
+  type Inbound, type ParsedMeeting, type ParsedThread,
 } from './lib/googleApi'
+import { emailSignals } from './lib/signalHooks' // PST-293
 import { DAY_MS, GMAIL_BACK_DAYS, makeMatcher } from '../src/lib/google'
 
 /** A run holds the lock this long at most (a stuck run frees it for the next cron). */
@@ -89,11 +90,13 @@ const skippable = (e: unknown): e is GoogleError =>
  * rate limit that outlasts the retries starts no new reads, writes the threads
  * already read, then throws.
  */
-async function readThreads(ctx: ActionCtx, c: Conn, token: string, ids: string[], cutoff: number, run: Run) {
+async function readThreads(ctx: ActionCtx, c: Conn, token: string, ids: string[], cutoff: number, run: Run, added?: ReadonlySet<string>) {
   const match = makeMatcher(await ctx.runQuery(internal.google.matchData, {}))
   const why = new Map<string, { status: number; reason: string; n: number }>()
   const hooks = { pace: run.pace, onRetry: () => void run.retries++ }
   const results = new Map<string, ParsedThread | null | 'skipped'>()
+  // PST-293: the new messages someone else sent (history runs only), for signals.
+  const inbound: Inbound[] = []
   let limited: GoogleError | undefined
   try {
     await mapLimit(ids, PARALLEL, async (id) => {
@@ -101,6 +104,7 @@ async function readThreads(ctx: ActionCtx, c: Conn, token: string, ids: string[]
         const t = await getThread(token, id, hooks)
         run.read++
         results.set(id, parseThread(t, c.googleEmail))
+        if (added) inbound.push(...inboundMessages(t, c.googleEmail, added))
       } catch (e) {
         if (!skippable(e)) throw e
         const k = `${e.status}${e.reason ? ` ${e.reason}` : ''}`
@@ -127,7 +131,7 @@ async function readThreads(ctx: ActionCtx, c: Conn, token: string, ids: string[]
   const keep = parsed.filter((t) => t.lastAt >= cutoff && match.people(t.participants, c.googleEmail).ids.length > 0)
   for (let k = 0; k < keep.length; k += 100) await ctx.runMutation(internal.google.upsertThreads, { userId: c.userId, self: c.googleEmail, items: keep.slice(k, k + 100) })
   if (limited) throw limited
-  return { parsed, skipped }
+  return { parsed, skipped, inbound }
 }
 
 /** Gmail: history since the stored id, or the 30-day read. Returns true when the read continues in another run. */
@@ -135,13 +139,17 @@ async function syncGmail(ctx: ActionCtx, c: Conn, token: string, now: number, ru
   const cutoff = now - GMAIL_BACK_DAYS * DAY_MS
   if (c.gmailHistoryId && !c.scan && !c.rescan) {
     const threadIds = new Set<string>()
+    const added = new Set<string>()
     let historyId = c.gmailHistoryId
     let pageToken: string | undefined
     let expired = false
     for (let page = 0; page < MAX_PAGES; page++) {
       try {
         const res = await listHistory(token, c.gmailHistoryId, pageToken)
-        for (const h of res.history ?? []) for (const a of h.messagesAdded ?? []) if (a.message?.threadId) threadIds.add(a.message.threadId)
+        for (const h of res.history ?? []) for (const a of h.messagesAdded ?? []) if (a.message?.threadId) {
+          threadIds.add(a.message.threadId)
+          added.add(a.message.id)
+        }
         if (res.historyId) historyId = res.historyId
         if (!res.nextPageToken) break
         pageToken = res.nextPageToken
@@ -155,8 +163,10 @@ async function syncGmail(ctx: ActionCtx, c: Conn, token: string, now: number, ru
     }
     if (!expired) {
       // Rate-limited for good: what was read is written, and the history id stays put, so next run reads the same changes.
-      await readThreads(ctx, c, token, [...threadIds], cutoff, run)
+      const { inbound } = await readThreads(ctx, c, token, [...threadIds], cutoff, run, added)
       await ctx.runMutation(internal.google.saveCursors, { connectionId: c._id, gmailHistoryId: historyId })
+      // PST-293: one Jev call per new email from an investor. Never fails the sync.
+      await emailSignals(ctx, c, token, inbound, { pace: run.pace, onRetry: () => void run.retries++ })
       return false
     }
   }
