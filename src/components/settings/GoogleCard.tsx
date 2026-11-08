@@ -178,6 +178,15 @@ export function GoogleCard() {
         </div>
       </div>
       {!reconnect ? lastTry : null}
+      {/* PST-293: grants from before gmail.readonly. */}
+      {!reconnect && me.emailBodies === false ? (
+        <div className="set-google__bodies">
+          <p>Reconnect Google to read email bodies. Until then, Nest reads the subject of each investor email for signals.</p>
+          <button type="button" className="set-google__text" onClick={() => void connect()} disabled={going}>
+            {going ? 'Opening Google…' : 'Reconnect'}
+          </button>
+        </div>
+      ) : null}
       <p className="set-google__note">Read-only. Nest keeps meeting titles, subjects, dates and addresses, never email bodies. Jev reads each new email from an investor once, for signals.</p>
       {confirm ? (
         <div className="set-google__confirm" role="group" aria-label="Disconnect Google">

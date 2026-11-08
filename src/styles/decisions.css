@@ -65,3 +65,7 @@
   .maybe-row__act { min-width: 0; justify-content: flex-start; }
   .maybe-row__act .btn { width: 100%; }
 }
+
+/* Settings › Calendar and Gmail: an old gmail.metadata grant. */
+.set-google__bodies { display: flex; align-items: center; justify-content: space-between; gap: 8px 20px; flex-wrap: wrap; margin-top: 12px; padding: 4px 16px 4px 16px; border-radius: 12px; background: var(--surface-peach); border: 1px solid var(--line-peach); }
+.set-google__bodies p { flex: 1 1 260px; margin: 8px 0; font-size: 14px; line-height: 1.4; color: var(--text-orange-deep); }

@@ -7,7 +7,9 @@ import { isAutomated, type GPart } from '../../src/lib/signals'
 
 // PST-293: gmail.readonly instead of gmail.metadata, so signals can read a new email's text.
 // A connection made before keeps working on headers; its signals read the subject alone.
-export const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly', 'https://www.googleapis.com/auth/gmail.readonly'] as const
+/** PST-293: email text for Jev. Grants from before it have gmail.metadata only. */
+export const GMAIL_READONLY = 'https://www.googleapis.com/auth/gmail.readonly'
+export const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly', GMAIL_READONLY] as const
 export const CALLBACK_PATH = '/google/callback'
 
 /** Google no longer accepts the refresh token (revoked, expired, or a scope was taken away): the user has to reconnect. */
@@ -92,13 +94,13 @@ export async function exchangeCode(code: string) {
   return { accessToken: j.access_token ?? '', refreshToken: j.refresh_token, scopes: (j.scope ?? '').split(/\s+/) }
 }
 
-/** A fresh access token from the stored refresh token. */
+/** A fresh access token from the stored refresh token, and the scopes it carries when Google says (PST-293: whether it can read email text). */
 export async function accessToken(refreshToken: string) {
   const c = oauthClient()
   if (!c) throw new GoogleError(500, 'setup')
   const j = await tokenCall({ refresh_token: refreshToken, client_id: c.id, client_secret: c.secret, grant_type: 'refresh_token' }, 'token refresh')
   if (!j.access_token) throw new GoogleError(500, 'token refresh')
-  return j.access_token
+  return { token: j.access_token, scopes: j.scope ? j.scope.split(/\s+/) : undefined }
 }
 
 /** Tell Google to forget the grant (Disconnect). Best effort. */

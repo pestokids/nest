@@ -15,7 +15,7 @@ import { decryptToken, MissingKey } from './lib/crypto'
 import { mapLimit } from './lib/mapLimit'
 import { pacer } from './lib/pace'
 import {
-  accessToken, getThread, GoogleError, gmailProfile, inboundMessages, listEvents, listHistory, listThreads, parseEvent, parseThread, revoke, Revoked,
+  accessToken, getThread, GMAIL_READONLY, GoogleError, gmailProfile, inboundMessages, listEvents, listHistory, listThreads, parseEvent, parseThread, revoke, Revoked,
   type Inbound, type ParsedMeeting, type ParsedThread,
 } from './lib/googleApi'
 import { emailSignals } from './lib/signalHooks' // PST-293
@@ -166,7 +166,8 @@ async function syncGmail(ctx: ActionCtx, c: Conn, token: string, now: number, ru
       const { inbound } = await readThreads(ctx, c, token, [...threadIds], cutoff, run, added)
       await ctx.runMutation(internal.google.saveCursors, { connectionId: c._id, gmailHistoryId: historyId })
       // PST-293: one Jev call per new email from an investor. Never fails the sync.
-      await emailSignals(ctx, c, token, inbound, { pace: run.pace, onRetry: () => void run.retries++ })
+      const bodies = await emailSignals(ctx, c, token, inbound, { pace: run.pace, onRetry: () => void run.retries++ }, c.gmailBodies !== false)
+      if (bodies === false && c.gmailBodies !== false) await ctx.runMutation(internal.google.setBodies, { connectionId: c._id, bodies: false })
       return false
     }
   }
@@ -215,7 +216,12 @@ export const run = internalAction({
         if (e instanceof MissingKey) throw e
         throw new Revoked('token unreadable')
       }
-      const token = await accessToken(refresh)
+      const { token, scopes } = await accessToken(refresh)
+      // PST-293: Google lists the grant's scopes on each refresh: gmail.metadata alone means subjects only for Jev.
+      if (scopes && scopes.includes(GMAIL_READONLY) !== c.gmailBodies) {
+        c.gmailBodies = scopes.includes(GMAIL_READONLY)
+        await ctx.runMutation(internal.google.setBodies, { connectionId, bodies: c.gmailBodies })
+      }
       await syncCalendar(ctx, c, token, now)
       const more = await syncGmail(ctx, c, token, now, gmail)
       await ctx.runMutation(internal.google.applyPast, { userId: c.userId })

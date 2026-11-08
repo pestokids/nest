@@ -4,7 +4,8 @@ import { todayIST } from '../lib/dates'
 import { NO_GOOGLE, type ConnectionStatus, type GoogleData, type SyncedMeeting, type SyncedThread } from '../lib/google'
 import type { Investor } from '../lib/pipeline'
 
-export const PREVIEW_GOOGLE = ['none', 'connected', 'syncing', 'reconnect'] as const
+// PST-293: 'metadata' is connected on an old gmail.metadata grant ("Reconnect Google to read email bodies").
+export const PREVIEW_GOOGLE = ['none', 'connected', 'syncing', 'reconnect', 'metadata'] as const
 export type PreviewGoogle = (typeof PREVIEW_GOOGLE)[number]
 
 const H = 36e5
@@ -49,13 +50,13 @@ export function fixtureGoogle(state: PreviewGoogle, investors: Investor[], now: 
     t({ threadId: 'fx-t5', subject: 'Re: Pesto intro', lastAt: now - 50 * H, lastFrom: 'them', lastFromEmail: 'jo@saltmarsh.example.com', investorIds: ids('Saltmarsh Angels'), by: 'Sam', mine: false }),
     t({ threadId: 'fx-t6', subject: 'Re: First call', lastAt: now - D, lastFrom: 'us', lastFromEmail: 'dev@example.com', investorIds: ids('Lantern Ventures') }),
   ]
-  const status: ConnectionStatus = state
+  const status: ConnectionStatus = state === 'metadata' ? 'connected' : state
   const me =
     state === 'syncing'
       ? { status, email: 'dev@example.com', running: true, scan: { done: 214, oldest: now - 10.7 * D, startedAt: now - 35e3 } }
       : state === 'reconnect'
         ? { status, email: 'dev@example.com', running: false, lastSyncAt: now - 3 * H, lastError: 'Google stopped accepting this connection.' }
-        : { status, email: 'dev@example.com', running: false, lastSyncAt: now - 2 * 6e4 }
+        : { status, email: 'dev@example.com', running: false, lastSyncAt: now - 2 * 6e4, emailBodies: state !== 'metadata' }
   return {
     loaded: true,
     me,

@@ -55,6 +55,7 @@
 //   &pipeline=maybes         Pipeline › Maybes (also /raise/pipeline?view=maybes): the maybes, longest first
 //   &signal=auto             a note arrives and Nest marks Kite Angels a maybe by itself: toast with Undo (&drawer=history: "Auto")
 //   &signal=decide           Decide rows and a new ask from an email in Today's Due today
+//   &google=metadata         Settings: connected on an old gmail.metadata grant ("Reconnect Google to read email bodies")
 //   ---------- end PST-293 ----------
 //   &fail                    every write fails (save-failed toast with Retry)
 //   any unknown path         the 404, e.g. /nowhere?preview

@@ -275,6 +275,15 @@ describe('signals from an email', () => {
     expect(await decision(s, s.kite)).toMatchObject({ status: 'interested' })
   })
 
+  it('on a metadata-only grant it never asks Gmail for the text, and reports a 403 so Settings can ask to reconnect', async () => {
+    const s = await setup()
+    await expect(emailSignals(s.ctx, conn(s), 'tok', [inbound('m1', 'sam@kite.example.com', 'Quick question')], undefined, false)).resolves.toBeUndefined()
+    expect(gmail.reads).toEqual([])
+    expect(jev.calls[0].state).toEqual({ subject: 'Quick question', email: '' })
+    gmail.status = 403
+    await expect(emailSignals(s.ctx, conn(s), 'tok', [inbound('m2', 'maya@orchard.example.com', 'Following up')])).resolves.toBe(false)
+  })
+
   it('a Yes Dev holds is only changed through a Decide row', async () => {
     const s = await setup()
     await s.as.mutation(api.decisions.setStatus, { investorId: s.kite, status: 'yes' })

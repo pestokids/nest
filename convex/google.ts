@@ -87,6 +87,7 @@ export const data = query({
             running: (mine.lockUntil ?? 0) > now,
             scan: mine.scan ? { done: mine.scan.done, oldest: mine.scan.oldest, startedAt: mine.scan.startedAt, skipped: mine.scan.skipped } : undefined,
             lastError: mine.lastError,
+            emailBodies: mine.gmailBodies === true, // PST-293
           }
         : null,
       team: conns.map((c) => ({ name: names.get(c.userId) ?? '?', status: c.status, mine: c.userId === userId })).sort((a, b) => Number(b.mine) - Number(a.mine)),
@@ -228,7 +229,8 @@ export const store = internalMutation({
   args: { userId: v.id('users'), googleEmail: v.string(), sealed: v.string() },
   handler: async (ctx, { userId, googleEmail, sealed }) => {
     const prev = await myConnection(ctx, userId)
-    const doc = { userId, googleEmail: googleEmail.toLowerCase(), refreshToken: sealed, status: 'syncing' as const, connectedAt: Date.now() }
+    // PST-293: the callback refuses a grant without every scope, gmail.readonly included.
+    const doc = { userId, googleEmail: googleEmail.toLowerCase(), refreshToken: sealed, status: 'syncing' as const, connectedAt: Date.now(), gmailBodies: true }
     if (prev) {
       await ctx.db.replace(prev._id, doc)
       return prev._id
@@ -238,6 +240,15 @@ export const store = internalMutation({
 })
 
 /* ---------- the sync's reads and writes ---------- */
+
+/** PST-293: whether the grant can read email text (from the token's scopes, or a 403 on a message). */
+export const setBodies = internalMutation({
+  args: { connectionId: v.id('googleConnections'), bodies: v.boolean() },
+  handler: async (ctx, { connectionId, bodies }) => {
+    const c = await ctx.db.get(connectionId)
+    if (c && c.gmailBodies !== bodies) await ctx.db.patch(connectionId, { gmailBodies: bodies })
+  },
+})
 
 /** Internal only: the whole connection, sealed token included, for the sync action. */
 export const forSync = internalQuery({

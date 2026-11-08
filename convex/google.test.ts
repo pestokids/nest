@@ -765,3 +765,42 @@ describe('mapLimit', () => {
     ).rejects.toThrow('fail 1')
   })
 })
+
+/* ---------- PST-293: reading email text needs gmail.readonly ---------- */
+
+describe('email bodies (PST-293)', () => {
+  const READONLY = 'https://www.googleapis.com/auth/gmail.readonly'
+  const METADATA = 'https://www.googleapis.com/auth/gmail.metadata'
+  /** Google lists the grant's scopes on a refresh. */
+  const refreshWith = (scope: string) =>
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const form = new URLSearchParams(typeof init?.body === 'string' ? init.body : '')
+      if (String(input).startsWith('https://oauth2.googleapis.com/token') && form.get('grant_type') === 'refresh_token') return json({ access_token: 'access-1', scope })
+      return fakeFetch(input, init)
+    }))
+
+  it('a grant with gmail.metadata only shows "Reconnect Google to read email bodies"; gmail.readonly clears it', async () => {
+    const s = await setup()
+    const conn = await s.connect(s.dev, 'founder@pestokids.com')
+    refreshWith('https://www.googleapis.com/auth/calendar.readonly ' + METADATA)
+    expect(await s.t.action(internal.googleSync.run, { connectionId: conn })).toBe('done')
+    expect((await s.asDev.query(api.google.data, {})).me).toMatchObject({ status: 'connected', emailBodies: false })
+    refreshWith('https://www.googleapis.com/auth/calendar.readonly ' + READONLY)
+    await s.t.action(internal.googleSync.run, { connectionId: conn })
+    expect((await s.asDev.query(api.google.data, {})).me).toMatchObject({ emailBodies: true })
+  })
+
+  it('a refresh that lists no scopes leaves it as it was', async () => {
+    const s = await setup()
+    const conn = await s.connect(s.dev, 'founder@pestokids.com')
+    await s.t.mutation(internal.google.setBodies, { connectionId: conn, bodies: false })
+    await s.t.action(internal.googleSync.run, { connectionId: conn })
+    expect((await s.asDev.query(api.google.data, {})).me).toMatchObject({ emailBodies: false })
+  })
+
+  it('connecting again (every scope granted) can read bodies', async () => {
+    const s = await setup()
+    await s.t.mutation(internal.google.store, { userId: s.dev, googleEmail: 'founder@pestokids.com', sealed: await encryptToken('refresh-ok') })
+    expect((await s.asDev.query(api.google.data, {})).me).toMatchObject({ emailBodies: true })
+  })
+})

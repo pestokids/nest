@@ -118,6 +118,8 @@ export default defineSchema({
     ),
     /** An investor's emails or domains changed: read the last 30 days again on the next run. */
     rescan: v.optional(v.boolean()),
+    // PST-293 (optional, additive): the grant has gmail.readonly, so the sync can read email text for Jev. False: metadata only, reconnect.
+    gmailBodies: v.optional(v.boolean()),
   }).index('by_user', ['userId']),
 
   // Calendar events with at least one outside attendee. Title, times, attendees' emails (and display names), the event link.

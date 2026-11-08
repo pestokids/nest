@@ -23,10 +23,19 @@ type Hooks = Parameters<typeof getMessage>[2]
 /**
  * After a Gmail sync run: one Jev call per new message from an investor (Dev's
  * own messages, auto-replies and no-reply senders were already left out). The
- * text needs gmail.readonly; under an older gmail.metadata grant Google answers
- * 403 and Jev reads the subject alone (the rest of the run skips the text too). Errors are logged, never thrown.
+ * text needs gmail.readonly: with `readBodies` false (the grant is metadata only)
+ * Jev reads the subject alone, and so it does for the rest of the run after a
+ * 403. Resolves false when Google refused the text, so Settings can ask to
+ * reconnect. Errors are logged, never thrown.
  */
-export async function emailSignals(ctx: ActionCtx, c: { userId: Id<'users'>; googleEmail: string }, token: string, inbound: Inbound[], hooks?: Hooks) {
+export async function emailSignals(
+  ctx: ActionCtx,
+  c: { userId: Id<'users'>; googleEmail: string },
+  token: string,
+  inbound: Inbound[],
+  hooks?: Hooks,
+  readBodies = true,
+): Promise<false | undefined> {
   if (!inbound.length) return
   try {
     const targets = await ctx.runQuery(internal.signals.emailTargets, {
@@ -34,7 +43,8 @@ export async function emailSignals(ctx: ActionCtx, c: { userId: Id<'users'>; goo
       self: c.googleEmail,
       items: inbound.map((m) => ({ messageId: m.messageId, threadId: m.threadId, from: m.from, subject: m.subject, at: m.at })),
     })
-    let bodies = true
+    let bodies = readBodies
+    let refused = false
     let asked = 0
     for (const t of targets) {
       let body = ''
@@ -42,7 +52,10 @@ export async function emailSignals(ctx: ActionCtx, c: { userId: Id<'users'>; goo
         try {
           body = bodyText((await getMessage(token, t.messageId, hooks)).payload)
         } catch (e) {
-          if (e instanceof Revoked || (e instanceof GoogleError && e.status === 403)) bodies = false
+          if (e instanceof Revoked || (e instanceof GoogleError && e.status === 403)) {
+            bodies = false
+            refused = true
+          }
         }
       }
       const r = await askJev(ctx, { feature: 'email_signals', state: emailState(t.subject, body), questions: emailQuestions() })
@@ -55,6 +68,7 @@ export async function emailSignals(ctx: ActionCtx, c: { userId: Id<'users'>; goo
         })
     }
     if (targets.length) console.log('signals email messages=' + targets.length + ' answered=' + asked + ' bodies=' + bodies)
+    return refused ? false : undefined
   } catch (e) {
     console.warn('signals email failed: ' + (e instanceof Error ? e.name : 'error'))
   }

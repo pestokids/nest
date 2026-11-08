@@ -224,6 +224,8 @@ export type MyConnection = {
   /** The first read of the inbox: threads read so far, the oldest one reached, and how many Google refused (skipped). */
   scan?: { done: number; oldest?: number; startedAt: number; skipped?: number }
   lastError?: string
+  /** PST-293: false while the grant is gmail.metadata only (Jev reads subjects, not the text). */
+  emailBodies?: boolean
 }
 export type GoogleData = {
   loaded: boolean
