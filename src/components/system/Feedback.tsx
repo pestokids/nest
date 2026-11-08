@@ -10,7 +10,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
 import {
-  FEEDBACK_LABEL, FEEDBACK_TEXT_MAX, FEEDBACK_TYPES, isFeedbackShortcut, onOpenFeedback, pageLabel, viewportLabel,
+  FEEDBACK_LABEL, FEEDBACK_TEXT_MAX, FEEDBACK_TYPES, isFeedbackShortcut, onOpenFeedback, openFeedback, pageLabel, viewportLabel,
   type FeedbackList, type FeedbackResult, type FeedbackType, type Viewport,
 } from '../../lib/feedback'
 import { agoShort } from '../../lib/google'
@@ -384,7 +384,12 @@ function FeedbackCardView({ list, sendNow }: Pick<FeedbackSource, 'list' | 'send
           ))}
         </ul>
       ) : (
-        <p className="set-feedback__empty">Nothing sent yet. Press ⌘. on any screen.</p>
+        <div className="set-feedback__empty">
+          <p>Nothing sent yet. Press ⌘. on any screen, or start here.</p>
+          <Button variant="secondary" onClick={openFeedback}>
+            Send feedback
+          </Button>
+        </div>
       )}
     </section>
   )

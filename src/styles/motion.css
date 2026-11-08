@@ -1,7 +1,11 @@
 /*
  * Motion vocabulary (interactions.png, foundations "Motion and delight").
- * Pair with src/lib/motion.ts. Reduced motion: loops stop, rises become fades,
- * confetti is a still burst (handled in motion.ts).
+ * Pair with src/lib/motion.ts. UI motion is 150–200 ms ease-out (PST-298); the
+ * gestures (wobble, shake, shine, pulse, bob, confetti) keep their own timing.
+ * Reduced motion: every movement becomes a fade. Each file redefines its moving
+ * keyframes as opacity only inside its reduced-motion block (keyframes defined
+ * later win), transitions keep only opacity and colour, loops stop, and confetti
+ * is a still burst (motion.ts).
  */
 @keyframes m-rise {
   from { opacity: 0; transform: translateY(12px); }
@@ -60,12 +64,12 @@
 
 /* Rise: cards and rows on first load. Set --rise-i for the 60ms stagger. */
 .m-rise {
-  animation: m-rise 420ms var(--ease-out-back) both;
+  animation: m-rise 200ms var(--ease-out) both;
   animation-delay: calc(var(--rise-i, 0) * 60ms);
 }
 .m-pop {
   display: inline-block;
-  animation: m-pop 320ms var(--ease-spring);
+  animation: m-pop 200ms var(--ease-out);
 }
 .m-wobble {
   animation: m-wobble 600ms ease-in-out;
@@ -151,13 +155,27 @@
   .m-wobble,
   .m-wobble-hover:hover .m-wobble-target,
   .m-shake,
-  .m-shake-x,
-  .m-shine::after {
+  .m-shake-x {
     animation: none;
   }
+  /* Things still fade in and out, but nothing slides, grows or turns. */
   *,
   *::before,
   *::after {
-    transition-duration: 0.001ms !important;
+    transition-property: opacity, color, background-color, border-color, box-shadow !important;
+    transition-duration: 150ms !important;
+    transition-timing-function: ease-out !important;
   }
+  @keyframes m-rise { from { opacity: 0; } }
+  @keyframes m-toast-in { from { opacity: 0; } }
+  @keyframes m-toast-out { to { opacity: 0; } }
+  @keyframes m-slide-down { from { opacity: 0; } }
+  @keyframes m-bubble { from { opacity: 0; } }
+  @keyframes m-pop { from { opacity: 0.6; } }
+  @keyframes m-shine { from, to { opacity: 0; } }
+  @keyframes m-wobble {}
+  @keyframes m-shake {}
+  @keyframes m-shake-x {}
+  @keyframes m-pulse {}
+  @keyframes m-bob {}
 }

@@ -2,8 +2,7 @@
 // (Interested, Maybe, Yes, No), a decide-by date, the calls so far and how long
 // they've been a maybe. Pure functions over plain data, shared by Convex
 // (convex/decisions.ts) and the UI.
-import { dayDiff, todayIST } from './dates'
-import { dayMonth } from './home'
+import { dayDiff, formatDay, todayIST } from './dates'
 import { addDays } from './today'
 
 export const DECISION_STATUSES = ['interested', 'maybe', 'yes', 'no'] as const
@@ -129,7 +128,7 @@ export function decideByLine(decideBy: string, today: string): string {
   if (late === 1) return 'Decide-by passed yesterday'
   if (late > 1) return `Decide-by passed ${late} days ago`
   if (late === 0) return 'Decide by today'
-  return `Decide by ${dayMonth(decideBy)}`
+  return `Decide by ${formatDay(decideBy)}`
 }
 
 export const isDecideByPassed = (d: Pick<Decision, 'decideBy'>, today: string) => !!d.decideBy && d.decideBy < today

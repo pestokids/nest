@@ -24,12 +24,12 @@
 .draft__name + input { margin-left: -2px; }
 .draft__head input::placeholder { color: var(--text-faint); font-weight: 400; }
 .draft__head input:hover:not(:disabled) { background: var(--surface-paper); }
-.draft__head input:focus { outline: none; background: var(--surface-paper); box-shadow: inset 0 0 0 2px var(--brand-lime); }
+.draft__head input:focus-visible { outline: none; background: var(--surface-paper); box-shadow: inset 0 0 0 2px var(--brand-lime); }
 
 .draft__body { position: relative; border: 1px solid var(--line-default); border-radius: var(--radius-small); background: var(--surface-paper); }
-.draft__body:focus-within { box-shadow: 0 0 0 3px var(--brand-lime); border-color: var(--brand-leaf); }
+.draft__body:has(:focus-visible) { box-shadow: 0 0 0 3px var(--brand-lime); border-color: var(--brand-leaf); }
 .draft__body textarea { display: block; width: 100%; min-height: 360px; padding: 18px 20px; border: 0; border-radius: inherit; background: none; resize: vertical; font: 400 15px/1.5 var(--font-ui); color: var(--text-primary); }
-.draft__body textarea:focus { outline: none; }
+.draft__body textarea:focus-visible { outline: none; }
 .draft__body.is-writing textarea { color: transparent; }
 .draft__writing { position: absolute; inset: 18px 20px auto; display: flex; flex-direction: column; gap: 14px; pointer-events: none; }
 .draft__writing span { height: 12px; border-radius: 6px; background: linear-gradient(100deg, #e6ebdc 30%, #f4f7ec 50%, #e6ebdc 70%) 0 0 / 220% 100%; animation: draft-shimmer 1.4s linear infinite; }
@@ -85,4 +85,9 @@
 
 @media (prefers-reduced-motion: reduce) {
   .draft__writing span { animation: none; }
+}
+
+/* PST-298: under reduced motion, movement here becomes a fade (these win over the keyframes above). */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes draft-shimmer {}
 }

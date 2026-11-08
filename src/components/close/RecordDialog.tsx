@@ -2,8 +2,9 @@
 // send or sign anything. You note what went out, to whom and when, and an
 // optional link to the signing request in whatever tool you used.
 import { useMemo, useRef, useState } from 'react'
-import { checkTick, CLOSE_INSTRUMENTS, cleanTerms, DEFAULT_INSTRUMENT, stepMap, usd, validateTerms, type CloseRow, type ClosingTerms } from '../../lib/close'
+import { checkTick, CLOSE_INSTRUMENTS, cleanTerms, DEFAULT_INSTRUMENT, stepMap, validateTerms, type CloseRow, type ClosingTerms } from '../../lib/close'
 import { todayIST } from '../../lib/dates'
+import { exactMoney } from '../../lib/money'
 import { shake } from '../../lib/motion'
 import { play } from '../../lib/sound'
 import { useRaise } from '../data'
@@ -151,7 +152,7 @@ export function RecordDialog({ row, onClose, onSaved }: { row: CloseRow; onClose
         <div className="close-quote">
           <span className="eyebrow-mono">In one line</span>
           <p>
-            “{investor.name} invests {usd(f.amount!)} on a {f.instrument} with a {usd(f.cap!)} valuation cap{extras.length ? `, ${extras.join(', ')}` : ''}.”
+            “{investor.name} invests {exactMoney(f.amount!)} on a {f.instrument} with a {exactMoney(f.cap!)} valuation cap{extras.length ? `, ${extras.join(', ')}` : ''}.”
           </p>
         </div>
       ) : null}

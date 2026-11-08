@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import type { Activity, Investor } from './pipeline'
 import {
   askNext, canLeadOf, emailList, kickoff, kickoffHeadline, laneCaption, lastUpdateLine, leadCandidates, leadLine, leadSteps, meetingsPerDay, mergeCanLead,
-  nextLeadStep, raceLanes, raceWindow, slowDown, updateGroups, windowEyebrow, type CanLeadValue, type RaceInput,
+  nextLeadStep, raceLanes, raceWindow, secondOfferCheer, slowDown, updateGroups, windowEyebrow, type CanLeadValue, type RaceInput,
 } from './race'
 import type { Phase } from './round'
 import type { SyncedMeeting } from './google'
@@ -217,6 +217,31 @@ describe('who to update', () => {
     expect(lastUpdateLine(null, '2026-11-08')).toBe('No update sent yet')
   })
 })
+
+// ---------- PST-298 interactions ----------
+describe('interactions-batch-1: the second offer and Mark as no', () => {
+  it('cheers the second offer of the week once, for your own move only', () => {
+    expect(secondOfferCheer(1, 2, true)).toBe(true)
+    expect(secondOfferCheer(1, 2, false)).toBe(false)
+    expect(secondOfferCheer(0, 2, false)).toBe(false)
+    expect(secondOfferCheer(2, 3, true)).toBe(false)
+    expect(secondOfferCheer(0, 1, true)).toBe(false)
+  })
+
+  it('a No after a real conversation lands in Passed, but warm, not in the race', () => {
+    const met = inv('Kelp Capital', 'm2', { email: 'kit@kelp.example.com' })
+    const coldNo = inv('Lark Seed', 'intro', { warmth: 'cold' })
+    const racing = inv('Moss Fund', 'm1')
+    const groups = updateGroups([met, coldNo, racing], () => false, (i) => i === met || i === coldNo)
+    expect(groups.map((g) => [g.key, g.investors.map((i) => i.name)])).toEqual([
+      ['race', ['Moss Fund']],
+      ['maybes', []],
+      ['committed', []],
+      ['warm', ['Kelp Capital']],
+    ])
+  })
+})
+// ---------- end PST-298 interactions ----------
 
 it('every race stage is a pipeline stage', () => {
   expect(STAGES.map((s) => s.k)).toEqual(expect.arrayContaining(['booked', 'm1', 'm2', 'dd', 'verbal']))

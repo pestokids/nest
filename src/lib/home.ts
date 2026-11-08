@@ -1,6 +1,6 @@
 // Home: greeting, the phase line, "Up next", the prep checklist rule, and (PST-289) the Raise card's counts and This week.
 // Pure functions over plain data; times are Asia/Kolkata like the rest of Nest.
-import { dayDiff, todayIST } from './dates'
+import { dayDiff, formatDay, todayIST } from './dates'
 import { dayOf, dedupeMeetings, timeOf, type SyncedMeeting } from './google'
 import type { Investor } from './pipeline'
 import type { Phase, Round } from './round'
@@ -33,12 +33,6 @@ export function longDate(iso: string): string {
   return `${WEEKDAYS[d.getUTCDay()]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`
 }
 
-/** "Fri 4 Dec" */
-export function dayMonth(iso: string): string {
-  const d = new Date(iso + 'T00:00:00Z')
-  return `${WEEKDAYS[d.getUTCDay()].slice(0, 3)} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()].slice(0, 3)}`
-}
-
 export const dateEyebrow = (now: number) => longDate(todayIST(now))
 
 /** The phase that contains `today`, or undefined between/outside phases. */
@@ -63,7 +57,7 @@ export function phaseLine(round: Round, today: string, opts: { firstRun?: boolea
   if (today > round.deadline) return 'The round has closed.'
   const now = phaseOn(round, today)
   const next = nextPhase(round, today)
-  if (!now) return next ? `${next.name} starts ${dayMonth(next.from)}.` : 'Every phase is behind you.'
+  if (!now) return next ? `${next.name} starts ${formatDay(next.from)}.` : 'Every phase is behind you.'
   if (opts.phaseDone) return next ? `${now.name} is done. ${next.name} next.` : `${now.name} is done.`
   const week = dayDiff(now.to, now.from) <= 7 && !/week/i.test(now.name) ? ' week' : ''
   return `${now.name}${week} is on.`
@@ -84,13 +78,6 @@ export function upNext(investors: Pick<Investor, '_id' | 'name' | 'nextStep' | '
       items.push({ date: i.nextDate, kind: 'investor', id: i._id, text: i.nextStep ? `${i.name}: ${i.nextStep}` : `${i.name}: next step` })
   const rank = { phase: 0, investor: 1 }
   return items.sort((a, b) => a.date.localeCompare(b.date) || rank[a.kind] - rank[b.kind] || a.text.localeCompare(b.text)).slice(0, limit)
-}
-
-
-/** "NOV 11" for the Up next list. */
-export function monDay(iso: string): string {
-  const d = new Date(iso + 'T00:00:00Z')
-  return `${MONTHS[d.getUTCMonth()].slice(0, 3).toUpperCase()} ${d.getUTCDate()}`
 }
 
 /** Phase bar segments for the Raise card. Width follows phase length, within limits. */

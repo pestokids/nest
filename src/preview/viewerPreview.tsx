@@ -10,8 +10,7 @@ import { fakePdf } from './fakePdf'
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-export function PreviewViewer() {
-  const state = new URLSearchParams(location.search).get('viewer') ?? 'open'
+export function PreviewViewer({ state }: { state: string }) {
   const api = useMemo<ViewerApi>(() => {
     const doc: ViewerDoc = { title: 'Pitch deck', n: 4, pages: 14, kind: 'pdf', url: null, download: state === 'download', watermark: null, reply: 'dev@pestokids.com', from: 'Pesto' }
     let asked = false

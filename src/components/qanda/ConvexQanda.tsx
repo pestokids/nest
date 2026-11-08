@@ -4,7 +4,9 @@ import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
 import type { Question } from '../../lib/qanda'
 import type { NoteRead, UnmatchedNote } from '../../lib/meetingNotes'
+import { useSession } from '../session'
 import { QandaContext, type QandaActions, type QandaData } from './data'
+import { hideAsk, hideMark, hideQuestion, showDeck, showLink, showMark, showMerge, showNote, showNoteGone, showQuestionBack, showQuestionSave, showRead, showSame, showUnmatched, showUnmerge } from './optimistic'
 
 const NONE: Question[] = []
 const NO_UNMATCHED: UnmatchedNote[] = []
@@ -18,33 +20,35 @@ type UId = Id<'unmatchedNotes'>
 
 /** PST-281: the Q&A bank from Convex, live in every open tab. */
 export function ConvexQanda({ children }: { children: ReactNode }) {
+  const me = useSession().me.firstName
   const bank = useQuery(api.qanda.bank)
+  // PST-298: every write shows at once (./optimistic.ts) but a new question (it opens by its id), a read and a draft (Claude).
   const create = useMutation(api.qanda.create)
-  const save = useMutation(api.qanda.save)
-  const link = useMutation(api.qanda.link)
-  const unlink = useMutation(api.qanda.unlink)
-  const merge = useMutation(api.qanda.merge)
-  const unmerge = useMutation(api.qanda.unmerge)
-  const remove = useMutation(api.qanda.remove)
-  const restore = useMutation(api.qanda.restore)
-  const addToDeck = useMutation(api.qanda.addToDeck)
-  const removeFromDeck = useMutation(api.qanda.removeFromDeck)
-  const addNote = useMutation(api.qanda.addNote)
-  const removeNote = useMutation(api.qanda.removeNote)
-  const restoreNote = useMutation(api.qanda.restoreNote)
-  const markLine = useMutation(api.qanda.markLine)
-  const unmarkLine = useMutation(api.qanda.unmarkLine)
+  const save = useMutation(api.qanda.save).withOptimisticUpdate((store, a) => showQuestionSave(store, a, me))
+  const link = useMutation(api.qanda.link).withOptimisticUpdate((store, a) => showLink(store, a))
+  const unlink = useMutation(api.qanda.unlink).withOptimisticUpdate((store, { askId }) => hideAsk(store, askId))
+  const merge = useMutation(api.qanda.merge).withOptimisticUpdate((store, a) => showMerge(store, a))
+  const unmerge = useMutation(api.qanda.unmerge).withOptimisticUpdate((store, { id }) => showUnmerge(store, id))
+  const remove = useMutation(api.qanda.remove).withOptimisticUpdate((store, { id }) => hideQuestion(store, id))
+  const restore = useMutation(api.qanda.restore).withOptimisticUpdate((store, { id }) => showQuestionBack(store, id))
+  const addToDeck = useMutation(api.qanda.addToDeck).withOptimisticUpdate((store, { id }) => showDeck(store, id, true))
+  const removeFromDeck = useMutation(api.qanda.removeFromDeck).withOptimisticUpdate((store, { id }) => showDeck(store, id, false))
+  const addNote = useMutation(api.qanda.addNote).withOptimisticUpdate((store, a) => showNote(store, a, me))
+  const removeNote = useMutation(api.qanda.removeNote).withOptimisticUpdate((store, { id }) => showNoteGone(store, id, true))
+  const restoreNote = useMutation(api.qanda.restoreNote).withOptimisticUpdate((store, { id }) => showNoteGone(store, id, false))
+  const markLine = useMutation(api.qanda.markLine).withOptimisticUpdate((store, a) => showMark(store, a))
+  const unmarkLine = useMutation(api.qanda.unmarkLine).withOptimisticUpdate((store, a) => hideMark(store, a))
   const unmatched = useQuery(api.noteReads.unmatched)
   const readNote = useMutation(api.noteReads.read)
-  const applyRead = useMutation(api.noteReads.apply)
-  const dismissRead = useMutation(api.noteReads.dismiss)
-  const undoRead = useMutation(api.noteReads.undo)
+  const applyRead = useMutation(api.noteReads.apply).withOptimisticUpdate((store, a) => showRead(store, a))
+  const dismissRead = useMutation(api.noteReads.dismiss).withOptimisticUpdate((store, { readId }) => showRead(store, { readId }))
+  const undoRead = useMutation(api.noteReads.undo).withOptimisticUpdate((store, { readId }) => showRead(store, { undo: readId }))
   const draftAnswer = useAction(api.noteReads.draftAnswer)
-  const matchUnmatched = useMutation(api.noteReads.matchUnmatched)
-  const dropUnmatched = useMutation(api.noteReads.dropUnmatched)
-  const restoreUnmatched = useMutation(api.noteReads.restoreUnmatched)
-  const notSame = useMutation(api.jevHousekeeping.notSame)
-  const restoreSame = useMutation(api.jevHousekeeping.restoreSame)
+  const matchUnmatched = useMutation(api.noteReads.matchUnmatched).withOptimisticUpdate((store, { id }) => showUnmatched(store, id, true))
+  const dropUnmatched = useMutation(api.noteReads.dropUnmatched).withOptimisticUpdate((store, { id }) => showUnmatched(store, id, true))
+  const restoreUnmatched = useMutation(api.noteReads.restoreUnmatched).withOptimisticUpdate((store, { id }) => showUnmatched(store, id, false))
+  const notSame = useMutation(api.jevHousekeeping.notSame).withOptimisticUpdate((store, { questionId }) => showSame(store, questionId, false))
+  const restoreSame = useMutation(api.jevHousekeeping.restoreSame).withOptimisticUpdate((store, { questionId }) => showSame(store, questionId, true))
   const act = useMemo<QandaActions>(
     () => ({
       create: (a) => create({ ...a, investorId: a.investorId as Id<'investors'> | undefined }),

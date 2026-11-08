@@ -1,13 +1,13 @@
 // DEV ONLY: made-up Materials for ?preview (PST-282). Invented investors from the
 // fixture, invented numbers; dates follow today. Writes stay in memory.
-//   &materials=empty|versions|views|share|sent|upload|noemail|opened
+//   &materials=empty|versions|views|share|sent|upload|noemail|opened|noopens (PST-298)
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { MaterialsContext, type MaterialsActions, type MaterialsValue, type NewLink } from '../components/materials/data'
 import { useRaise } from '../components/data'
 import { DAY_MS, normOptions, DEFAULT_OPTIONS, type Material, type MaterialsData, type MaterialVersion, type ShareLink, type ViewStat } from '../lib/materials'
 import { fakePdf } from './fakePdf'
 
-export const PREVIEW_MATERIALS = ['default', 'empty', 'versions', 'views', 'share', 'sent', 'upload', 'noemail', 'opened'] as const
+export const PREVIEW_MATERIALS = ['default', 'empty', 'versions', 'views', 'share', 'sent', 'upload', 'noemail', 'opened', /* PST-298 */ 'noopens'] as const
 export type PreviewMaterials = (typeof PREVIEW_MATERIALS)[number]
 
 const H = 36e5
@@ -92,7 +92,8 @@ export function PreviewMaterials({ state, children }: { state: PreviewMaterials;
   useEffect(() => {
     if (data || !raise.loaded) return
     const d = state === 'empty' ? { ...fixtureMaterials({}, Date.now()), materials: [], versions: [], links: [], stats: [], notices: [] } : fixtureMaterials(ids, Date.now())
-    setData({ ...d, notices: state === 'opened' ? [] : d.notices, emailReady: state !== 'noemail' })
+    // PST-298: &materials=noopens, links sent and nobody has opened one (Recent views' empty state).
+    setData({ ...d, stats: state === 'noopens' ? [] : d.stats, notices: state === 'opened' || state === 'noopens' ? [] : d.notices, emailReady: state !== 'noemail' })
   }, [data, raise.loaded, ids, state])
   // &materials=opened: a first open arrives a moment after load (the toast and Today's row).
   useEffect(() => {

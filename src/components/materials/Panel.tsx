@@ -1,8 +1,9 @@
 // PST-282: one material in a side panel (a bottom sheet on phones):
 // Versions (raise-materials/versions.png) and Views (deck-views.png).
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { averagePages, dayOfMs, duration, furthestPage, linkSource, pagesSeen, topPage, whenOf, onOldVersion, type MaterialVersion, type ViewStat } from '../../lib/materials'
-import { pop } from '../../lib/motion'
+import { formatDay } from '../../lib/dates'
+import { averagePages, duration, furthestPage, linkSource, pagesSeen, topPage, whenOf, onOldVersion, type MaterialVersion, type ViewStat } from '../../lib/materials'
+import { pop, scrollBehavior } from '../../lib/motion'
 import { play } from '../../lib/sound'
 import { useRaise } from '../data'
 import { useUI } from '../raise-ui'
@@ -120,7 +121,7 @@ export function MaterialPanel({ materialId, tab: startTab, file, onClose, onShar
     setTab('versions')
     requestAnimationFrame(() => {
       const zone = box.current?.querySelector<HTMLElement>('.vform .pdrop')
-      zone?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      zone?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' })
       zone?.click()
     })
   }
@@ -243,7 +244,7 @@ function Versions({ materialId, file, onShare }: { materialId: string; file?: Pi
                 </button>
               )}
             </header>
-            <p className="vcard__meta">{[dayOfMs(v.createdAt), v.by ? `by ${v.by}` : '', v.pages ? `${v.pages} page${v.pages === 1 ? '' : 's'}` : v.url ? linkSource(v.url) : ''].filter(Boolean).join(' · ')}</p>
+            <p className="vcard__meta">{[formatDay(v.createdAt), v.by ? `by ${v.by}` : '', v.pages ? `${v.pages} page${v.pages === 1 ? '' : 's'}` : v.url ? linkSource(v.url) : ''].filter(Boolean).join(' · ')}</p>
             {v.note ? <p className="vcard__note">{v.note}</p> : null}
             <footer className="vcard__foot">
               <span className="eyebrow-mono">

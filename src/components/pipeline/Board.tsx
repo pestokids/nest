@@ -3,7 +3,7 @@ import {
   BOARD, BOARD_STAGES, cardKeyAction, columnCompare, HIDDEN_STAGES, isBoardStage, landingIndex,
   type BoardFilter, type BoardStage, type ColumnSort,
 } from '../../lib/board'
-import { pop, shake } from '../../lib/motion'
+import { pop, scrollBehavior, shake } from '../../lib/motion'
 import type { Investor } from '../../lib/pipeline'
 import { play } from '../../lib/sound'
 import { useUI } from '../raise-ui'
@@ -22,7 +22,7 @@ import { useListKeys } from '../system/useListKeys'
 type Hidden = (typeof HIDDEN_STAGES)[number]
 type Drag = { id: string; from: string; over: string | null; h: number; snapshot: Investor[] }
 
-const SETTLE_MS = 400
+const SETTLE_MS = 200
 
 /** The Linear-style board (desktop and tablet). */
 export function Board({ investors, total, filter, setFilter, today, quietDays, waves }: {
@@ -141,7 +141,7 @@ export function Board({ investors, total, filter, setFilter, today, quietDays, w
     const el = scroller.current?.querySelector<HTMLElement>(`[data-card="${CSS.escape(focusId)}"]`)
     if (el) {
       el.focus({ preventScroll: true })
-      el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
+      el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: scrollBehavior() })
     }
     setFocusId(null)
   }, [focusId, investors])
@@ -149,7 +149,7 @@ export function Board({ investors, total, filter, setFilter, today, quietDays, w
   const showHidden = (s: Hidden) => {
     setShown((x) => new Set([...x, s]))
     setEntering(s)
-    requestAnimationFrame(() => scroller.current?.scrollTo({ left: scroller.current.scrollWidth, behavior: 'smooth' }))
+    requestAnimationFrame(() => scroller.current?.scrollTo({ left: scroller.current.scrollWidth, behavior: scrollBehavior() }))
   }
   const hide = (s: Hidden) => setShown((x) => new Set([...x].filter((k) => k !== s)))
   useEffect(() => {

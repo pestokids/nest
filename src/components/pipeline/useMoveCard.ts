@@ -3,6 +3,7 @@
 // on a win, the save, and a toast with Undo. Uses the app-wide toast, so ⌘K can too.
 import { useCallback } from 'react'
 import { classifyMove, moveSounds, moveToast, type Move, type MoveRecord } from '../../lib/board'
+import { noteOwnMove } from '../../lib/ownMove' // PST-298
 import { confetti, MOTION } from '../../lib/motion'
 import { isBackward, type Investor } from '../../lib/pipeline'
 import { play } from '../../lib/sound'
@@ -20,6 +21,7 @@ export function useMoveCard() {
       for (const c of moveSounds(m)) play(c.name, c.opts)
       if (m.kind === 'same') return m
       if (m.win) confetti(opts.from)
+      noteOwnMove(inv._id, to)
       // The board updates at once (optimistic); Undo waits for the save it undoes.
       const saved: Promise<MoveRecord> = move(inv._id, to)
       saved.catch((e) => {

@@ -11,10 +11,9 @@
 // deciding them there shows here. Motion and sound follow interactions-ai.png.
 import { Link } from '@tanstack/react-router'
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { todayIST } from '../../lib/dates'
+import { formatDay, todayIST } from '../../lib/dates'
 import { cents, NO_AI_KEY } from '../../lib/enrich'
 import { dayOf } from '../../lib/google'
-import { dayMonth } from '../../lib/home'
 import { appliedLine, canApply, KIND_LABEL, noteFrom, proposalText, readView, startsTicked, type NoteRead } from '../../lib/meetingNotes'
 import { pop, rise, shake, shine, wobble } from '../../lib/motion'
 import { looksLikeQuestion, needsAnswer, NOTE_TITLES, noteLines, noteTitleFor, type Note, type Question } from '../../lib/qanda'
@@ -28,6 +27,7 @@ import { Button, Checkbox, Icon, Select, Textarea } from '../ui'
 import { useQanda } from './data'
 import { openPanel } from './panels'
 import { useQandaActions } from './useQandaActions'
+import { SkeletonRows } from '../system/Skeleton'
 
 const firstName = (name: string) => name.trim().split(/\s+/)[0] || name
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -85,7 +85,7 @@ export function NotesTab({ inv }: { inv: Investor }) {
         </section>
       ) : null}
       {notes === undefined ? (
-        <div className="history--loading" aria-busy="true" />
+        <SkeletonRows action={false} />
       ) : notes.length ? (
         rest.map(block)
       ) : (
@@ -136,7 +136,7 @@ function NoteBlock({ n, inv, read, picked, connected }: { n: Note; inv: Investor
   if (read && view === 'done')
     return (
       <article className="nr-done">
-        <p className="nr-done__title">{[n.title ?? 'Meeting', dayMonth(n.date)].join(' · ')}</p>
+        <p className="nr-done__title">{[n.title ?? 'Meeting', formatDay(n.date)].join(' · ')}</p>
         <p className="nr-done__line">
           {read.status === 'dismissed' ? 'Dismissed what Nest proposed' : appliedLine(read.proposals)}
           {marked ? ' · ' + (marked === 1 ? '1 line marked as a question' : marked + ' lines marked as questions') : ''}
@@ -172,7 +172,7 @@ function Reading({ n, inv }: { n: Note; inv: Investor }) {
         <Icon name="spark" size={16} className="enrich-spark enrich-spark--spin" />
         Nest is reading your notes
       </p>
-      <h3 className="nr-card__title">{[n.title ?? 'Meeting', dayMonth(n.date)].join(' · ')}</h3>
+      <h3 className="nr-card__title">{[n.title ?? 'Meeting', formatDay(n.date)].join(' · ')}</h3>
       <p className="nr-card__sub">{noteFrom(n, meeting)}</p>
       <div className="nr-summary nr-summary--loading" aria-hidden="true">
         <span className="sk" />
@@ -244,7 +244,7 @@ function ReadCard({ n, inv, read, toggle, full }: { n: Note; inv: Investor; read
         Nest read your notes · {cents(read.costUsd)}
       </p>
       <h3 id={'nr-' + read._id} className="nr-card__title">
-        {[n.title ?? 'Meeting', dayMonth(n.date)].join(' · ')}
+        {[n.title ?? 'Meeting', formatDay(n.date)].join(' · ')}
       </h3>
       <p className="nr-card__sub">{noteFrom(n, meeting)}</p>
       {read.summary.length ? (
@@ -368,7 +368,7 @@ function PasteBox({ inv, open: startOpen, reads }: { inv: Investor; open: boolea
         <Select label="When" value={date} onChange={(e) => setDate(e.target.value)}>
           {days.map((x, n) => (
             <option key={x} value={x}>
-              {n === 0 ? 'Today' : n === 1 ? 'Yesterday' : dayMonth(x)}
+              {n === 0 ? 'Today' : n === 1 ? 'Yesterday' : formatDay(x)}
             </option>
           ))}
         </Select>
@@ -397,7 +397,7 @@ function NoteCard({ n, inv, picked, embedded, error, action }: { n: Note; inv: I
       {!embedded ? (
         <header className="qa-note__head">
           <div>
-            <p className="eyebrow-mono qa-note__eyebrow">{[n.title, dayMonth(n.date)].filter(Boolean).join(' · ')}</p>
+            <p className="eyebrow-mono qa-note__eyebrow">{[n.title, formatDay(n.date)].filter(Boolean).join(' · ')}</p>
             <p className="qa-note__by">{noteFrom(n, meeting)}</p>
           </div>
           {action}

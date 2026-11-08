@@ -2,7 +2,7 @@
 // and the "slow down" note, the lead, and who to update. Pure functions over plain
 // data, shared by the UI and Convex; days are Asia/Kolkata like the rest of Nest.
 import { decideByOf, type DecisionFields } from './decisions'
-import { dayMonth } from './home'
+import { dayDiff, formatDay, weekdayOf } from './dates'
 import { dayOf, dedupeMeetings, normEmail, type SyncedMeeting } from './google'
 import { maxIdx, type Activity, type Investor } from './pipeline'
 import type { Phase, Round } from './round'
@@ -159,6 +159,11 @@ export function kickoff(input: RaceInput): Kickoff {
   return { ...k, headline: kickoffHeadline(k) }
 }
 
+// ---------- PST-298 interactions ----------
+/** The second offer of the week just landed by your own move: the lime card's one confetti burst and target-hit. Never from a sync or on load. */
+export const secondOfferCheer = (before: number, after: number, own: boolean) => own && before < OFFER_TARGET && after >= OFFER_TARGET
+// ---------- end PST-298 interactions ----------
+
 export function kickoffHeadline(k: Pick<Kickoff, 'intros' | 'offers'>): string {
   if (k.offers >= OFFER_TARGET) return `${countWord(k.offers)} offers in the same week. Now pick the lead.`
   if (k.intros.out < k.intros.of) return `${k.intros.out} of ${k.intros.of} intros are out. Chase the rest today.`
@@ -170,8 +175,8 @@ export function kickoffHeadline(k: Pick<Kickoff, 'intros' | 'offers'>): string {
 export function windowEyebrow(w: RaceWindow): string {
   const label = w.kind === 'kickoff' ? 'Kickoff week' : 'This week'
   if (!w.days.length) return label
-  const a = dayMonth(w.days[0])
-  const b = dayMonth(w.days[w.days.length - 1])
+  const a = formatDay(w.days[0])
+  const b = formatDay(w.days[w.days.length - 1])
   const range = (a.slice(-3) === b.slice(-3) ? a.slice(0, -4) : a) + ' – ' + b
   return `${label} · ${range}` + (w.day ? ` · Day ${w.day} of ${w.days.length}` : '')
 }
@@ -231,7 +236,7 @@ export function slowDown(lanes: readonly Lane[], today: string): SlowDown | null
 /** The line under a lane when there's no signal: the booked day, or the next step and its day. */
 export function laneCaption(l: Lane, today: string): string {
   const i = l.investor
-  const day = (d: string) => (d === today ? 'today' : d === addDays(today, 1) ? 'tomorrow' : dayMonth(d).split(' ')[0])
+  const day = (d: string) => (d === today ? 'today' : d === addDays(today, 1) ? 'tomorrow' : dayDiff(d, today) <= 6 ? weekdayOf(d) : formatDay(d))
   if (l.stage === 'booked') return l.firstMeeting === today ? '1st meeting today' : l.firstMeeting ? `Booked · ${day(l.firstMeeting)}` : 'Booked'
   if (!i.nextStep.trim()) return STAGE_TILE[i.stage] + ' done'
   return i.nextStep.trim() + (i.nextDate ? ` · ${day(i.nextDate)}` : '')
@@ -322,25 +327,29 @@ export type UpdateGroup = { key: UpdateGroupKey; label: string; investors: Inves
 /** The address an update goes to: their main email, else their first other one. */
 export const updateEmail = (i: Pick<Investor, 'email' | 'emails'>) => normEmail(i.email) || normEmail(i.emails?.[0])
 
-/** Passed after a real conversation, or warm to begin with: worth keeping in the loop. */
-const passedWarm = (i: Investor) => i.stage === 'passed' && (i.warmth === 'existing' || i.warmth === 'warm' || maxIdx(i) >= IDX.m1!)
+/** After a real conversation, or warm to begin with: a pass worth keeping in the loop. */
+const warmOrMet = (i: Investor) => i.warmth === 'existing' || i.warmth === 'warm' || maxIdx(i) >= IDX.m1!
 
 /**
  * Who to send an update to, each investor in one group: committed (Verbal on),
- * maybes (PST-293's status), the rest of the race, and passed but warm. Nest
- * only lists them; Dev sends it.
+ * maybes (PST-293's status), the rest of the race, and passed but warm (a
+ * PST-293 No counts as passed: Mark as no slides them in). Nest only lists them;
+ * Dev sends it.
  */
-export function updateGroups(investors: readonly Investor[], isMaybe: (i: Investor) => boolean): UpdateGroup[] {
+export function updateGroups(investors: readonly Investor[], isMaybe: (i: Investor) => boolean, isNo: (i: Investor) => boolean = () => false): UpdateGroup[] {
   const out = new Map<UpdateGroupKey, Investor[]>(UPDATE_GROUPS.map((g) => [g.k, []]))
   for (const i of investors) {
+    const passed = i.stage === 'passed' || isNo(i)
     const key: UpdateGroupKey | null = COMMIT.has(i.stage)
       ? 'committed'
-      : i.stage !== 'passed' && isMaybe(i)
-        ? 'maybes'
-        : isRacing(i.stage)
-          ? 'race'
-          : passedWarm(i)
-            ? 'warm'
+      : passed
+        ? warmOrMet(i)
+          ? 'warm'
+          : null
+        : isMaybe(i)
+          ? 'maybes'
+          : isRacing(i.stage)
+            ? 'race'
             : null
     if (key) out.get(key)!.push(i)
   }
@@ -357,5 +366,5 @@ export const emailList = (emails: readonly string[]) => emails.join(', ')
 export function lastUpdateLine(sentOn: string | null | undefined, today: string): string {
   if (!sentOn) return 'No update sent yet'
   const n = Math.round((Date.parse(today + 'T00:00:00Z') - Date.parse(sentOn + 'T00:00:00Z')) / 864e5)
-  return `Last update: ${dayMonth(sentOn)}, ${n <= 0 ? 'today' : n === 1 ? 'yesterday' : `${n} days ago`}`
+  return `Last update: ${formatDay(sentOn)}, ${n <= 0 ? 'today' : n === 1 ? 'yesterday' : `${n} days ago`}`
 }

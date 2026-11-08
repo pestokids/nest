@@ -1,12 +1,13 @@
 // DEV ONLY: Send feedback for ?preview (PST-289). &feedback=open (the dialog with
 // an idea typed), sent (the "Sent as PST-301" toast), unsent (saved, not sent:
-// the toast, and Settings › Feedback with rows waiting and no Linear key).
+// the toast, and Settings › Feedback with rows waiting and no Linear key), empty
+// (PST-298: Settings › Feedback with nothing sent yet).
 // Writes stay in memory; &fail makes them fail. Text and links are made up.
 import { useMemo, useState, type ReactNode } from 'react'
 import { FeedbackContext, type FeedbackSource } from '../components/system/Feedback'
 import { feedbackTitle, type FeedbackList, type FeedbackResult, type FeedbackRow } from '../lib/feedback'
 
-export const PREVIEW_FEEDBACK = ['open', 'sent', 'unsent'] as const
+export const PREVIEW_FEEDBACK = ['open', 'sent', 'unsent', /* PST-298 */ 'empty'] as const
 export type PreviewFeedback = (typeof PREVIEW_FEEDBACK)[number]
 
 const H = 36e5
@@ -17,6 +18,7 @@ function rows(state: PreviewFeedback | null, now: number): FeedbackRow[] {
     { _id: 'fb3', type: 'bug', title: 'The board jumps when a card drops into Diligence', path: '/raise/pipeline', status: 'sent', issue: issue(298), createdAt: now - 26 * H, by: 'Dev' },
     { _id: 'fb4', type: 'slow', title: 'Investors takes a second to filter with 200 names', path: '/raise/investors', status: 'sent', issue: issue(296), createdAt: now - 3 * 24 * H, by: 'Dev' },
   ]
+  if (state === 'empty') return []
   if (state !== 'unsent') return sent
   return [
     { _id: 'fb1', type: 'idea', title: 'Show who hasn’t booked yet in kickoff week', path: '/raise/pipeline', status: 'unsent', createdAt: now - 2 * H, by: 'Dev' },

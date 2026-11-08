@@ -18,6 +18,7 @@ import { previewIntroducers } from '../../preview/introducersFixture'
 import { useDecisions } from '../decisions/data'
 import { useRaise } from '../data'
 import { usePreviewState } from '../preview-state'
+import { showIntroducer, showIntroducerEdit, showLink, showNudged } from '../optimistic-interactions' // PST-298
 
 export type IntroducerFields = { name: string; email?: string; relation: Exclude<Relation, 'committed'>; notes: string }
 
@@ -86,10 +87,10 @@ const NONE = { introducers: [] as Introducer[], intros: [] as Intro[] }
 function ConvexIntroducers({ children }: { children: ReactNode }) {
   const data = useQuery(api.introducers.list)
   const migrate = useMutation(api.introducers.migrate)
-  const add = useMutation(api.introducers.add)
-  const update = useMutation(api.introducers.update)
-  const link = useMutation(api.introducers.link)
-  const nudged = useMutation(api.introducers.nudged)
+  const add = useMutation(api.introducers.add).withOptimisticUpdate((store, f) => showIntroducer(store, f))
+  const update = useMutation(api.introducers.update).withOptimisticUpdate((store, a) => showIntroducerEdit(store, a))
+  const link = useMutation(api.introducers.link).withOptimisticUpdate((store, a) => showLink(store, a))
+  const nudged = useMutation(api.introducers.nudged).withOptimisticUpdate((store, a) => showNudged(store, a, todayIST()))
   const setStepDay = useMutation(api.introducers.setStepDay).withOptimisticUpdate((store, a) => {
     const cur = store.getQuery(api.introducers.list, {})
     if (cur) store.setQuery(api.introducers.list, {}, { ...cur, intros: cur.intros.map((x) => (x._id === a.introId ? { ...x, steps: setStep(x.steps, a.step, a.day) } : x)) })

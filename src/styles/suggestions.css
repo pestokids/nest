@@ -11,7 +11,7 @@
 .sg-row {
   display: grid;
   grid-template-rows: 1fr;
-  transition: grid-template-rows 280ms var(--ease-out), opacity 220ms ease-out;
+  transition: grid-template-rows 200ms var(--ease-out), opacity 200ms var(--ease-out);
 }
 .sg-row__in {
   min-height: 0;
@@ -21,7 +21,7 @@
   align-items: start;
   column-gap: 24px;
   border-top: 1px solid var(--line-default);
-  transition: transform 280ms var(--ease-out);
+  transition: transform 200ms var(--ease-out);
 }
 .sg-row__in > * { padding: 18px 0; }
 .sg-row__kind { padding-top: 16px !important; }
@@ -35,7 +35,7 @@
 .sg-row--accept, .sg-row--merge, .sg-row--dismiss { grid-template-rows: 0fr; opacity: 0; }
 .sg-row--dismiss .sg-row__in { transform: translateX(36px); }
 /* Merge: the two names slide into one. */
-.sg-row--merge .sg-row__title { animation: sg-merge 280ms var(--ease-out) both; }
+.sg-row--merge .sg-row__title { animation: sg-merge 200ms var(--ease-out) both; }
 @keyframes sg-merge {
   to { letter-spacing: -0.06em; transform: translateX(-10px); opacity: 0.4; }
 }
@@ -91,4 +91,9 @@
   .sg-row--accept, .sg-row--merge, .sg-row--dismiss { grid-template-rows: 1fr; }
   .sg-row--dismiss .sg-row__in { transform: none; }
   .sg-row--merge .sg-row__title, .sg-row--fresh .sg-chip--agent .chip__dot::after { animation: none; }
+}
+
+/* PST-298: under reduced motion, movement here becomes a fade (these win over the keyframes above). */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes sg-merge { to { opacity: 0.4; } }
 }

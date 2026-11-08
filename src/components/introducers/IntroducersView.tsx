@@ -15,7 +15,7 @@ import { Modal, useTitleId } from '../system/Modal'
 import { Button, Card, Chip } from '../ui'
 import { useIntroducers, useIntroInvestors, useMigrate } from './data'
 import { AskDialog, IntroducerDialog } from './Dialogs'
-import { StepBar } from './Steps'
+import { StepBar, useToggleStep } from './Steps'
 
 function useMedia(q: string) {
   const [on, setOn] = useState(() => typeof matchMedia === 'function' && matchMedia(q).matches)
@@ -119,6 +119,7 @@ function PersonPanel({ row, today, onOpen }: { row: PersonRow; today: string; on
   const x = useIntroducers()
   const investors = useIntroInvestors()
   const { fail } = useUI()
+  const toggle = useToggleStep()
   const uid = useId()
   const titleId = useTitleId()
   const who = firstName(row.name)
@@ -131,10 +132,7 @@ function PersonPanel({ row, today, onOpen }: { row: PersonRow; today: string; on
   const act = (intro: Intro) => {
     const inv = byId.get(intro.investorId)
     const next = introNext(intro, inv, who, today)
-    const tick = (step: 'thanked' | 'reported') => () => {
-      play('card-pickup', { rate: 1.2, volume: 0.6 })
-      x.setStep(intro._id, step, today).catch(fail)
-    }
+    const tick = (step: 'thanked' | 'reported') => () => toggle(intro, step, true)
     if (next.kind === 'thank') return { label: next.text, onClick: tick('thanked'), title: 'Tick Thanked' }
     if (next.kind === 'report') return { label: next.text, onClick: tick('reported'), title: 'Tick Reported' }
     if (next.kind === 'nudge')

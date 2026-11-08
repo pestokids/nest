@@ -12,13 +12,12 @@
 .inbox__chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
 .inbox__chip { gap: 6px; cursor: pointer; font-weight: 600; }
 .inbox__chip:focus-visible { outline: 3px solid var(--brand-lime); outline-offset: 2px; }
-.inbox__groups { padding: 4px 12px 14px; }
+.inbox__groups { position: relative; padding: 4px 12px 14px; }
 .inbox-group__title { margin: 22px 16px 8px; color: var(--text-secondary); }
 .inbox-group--now .inbox-group__title { color: var(--brand-orange); }
 .inbox__rows { list-style: none; margin: 0; padding: 0; }
 
-.inbox-row { position: relative; border-radius: 16px; overflow: hidden; outline: none; transition: opacity 260ms ease, transform 260ms var(--ease-out); }
-.inbox-row.is-leaving { opacity: 0; transform: translateX(32px); }
+.inbox-row { position: relative; border-radius: 16px; overflow: hidden; outline: none; }
 .inbox-row__in {
   position: relative;
   z-index: 1;
@@ -31,13 +30,18 @@
   border-radius: 16px;
   background: var(--surface-white);
   transform: translateX(var(--dx, 0));
-  transition: transform 220ms var(--ease-out), box-shadow 160ms ease;
+  transition: transform 200ms var(--ease-out), box-shadow 160ms var(--ease-out);
 }
 .inbox-row:not(:first-child) .inbox-row__in::before { content: ''; position: absolute; top: 0; left: 16px; right: 16px; border-top: 1px solid var(--line-default); }
 .inbox-row.is-current .inbox-row__in { box-shadow: inset 0 0 0 1.5px var(--brand-leaf); }
 .inbox-row.is-current .inbox-row__in::before, .inbox-row.is-current + .inbox-row .inbox-row__in::before { border-top-color: transparent; }
 .inbox-row:focus-visible .inbox-row__in { box-shadow: inset 0 0 0 3px var(--brand-lime); }
 .inbox-row__tick .checkbox__mark { border-radius: 50%; }
+/* ---------- PST-298 interactions: the tick pops, and the J/K ring glides (interactions-batch-1.png) ---------- */
+.inbox-row.is-leaving--done .inbox-row__tick .checkbox__mark { animation: m-pop 200ms var(--ease-out); }
+.inbox__ring { position: absolute; top: 0; left: 0; z-index: 2; border-radius: 16px; box-shadow: inset 0 0 0 3px var(--brand-lime); pointer-events: none; transition: transform 150ms var(--ease-out), height 150ms var(--ease-out); }
+.inbox__groups.has-ring .inbox-row:focus-visible .inbox-row__in { box-shadow: none; }
+/* ---------- end PST-298 interactions ---------- */
 .inbox-row__type { min-width: 0; }
 .inbox-row__chip { max-width: 100%; }
 .inbox-row__text { display: flex; flex-direction: column; gap: 4px; min-width: 0; cursor: pointer; }
@@ -75,7 +79,7 @@
 .inbox-race__lane { display: grid; grid-template-columns: 84px minmax(0, 1fr); align-items: center; gap: 12px; }
 .inbox-race__name { font: 400 14px/1.2 var(--font-ui); color: var(--text-on-dark); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .inbox-race__track { height: 5px; border-radius: 3px; background: rgb(255 255 255 / 0.12); overflow: hidden; }
-.inbox-race__fill { display: block; width: var(--w); height: 100%; border-radius: 3px; background: var(--brand-lime); transition: width 600ms var(--ease-out); }
+.inbox-race__fill { display: block; width: var(--w); height: 100%; border-radius: 3px; background: var(--brand-lime); transition: width 200ms var(--ease-out); }
 .inbox-race__lane.is-ahead .inbox-race__fill { background: var(--brand-orange); }
 .inbox-race__foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 20px; }
 .inbox-race__lead { font: 600 14px/1.3 var(--font-ui); color: var(--brand-lime); }
@@ -122,7 +126,7 @@
   .inbox-group__title { margin: 14px 20px 2px; }
   .inbox-group--later.is-folded { display: none; }
   .inbox-row { border-radius: 0; touch-action: pan-y; }
-  .inbox-row.is-leaving { transform: none; }
+  .inbox__ring { border-radius: 0; }
   .inbox-row__in {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas: 'type when' 'name name' 'detail link';
@@ -146,5 +150,12 @@
   .inbox-round.card, .inbox-where.card { padding: 20px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .inbox-row, .inbox-row__in, .inbox-race__fill { transition: none; }
+  .inbox-row, .inbox-row__in, .inbox-race__fill, .inbox__ring { transition: none; }
+  .inbox-row.is-leaving--done .inbox-row__tick .checkbox__mark { animation: none; }
+}
+
+/* PST-298 phone pass: 44 px tap targets without changing how they look. */
+@media (max-width: 720px) {
+  .inbox-row__link { position: relative; }
+  .inbox-row__link::after { content: ''; position: absolute; inset: -6px 0; }
 }

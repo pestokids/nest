@@ -18,7 +18,8 @@
 .race .card { padding: 28px; }
 .race-card__title { margin: 0; font: 800 24px/1.2 var(--font-display); color: var(--text-primary); }
 .race-card__text { margin: 10px 0 0; font: 400 15px/1.4 var(--font-ui); color: var(--text-secondary); }
-.race-empty { margin: 24px 0 0; font: 400 15px/1.4 var(--font-ui); color: var(--text-muted); }
+.race-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; margin: 24px 0 0; font: 400 15px/1.4 var(--font-ui); color: var(--text-muted); }
+.race-empty p { margin: 0; }
 .race-link {
   display: inline-flex; align-items: center; min-height: 44px; padding: 0 2px; margin: -10px 0;
   border: 0; background: none; color: var(--brand-leaf); font: 600 15px/1 var(--font-ui); cursor: pointer;
@@ -49,7 +50,7 @@
 .card--lime .race-bar__today { color: var(--brand-forest); }
 .race-bar__track { position: relative; display: block; width: 32px; height: 80px; border-radius: 6px; background: var(--brand-forest-2); overflow: hidden; }
 .card--lime .race-bar__track { background: var(--brand-lime-pressed); }
-.race-bar__fill { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 6px; background: var(--brand-lime-deep); transition: height 420ms var(--ease-out-quart); }
+.race-bar__fill { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 6px; background: var(--brand-lime-deep); transition: height 200ms var(--ease-out); }
 .race-bar.is-past .race-bar__fill,
 .race-bar.is-today .race-bar__fill { background: var(--brand-lime); }
 .card--lime .race-bar__fill { background: var(--brand-forest); }
@@ -82,7 +83,7 @@
 .race-track__line,
 .race-track__fill { position: absolute; top: 50%; height: 3px; margin-top: -1.5px; border-radius: 2px; }
 .race-track__line { left: 12.5%; right: 12.5%; background: var(--line-default); }
-.race-track__fill { left: 12.5%; width: calc(var(--pos) * 25%); background: var(--brand-leaf); transition: width 420ms var(--ease-out-quart); }
+.race-track__fill { left: 12.5%; width: calc(var(--pos) * 25%); background: var(--brand-leaf); transition: width 200ms var(--ease-out); }
 .race-track__stop {
   position: absolute; top: 50%; left: calc(12.5% + var(--k) * 25%); width: 10px; height: 10px; margin: -5px 0 0 -5px;
   border-radius: 50%; background: var(--line-default);
@@ -91,7 +92,7 @@
 .race-track__marker {
   position: absolute; top: 50%; left: calc(12.5% + var(--pos) * 25%); width: 20px; height: 20px; margin: -10px 0 0 -10px;
   border-radius: 50%; background: var(--brand-lime); border: 2px solid var(--brand-forest);
-  transition: left 420ms var(--ease-out-quart), background-color 200ms ease;
+  transition: left 200ms var(--ease-out), background-color 200ms var(--ease-out);
 }
 .race-lane.is-ahead .race-track__marker { background: var(--brand-orange); border-color: var(--brand-orange-deep); }
 
@@ -101,9 +102,10 @@
   font: 600 14px/1.35 var(--font-ui); color: var(--text-orange-deep);
 }
 .race-slow__icon { flex: none; transform: rotate(45deg); color: var(--brand-orange); }
+.race-slow.m-rise { animation-duration: 200ms; animation-timing-function: var(--ease-out); }
 
 /* ---------- the lead ---------- */
-.race-lead { transform-origin: 50% 50%; }
+.race-lead { position: relative; transform-origin: 50% 50%; }
 .race-lead__eyebrow,
 .race-update__eyebrow { margin: 0 0 6px; color: var(--brand-leaf); }
 .card--forest .race-lead__eyebrow { color: var(--brand-lime); }
@@ -113,8 +115,10 @@
 .card--forest .race-list__who b { color: var(--text-on-dark); }
 .card--forest .race-list__row { border-color: rgb(255 255 255 / 0.14); }
 .card--forest .race-link { color: var(--brand-lime); }
-.race-lead--flip { animation: race-flip 520ms var(--ease-out-back) both; }
-@keyframes race-flip { from { transform: perspective(900px) rotateY(-80deg); } to { transform: perspective(900px) rotateY(0); } }
+/* PST-298: the card flips (Race.tsx) and the egg cracks open (interactions-batch-1.png). */
+.race-lead__egg { position: absolute; top: 18px; right: 20px; line-height: 0; }
+.race-lead__egg--cracking svg { animation: m-wobble 200ms var(--ease-out); }
+.race-lead__egg--hatched svg { animation: hatch-pop 200ms var(--ease-out); }
 
 .race-list,
 .race-groups { list-style: none; margin: 20px 0 0; padding: 0; border-top: 1px solid var(--line-default); }
@@ -141,7 +145,7 @@
 .race-leadsec__why { margin: 4px 0 0; font: 400 14px/1.35 var(--font-ui); color: var(--text-secondary); }
 .race-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; list-style: none; margin: 20px 0 0; padding: 0; }
 .race-steps__step { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.race-steps__bar { display: block; height: 5px; border-radius: 3px; background: var(--line-default); transition: background-color 240ms ease; }
+.race-steps__bar { display: block; height: 5px; border-radius: 3px; background: var(--line-default); transition: background-color 200ms var(--ease-out); }
 .race-steps__step.is-done .race-steps__bar { background: var(--brand-forest); }
 .race-steps__step.is-next .race-steps__bar { background: var(--brand-lime); }
 .race-steps__label { font: 400 13px/1.2 var(--font-ui); color: var(--text-muted); }
@@ -151,7 +155,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .race-track__fill, .race-track__marker, .race-bar__fill { transition: none; }
-  .race-lead--flip { animation: none; }
+  .race-lead__egg svg { animation: m-fade 200ms var(--ease-out); }
 }
 
 /* ---------- tablets and phones ---------- */
@@ -187,4 +191,10 @@
   .race-track__stop { left: calc(10px + var(--k) * (100% - 20px) / 3); }
   .race-track__marker { left: calc(10px + var(--pos) * (100% - 20px) / 3); }
   .race-update__foot .btn { flex: 1; }
+}
+
+/* PST-298 phone pass: 44 px tap targets without changing how they look. */
+@media (max-width: 720px) {
+  .race-link { position: relative; }
+  .race-link::after { content: ''; position: absolute; inset: 0 -8px; }
 }

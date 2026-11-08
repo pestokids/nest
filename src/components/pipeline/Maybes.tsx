@@ -3,9 +3,10 @@
 // date, and one button each: Ask for a yes or no (a draft), Mark as no, or Set a
 // date. PST-295 adds the Board · Race · Maybes switcher; until then this is
 // /raise/pipeline?view=maybes.
-import { useMemo, useRef } from 'react'
-import { ASK_OR_DROP_CALLS, decideByLine, isDecideByPassed, maybeAction, maybeDays, sortMaybes } from '../../lib/decisions'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { ASK_OR_DROP_CALLS, decideByLine, isDecideByPassed, maybeAction, maybeDays, sortMaybes, type Decision } from '../../lib/decisions'
 import { todayIST } from '../../lib/dates'
+import { foldAway, MOMENT_MS } from '../../lib/motion'
 import { quietDays } from '../../lib/today'
 import { useRaise } from '../data'
 import { useDecide, useDecisions } from '../decisions/data'
@@ -22,7 +23,8 @@ export function useMaybeCount() {
   return useDecisions().decisions.filter((d) => d.status === 'maybe').length
 }
 
-export function Maybes() {
+/** `onRace`: the empty state's "See the race" (left out inside the race itself). */
+export function Maybes({ onRace }: { onRace?: () => void }) {
   const d = useRaise()
   const x = useDecisions()
   const decide = useDecide()
@@ -30,11 +32,35 @@ export function Maybes() {
   const today = todayIST()
   const list = useRef<HTMLUListElement>(null)
   useListKeys(list)
+
+  // PST-298: a maybe that becomes a No (Mark as no, here or in the drawer) greys and folds away before it leaves (interactions-batch-1.png).
+  const [gone, setGone] = useState<ReadonlyMap<string, Decision>>(() => new Map())
+  const seen = useRef<ReadonlyMap<string, Decision>>(new Map())
+  useEffect(() => {
+    const maybes = new Map(x.decisions.filter((r) => r.status === 'maybe').map((r) => [r.investorId, r]))
+    const nos = [...seen.current.values()].filter((r) => !maybes.has(r.investorId) && x.decisionOf(r.investorId).status === 'no')
+    seen.current = maybes
+    if (!nos.length) return
+    const ids = new Set(nos.map((r) => r.investorId))
+    setGone((g) => new Map([...g, ...nos.map((r) => [r.investorId, r] as const)]))
+    setTimeout(() => setGone((g) => new Map([...g].filter(([id]) => !ids.has(id)))), MOMENT_MS)
+  }, [x])
+  const folding = useRef(new Map<string, Animation | null>())
+  useLayoutEffect(() => {
+    for (const [id, a] of folding.current)
+      if (!gone.has(id)) {
+        a?.cancel()
+        folding.current.delete(id)
+      }
+    for (const id of gone.keys())
+      if (!folding.current.has(id)) folding.current.set(id, foldAway(list.current?.querySelector<HTMLElement>(`[data-maybe="${CSS.escape(id)}"]`), { grey: true, slide: 40 }))
+  }, [gone])
+
   const rows = useMemo(() => {
     const byId = new Map(d.investors.map((i) => [i._id, i]))
-    return sortMaybes(x.decisions.filter((r) => byId.has(r.investorId)).map((r) => ({ ...r, name: byId.get(r.investorId)!.name })))
+    return sortMaybes(x.decisions.filter((r) => byId.has(r.investorId)).map((r) => ({ ...(gone.get(r.investorId) ?? r), name: byId.get(r.investorId)!.name })))
       .map((r) => ({ d: r, i: byId.get(r.investorId)! }))
-  }, [d.investors, x.decisions])
+  }, [d.investors, x.decisions, gone])
 
   return (
     <Card tone="peach" riseIndex={0} className="maybes" aria-labelledby="maybes-title">
@@ -59,7 +85,7 @@ export function Maybes() {
             const when = m.reason ? '“Come back when you have a lead” · a polite no' : m.decideBy ? decideByLine(m.decideBy, today) : 'No decide-by date'
             const action = maybeAction(m, today, quiet)
             return (
-              <li key={i._id} className="maybe-row">
+              <li key={i._id} className="maybe-row" data-maybe={i._id}>
                 <div className="maybe-row__main" role="button" tabIndex={0} data-nav-id={i._id} onClick={() => ui.open(i._id)} onKeyDown={openOnKey(() => ui.open(i._id))} aria-label={'Open ' + i.name}>
                   <span className="maybe-row__name">{i.name}</span>
                   <span className="maybe-row__days">A maybe for {plural(days, 'day')}</span>
@@ -89,8 +115,13 @@ export function Maybes() {
         <div className="empty-state empty-state--cream maybes__empty">
           <NestWithEggs size={88} />
           <div>
-            <p className="empty-state__title">No maybes.</p>
+            <p className="empty-state__title">No maybes. Nice.</p>
             <p>Everyone is interested, a yes or a no. Mark a maybe from the investor’s drawer, or Nest will from their emails and your notes.</p>
+            {onRace ? (
+              <Button variant="secondary" className="empty-state__action" onClick={onRace}>
+                See the race
+              </Button>
+            ) : null}
           </div>
         </div>
       )}

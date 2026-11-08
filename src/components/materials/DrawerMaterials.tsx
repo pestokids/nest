@@ -1,17 +1,19 @@
 // PST-282: the investor drawer's Materials tab (drawer/materials.png): what this
 // investor was sent, which versions, whether and how they read it, and Share.
+import { Link } from '@tanstack/react-router'
 import { useId, useState } from 'react'
-import { dayOfMs, duration, linkState, pagesSeen, shareUrl, whenOf, type ShareLink } from '../../lib/materials'
+import { duration, linkState, pagesSeen, shareUrl, whenOf, type ShareLink } from '../../lib/materials'
 import { pop } from '../../lib/motion'
 import { play } from '../../lib/sound'
-import { todayIST } from '../../lib/dates'
+import { formatDay, todayIST } from '../../lib/dates'
 import type { Investor } from '../../lib/pipeline'
 import { Egg } from '../illustrations'
 import { useSaveAction } from '../system/useSaveAction'
-import { Button, Chip, useToast } from '../ui'
+import { Button, buttonClass, Chip, useToast } from '../ui'
 import { useMaterials } from './data'
 import { copyText, FileBadge, PageStrip, ReadChip, useIndex, versionName } from './parts'
 import { ShareForm } from './Share'
+import { SkeletonRows } from '../system/Skeleton'
 
 export function DrawerMaterials({ inv }: { inv: Investor }) {
   const m = useMaterials()
@@ -30,7 +32,7 @@ export function DrawerMaterials({ inv }: { inv: Investor }) {
   // "Last touch: today, from the deck": when the last touch was a first open.
   const today = todayIST()
   const fromOpen = links.find((l) => l.firstOpenedAt && todayIST(l.firstOpenedAt) === inv.lastTouch)
-  const touchDay = inv.lastTouch ? (inv.lastTouch === today ? 'today' : dayOfMs(Date.parse(inv.lastTouch + 'T06:00:00Z'))) : ''
+  const touchDay = inv.lastTouch ? (inv.lastTouch === today ? 'today' : formatDay(inv.lastTouch)) : ''
   return (
     <div className="dmat">
       <div className="dmat__head">
@@ -40,7 +42,7 @@ export function DrawerMaterials({ inv }: { inv: Investor }) {
         </Button>
       </div>
       {!m.loaded ? (
-        <div className="history history--loading" aria-busy="true" />
+        <SkeletonRows action={false} />
       ) : links.length ? (
         <ul className="dmat__list">
           {links.map((l) => (
@@ -51,6 +53,11 @@ export function DrawerMaterials({ inv }: { inv: Investor }) {
         <div className="drawer-empty">
           <Egg size={40} />
           <p>{m.materials.length ? 'Nothing sent yet. Share the deck and see what they read.' : 'Nothing in the library yet. Upload the deck under Materials first.'}</p>
+          {m.materials.length ? null : (
+            <Link to="/raise/materials" className={buttonClass({ variant: 'secondary' })}>
+              Open Materials
+            </Link>
+          )}
         </div>
       )}
       {links.length ? (
@@ -76,7 +83,7 @@ function LinkCard({ link: l, onSendNew }: { link: ShareLink; onSendNew: () => vo
   const now = Date.now()
   const state = linkState(l, now)
   const pages = v?.pages ?? 0
-  const sent = [`Sent ${dayOfMs(l.createdAt)}`, state === 'revoked' ? 'link revoked' : state === 'expired' ? 'link expired' : l.expiresAt ? `link expires ${dayOfMs(l.expiresAt).replace(/^\w+ /, '')}` : 'link never expires']
+  const sent = [`Sent ${formatDay(l.createdAt)}`, state === 'revoked' ? 'link revoked' : state === 'expired' ? 'link expired' : l.expiresAt ? `link expires ${formatDay(l.expiresAt)}` : 'link never expires']
   const read = s?.opens
     ? [`Opened ${whenOf(s.lastAt, now)}`, duration(s.totalMs), pages > 1 ? (pagesSeen(s) >= pages ? `all ${pages} pages` : `${pagesSeen(s)} of ${pages} pages`) : s.opens > 1 ? `${s.opens} opens` : ''].filter(Boolean).join(' · ')
     : 'Not opened yet'

@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useRouterState } from '@tanstack/react-router'
 import { lazy, Suspense, useMemo } from 'react'
 import { httpApi, Viewer } from '../components/viewer/Viewer'
 import viewerCss from '../styles/viewer.css?url'
@@ -39,10 +39,12 @@ export const Route = createFileRoute('/d/$token')({
 function SharedDocument() {
   const { token } = Route.useParams()
   const api = useMemo(() => httpApi(token), [token])
-  if (PreviewViewer && token === 'preview' && typeof location !== 'undefined' && new URLSearchParams(location.search).has('preview'))
+  // Read from the router, not window.location, so the server and the browser render the same thing.
+  const search = useRouterState({ select: (s) => new URLSearchParams(s.location.searchStr) })
+  if (PreviewViewer && token === 'preview' && search.has('preview'))
     return (
       <Suspense fallback={null}>
-        <PreviewViewer />
+        <PreviewViewer state={search.get('viewer') ?? 'open'} />
       </Suspense>
     )
   return <Viewer api={api} />

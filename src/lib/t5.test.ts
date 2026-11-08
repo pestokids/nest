@@ -164,7 +164,7 @@ describe('change log', () => {
     ]
     const e = groupLog(rows)
     expect(e).toHaveLength(2)
-    expect(e[0].lines).toEqual(['Close date moved from Tue 29 Jan to Fri 1 Feb', 'Room to raised from $1.25M to $1.5M'])
+    expect(e[0].lines).toEqual(['Close date moved from Tue 29 Jan to Fri 1 Feb', 'Room to raised from $1.3M to $1.5M'])
     expect(e[1].lines).toEqual(['Imported 12 investors from a.csv'])
   })
 })

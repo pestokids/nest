@@ -5,9 +5,8 @@ import { cents } from '../../lib/enrich'
 import { estimate, MODEL_INFO, modelFor, MODELS, type Model } from '../../lib/models'
 import { onOpenCommandPalette, recentInvestors, rememberInvestor } from '../../lib/commandPalette'
 import { openFeedback } from '../../lib/feedback' // PST-289
-import { todayIST } from '../../lib/dates'
+import { formatDay, todayIST } from '../../lib/dates'
 import { addressesOf, gmailSearchLink } from '../../lib/google'
-import { dayMonth } from '../../lib/home'
 import { dayLabel, isQuiet } from '../../lib/investorView'
 import { matchScore, rankInvestors, searchNotes, searchSections, titleCase } from '../../lib/palette'
 import { searchQuestions } from '../../lib/qanda'
@@ -164,7 +163,7 @@ function usePaletteActions() {
           failMessage: `Couldn’t log the ask for ${i.name}.`,
           onDone: () => {
             play('ask-logged')
-            toast(`Ask logged for ${i.name}. Follow-up set for ${dayMonth(next.date)}.`)
+            toast(`Ask logged for ${i.name}. Follow-up set for ${formatDay(next.date)}.`)
           },
         })
       },
@@ -238,7 +237,7 @@ function Palette({
       const app = applicationChip(i.application)
       if (app) bits.push(app)
       if (quiet) bits.push('quiet')
-      else if (long && i.nextDate && i.nextDate >= today) bits.push(`due ${dayLabel(i.nextDate, today).split(' ')[0]}`)
+      else if (long && i.nextDate && i.nextDate >= today) bits.push(`due ${dayLabel(i.nextDate, today)}`)
       return bits.join(' · ')
     },
     [today, round.quietDays],

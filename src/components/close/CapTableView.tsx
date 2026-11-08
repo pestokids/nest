@@ -5,8 +5,7 @@ import { Link } from '@tanstack/react-router'
 import { useMemo } from 'react'
 import { capTableAfter, capTableCsv, hasCapTable, ladder, pct, shares, stepMap, type CloseRow } from '../../lib/close'
 import { trancheCap } from '../../lib/closeKit'
-import { todayIST } from '../../lib/dates'
-import { longDay } from '../../lib/investorView'
+import { formatDay, todayIST } from '../../lib/dates'
 import { money } from '../../lib/money'
 import { rise } from '../../lib/motion'
 import { play } from '../../lib/sound'
@@ -59,7 +58,7 @@ export function CapTableView() {
     <div className="close-cap">
       <section className={`close-banner card card--forest m-rise${closed ? ' is-closed' : ''}`}>
         <div>
-          <div className="eyebrow-mono">{closed ? `Round closed${lastWire ? ` · ${longDay(lastWire)}` : ''}` : 'If the round closes as it stands'}</div>
+          <div className="eyebrow-mono">{closed ? `Round closed${lastWire ? ` · ${formatDay(lastWire)}` : ''}` : 'If the round closes as it stands'}</div>
           <h2>{closed ? `${money(raised)} raised on SAFEs` : `${money(raised)} committed on SAFEs`}</h2>
           <p>
             {commitments.length} investor{commitments.length === 1 ? '' : 's'}

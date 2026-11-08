@@ -5,7 +5,7 @@ import type { Investor } from '../../lib/pipeline'
 import { play } from '../../lib/sound'
 import { Egg } from '../illustrations'
 import { useUI } from '../raise-ui'
-import { Icon } from '../ui'
+import { Button, Icon } from '../ui'
 import { DealCard } from './DealCard'
 import { boardPreview } from './preview'
 import { useMoveCard } from './useMoveCard'
@@ -96,7 +96,10 @@ export function PhoneBoard({ investors, today, quietDays }: { investors: Investo
         {!cards.length ? (
           <div className="pb-empty pb-empty--phone">
             <Egg size={28} />
-            <span>Nobody here yet</span>
+            <span>Nobody in {s.label} yet. A card moves in when its rule is true.</span>
+            <Button variant="secondary" size="sm" onClick={() => open(null, { stage })}>
+              Add investor
+            </Button>
           </div>
         ) : null}
         {next && cards.length ? (

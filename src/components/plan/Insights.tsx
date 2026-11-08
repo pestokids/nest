@@ -46,6 +46,10 @@ export function Insights() {
           <Link to="/raise/investors" search={{ sort: 'priority' }} className={buttonClass({ variant: 'primary', className: 'ins-close__btn' })}>
             See who to ask
           </Link>
+        ) : projection.kind === 'empty' ? (
+          <Link to={projection.noTarget ? '/raise/settings' : '/raise/pipeline'} className={buttonClass({ variant: 'secondary', className: 'ins-close__btn' })}>
+            {projection.noTarget ? 'Set up the round' : 'Open Pipeline'}
+          </Link>
         ) : null}
       </div>
 

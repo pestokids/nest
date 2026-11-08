@@ -8,8 +8,7 @@
 // notes where it was asked (convex/noteReads.ts draftAnswer). The draft fills the
 // box to edit; nothing saves until Save.
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { todayIST } from '../../lib/dates'
-import { dayMonth } from '../../lib/home'
+import { formatDay, todayIST } from '../../lib/dates'
 import {
   allThemes, askerIds, askKind, cleanTheme, earlierAnswers, guessTheme, LIMITS, needsAnswer, similarQuestions, slideRefs, type Question,
 } from '../../lib/qanda'
@@ -185,7 +184,7 @@ export function AnswerPanel({ req, level, onClose }: { req: Extract<PanelRequest
                               {name}
                             </button>
                             {' · '}
-                            {askKind(a)} · {dayMonth(a.date)}
+                            {askKind(a)} · {formatDay(a.date)}
                           </p>
                           {a.quote ? <p className="qa-where__quote">“{a.quote}”</p> : null}
                           <button type="button" className="qa-where__x" aria-label={`${name} didn’t ask this`} title="Unlink" onClick={() => void acts.unlink(a, name)}>
@@ -220,7 +219,7 @@ export function AnswerPanel({ req, level, onClose }: { req: Extract<PanelRequest
               <Select label="When" value={when} onChange={(e) => setWhen(e.target.value)} disabled={!who}>
                 {days.map((x, n) => (
                   <option key={x} value={x}>
-                    {n === 0 ? 'Today' : n === 1 ? 'Yesterday' : dayMonth(x)}
+                    {n === 0 ? 'Today' : n === 1 ? 'Yesterday' : formatDay(x)}
                   </option>
                 ))}
               </Select>
@@ -301,7 +300,7 @@ export function AnswerPanel({ req, level, onClose }: { req: Extract<PanelRequest
                   <li key={v.at} className="qa-versions__row">
                     <p className="qa-versions__text">{v.text}</p>
                     <p className="qa-versions__meta">
-                      {[v.by, dayMonth(todayIST(v.at))].filter(Boolean).join(' · ')}
+                      {[v.by, formatDay(todayIST(v.at))].filter(Boolean).join(' · ')}
                       <button type="button" className="qa-textbtn" onClick={() => setAnswer(v.text)}>
                         Use this
                       </button>

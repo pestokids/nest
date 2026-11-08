@@ -1,21 +1,23 @@
 // Screenshots of every screen in the dev-only ?preview mode (fake fixture data).
-// Usage: pnpm dev:web, then  node scripts/screenshots.mjs [baseUrl] [outDir] [filter]
-// Defaults: http://localhost:3000 and .context/screens (gitignored).
-// Also checks every screen for sideways scroll and, on phones, tap targets under 44px;
-// findings go to <outDir>/checks.json and a summary is printed.
+// Usage: pnpm dev:web, then  node scripts/screenshots.mjs [baseUrl] [outDir] [filter] [sizes]
+// Defaults: http://localhost:3000 and .context/screens (gitignored). sizes: comma-separated
+// widths to keep (e.g. 1440,440); all three by default.
+// Also checks every screen for sideways scroll, console errors and, on phones, tap targets
+// under 44px; findings go to <outDir>/checks.json and a summary is printed.
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { chromium } from 'playwright'
 
 const base = process.argv[2] ?? 'http://localhost:3000'
 const out = process.argv[3] ?? '.context/screens'
 const only = process.argv[4]
+const widths = process.argv[5]?.split(',').map(Number)
 mkdirSync(out, { recursive: true })
 
 const SIZES = [
   { name: 'desktop', width: 1440, height: 900, mobile: false },
   { name: 'iphone-17-pro-max', width: 440, height: 956, mobile: true },
   { name: 'galaxy-s25-ultra', width: 412, height: 915, mobile: true },
-]
+].filter((s) => !widths || widths.includes(s.width))
 const SCREENS = [
   ['home-default', '/?preview'],
   ['home-first-run', '/?preview&home=firstrun'],
@@ -122,6 +124,29 @@ const SCREENS = [
   ['find-more', '/raise/investors?preview&investors=find-more'],
   ...['running', 'results', 'empty'].map((s) => [`find-more-${s}`, `/raise/investors?preview&investors=find-more&find=${s}`]),
   ['find-more-spend', '/raise/settings?preview&ai=spend'],
+  // ---------- PST-298 empty states ----------
+  ['empty-home', '/?preview&home=firstrun'],
+  ['empty-home-inbox', '/?preview&today=clear'],
+  ['empty-today-clear', '/raise/today?preview&today=clear'],
+  ['empty-pipeline', '/raise/pipeline?preview&home=firstrun'],
+  ['empty-race', '/raise/pipeline?view=race&preview&home=firstrun'],
+  ['empty-maybes', '/raise/pipeline?view=maybes&preview&home=firstrun'],
+  ['empty-insights-no-target', '/raise/plan?preview&home=firstrun'],
+  ['empty-materials-no-opens', '/raise/materials?preview&materials=noopens'],
+  ['drawer-materials-empty', '/raise/investors?preview&drawer=materials&materials=empty'],
+  ['empty-close-allocation', '/raise/close?view=allocation&preview&close=empty'],
+  ['empty-settings-feedback', '/raise/settings?preview&feedback=empty'],
+  // ---------- end PST-298 empty states ----------
+  // ---------- PST-298 skeletons (shaped like the view that's loading) ----------
+  ...['today', 'pipeline', 'investors', 'close', 'plan', 'settings'].map((v) => [`skeleton-${v}`, `/raise/${v}?preview&system=loading`]),
+  ['skeleton-race', '/raise/pipeline?view=race&preview&system=loading'],
+  ['drawer-skeleton-history', '/raise/investors?preview&drawer=history&system=loading-drawer'],
+  // ---------- end PST-298 skeletons ----------
+  // ---------- PST-298 interactions: one moment each from interactions-batch-1.png (&moment) ----------
+  ...['inbox-done', 'inbox-move', 'inbox-snooze'].map((m) => [`moment-${m}`, `/raise/today?preview&today=inbox&moment=${m}`]),
+  ...['race-move', 'race-ahead', 'race-offer', 'race-lead', 'maybe-no'].map((m) => [`moment-${m}`, `/raise/pipeline?preview&pipeline=race&moment=${m}`]),
+  ...['intro-step', 'intro-thanked'].map((m) => [`moment-${m}`, `/raise/investors?preview&introducer=panel&moment=${m}`]),
+  // ---------- end PST-298 interactions ----------
 ]
 
 /** Sideways scroll, and (phones) visible controls smaller than 44 × 44. */
@@ -155,8 +180,12 @@ for (const size of SIZES) {
     reducedMotion: 'reduce',
   })
   const page = await ctx.newPage()
+  let errors = []
+  page.on('console', (m) => m.type() === 'error' && errors.push(m.text().slice(0, 200)))
+  page.on('pageerror', (e) => errors.push(String(e).slice(0, 200)))
   for (const [name, path] of SCREENS) {
     if (only && !name.includes(only)) continue
+    errors = []
     await page.goto(base + path, { waitUntil: 'networkidle' })
     await page.evaluate(() => document.fonts.ready)
     // The win plays 700ms after load; catch it mid-confetti with the toast up.
@@ -165,8 +194,8 @@ for (const size of SIZES) {
     // Overlays (sheets, toasts, the palette, the bulk bar) are fixed to the viewport: shoot the viewport.
     const full = !/^(sign-in|drawer-|google-drawer-|system-cmdk|google-cmdk|system-save|investors-(import|bulk|exported)|suggestions-(all|agent|tidy)|materials-(versions|views|share|sent|upload|drawer)|viewer-|drafts-)/.test(name) && !(size.mobile && name.endsWith('-win'))
     await page.screenshot({ path: `${out}/${name}--${size.name}.png`, fullPage: full })
-    const a = await page.evaluate(audit, size.mobile)
-    if (a.sideways || a.small.length) report[`${name}--${size.name}`] = a
+    const a = { ...(await page.evaluate(audit, size.mobile)), errors }
+    if (a.sideways || a.small.length || a.errors.length) report[`${name}--${size.name}`] = a
     process.stdout.write('.')
   }
   await ctx.close()
@@ -175,5 +204,5 @@ await browser.close()
 writeFileSync(`${out}/checks.json`, JSON.stringify(report, null, 2))
 const bad = Object.entries(report)
 console.log(`\nSaved to ${out}`)
-console.log(bad.length ? `Checks: ${bad.length} screen(s) with findings, see ${out}/checks.json` : 'Checks: no sideways scroll, no small tap targets')
-for (const [k, v] of bad) console.log(`  ${k}: ${v.sideways ? `scrolls sideways by ${v.sideways}px; ` : ''}${v.small.length ? `${v.small.length} small: ${v.small.slice(0, 4).join(', ')}` : ''}`)
+console.log(bad.length ? `Checks: ${bad.length} screen(s) with findings, see ${out}/checks.json` : 'Checks: no sideways scroll, no console errors, no small tap targets')
+for (const [k, v] of bad) console.log(`  ${k}: ${v.sideways ? `scrolls sideways by ${v.sideways}px; ` : ''}${v.errors.length ? `${v.errors.length} console error(s): ${v.errors[0]}; ` : ''}${v.small.length ? `${v.small.length} small: ${v.small.slice(0, 4).join(', ')}` : ''}`)

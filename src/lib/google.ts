@@ -1,7 +1,7 @@
 // Calendar and Gmail (PST-263): matching people to investors, the forward-only
 // stage rule for synced meetings, "Waiting on you", "Who's this?" and the
 // meeting lists on Today. Pure functions, shared by the UI and Convex.
-import { dayDiff, todayIST } from './dates'
+import { dayDiff, formatDay, todayIST } from './dates'
 import { IDX, STAGES, type PipelineStage, type Stage } from './stages'
 
 /** Our own Workspace: these addresses are us, never an investor. */
@@ -169,7 +169,7 @@ export function timeOf(ms: number): string {
   return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`
 }
 
-/** "2h ago", "1d ago", "Nov 4". */
+/** "2h ago", "1d ago", "Wed 4 Nov". */
 export function agoShort(ms: number, now: number): string {
   const min = Math.max(0, Math.round((now - ms) / 6e4))
   if (min < 60) return min <= 1 ? 'just now' : `${min}m ago`
@@ -177,8 +177,7 @@ export function agoShort(ms: number, now: number): string {
   if (h < 24) return `${h}h ago`
   const d = dayDiff(dayOf(now), dayOf(ms))
   if (d <= 6) return `${Math.max(1, d)}d ago`
-  const [, m, day] = dayOf(ms).split('-').map(Number)
-  return `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m - 1]} ${day}`
+  return formatDay(ms)
 }
 
 /* ---------- what the client gets ---------- */

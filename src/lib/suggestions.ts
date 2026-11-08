@@ -155,7 +155,7 @@ export function normFirm(s: string): string {
 }
 const firmOf = (i: Pick<CheckInvestor, 'firm' | 'name'>) => i.firm.trim() || i.name.trim()
 
-/** "today", "yesterday", "3 days ago", "on Nov 2". */
+/** "today", "yesterday", "3 days ago", "on Mon 2 Nov". */
 function ago(day: string, today: string): string {
   const n = dayDiff(today, day)
   if (n <= 0) return 'today'

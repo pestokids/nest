@@ -1,9 +1,7 @@
 // PST-281: the Q&A bank. The questions investors ask, the best answer to each,
 // where each was asked, meeting notes and the prep brief. Pure, so Convex
 // (convex/qanda.ts), the preview store and the UI share it, and it's unit-tested.
-import { dayDiff } from './dates'
-import { dayMonth } from './home'
-import { weekday } from './investorView'
+import { dayDiff, formatDay, weekdayOf } from './dates'
 import { money } from './money'
 import { matchScore } from './palette'
 import type { Activity, Investor } from './pipeline'
@@ -241,13 +239,13 @@ function quoteAround(text: string, at: number, len: number) {
 
 /* ---------- labels ---------- */
 
-/** "today", "yesterday", "Thu" within the week, else "5 Nov". */
+/** "today", "yesterday", "Thu" within the week, else "Thu 5 Nov". */
 export function relDay(date: string, today: string): string {
   const n = dayDiff(today, date)
   if (n === 0) return 'today'
   if (n === 1) return 'yesterday'
-  if (n > 1 && n <= 6) return weekday(date)
-  return dayMonth(date).slice(4)
+  if (n > 1 && n <= 6) return weekdayOf(date)
+  return formatDay(date)
 }
 
 const SOURCE_LABEL: Record<AskSource, string> = { notes: 'meeting notes', manual: 'added by hand', meeting: 'a meeting' }

@@ -2,7 +2,7 @@
 // the pipeline stage. Dev sets the stage; an application never moves it, never
 // counts as a meeting, money or "in the race", and while a decision is pending
 // the investor is never "gone quiet". Pure, shared by the UI and Convex.
-import { dayDiff, isISODate } from './dates'
+import { dayDiff, formatDay, isISODate } from './dates'
 
 export const APPLICATION_STATUSES = ['drafting', 'submitted', 'interview_invited', 'interview_done', 'accepted', 'rejected', 'withdrawn'] as const
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number]
@@ -26,14 +26,6 @@ export const AWAITING = new Set<ApplicationStatus>(['submitted', 'interview_invi
 export const isAwaiting = (a: Application | undefined | null): boolean => !!a && AWAITING.has(a.status)
 
 export const isApplicationStatus = (s: unknown): s is ApplicationStatus => typeof s === 'string' && (APPLICATION_STATUSES as readonly string[]).includes(s)
-
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-/** "Fri 27 Nov" */
-export function decisionDay(iso: string): string {
-  const d = new Date(iso + 'T00:00:00Z')
-  return DAYS[d.getUTCDay()] + ' ' + d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()]
-}
 
 /**
  * The chip on the board card, the Investors table, ⌘K and the drawer:
@@ -72,13 +64,13 @@ export const isDecisionPassed = (a: Application | undefined | null, today: strin
 export function awaitingLine(a: Application | undefined | null, today: string): string | null {
   if (!a || !isAwaiting(a)) return null
   if (isDecisionPassed(a, today)) return 'Decision date passed · update status'
-  return a.decisionBy ? 'Awaiting decision · decision by ' + decisionDay(a.decisionBy) : 'Awaiting decision'
+  return a.decisionBy ? 'Awaiting decision · decision by ' + formatDay(a.decisionBy) : 'Awaiting decision'
 }
 
 /** The Inbox row's detail: "Was due Fri 27 Nov · W27". */
 export function passedDetail(a: Application, today: string): string {
   const n = a.decisionBy ? dayDiff(today, a.decisionBy) : 0
-  const when = n <= 1 ? 'Was due yesterday' : 'Was due ' + decisionDay(a.decisionBy!)
+  const when = n <= 1 ? 'Was due yesterday' : 'Was due ' + formatDay(a.decisionBy!)
   return when + (a.program?.trim() ? ' · ' + a.program.trim() : '')
 }
 

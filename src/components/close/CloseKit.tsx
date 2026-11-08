@@ -9,7 +9,7 @@ import {
   commitmentTerms, confirmText, currentStep, dueText, istParts, KIT_LABEL, KIT_SUB, kitSteps, offerUntil, OFFER_HOURS, possessive, verbalOf,
   type KitRow, type KitStep,
 } from '../../lib/closeKit'
-import { todayIST } from '../../lib/dates'
+import { formatDay, todayIST } from '../../lib/dates'
 import { blanks, isEmail, type DraftInput } from '../../lib/drafts'
 import { normEmail } from '../../lib/google'
 import { money } from '../../lib/money'
@@ -271,7 +271,7 @@ function Next({ step, name, sentAt, offerEnds, now, onAccept, onSafe, onTick, si
 }) {
   const first = name.split(/\s+/)[0]
   const left = offerEnds ? Math.max(0, Math.round((offerEnds - now) / 3600_000)) : 0
-  const sent = sentAt ? `Confirmation sent ${istParts(sentAt).weekday} ${istParts(sentAt).day} ${istParts(sentAt).month} at ${istParts(sentAt).time}.` : ''
+  const sent = sentAt ? `Confirmation sent ${formatDay(sentAt)} at ${istParts(sentAt).time}.` : ''
   const body: Record<KitStep, { h: string; p: string; btn?: [string, (el: HTMLElement) => void] }> = {
     confirm: { h: '', p: '' },
     accept: {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dateEyebrow, dayMonth, greeting, isChecklistDone, monDay, partOfDay, phaseLine, phaseSegments, upNext } from './home'
+import { dateEyebrow, greeting, isChecklistDone, partOfDay, phaseLine, phaseSegments, upNext } from './home'
 import { NEW_INVESTOR, type Investor } from './pipeline'
 import { DEFAULT_ROUND, type Phase, type Round } from './round'
 
@@ -26,10 +26,8 @@ describe('greeting', () => {
     expect(greeting(ist('18:00'), 'Dev', true)).toBe('Hi, Dev.')
     expect(greeting(ist('09:00'), '  ')).toBe('Morning, there.')
   })
-  it('formats dates for the eyebrow and cards', () => {
+  it('formats the date for the eyebrow', () => {
     expect(dateEyebrow(ist('10:00', '2030-11-08'))).toBe('Friday 8 November')
-    expect(dayMonth('2030-12-04')).toBe('Wed 4 Dec')
-    expect(monDay('2030-11-11')).toBe('NOV 11')
   })
 })
 

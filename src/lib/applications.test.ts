@@ -126,7 +126,7 @@ describe('decision date passed and the next step', () => {
   })
   it('an explicit next step stays its own due row with its own date', () => {
     expect(dueList([withStep], T).map((i) => i.name)).toEqual(['Harbor'])
-    expect(cardText(withStep, T, 7, money).foot).toBe('Next: email the partners a progress update · Sun 10')
+    expect(cardText(withStep, T, 7, money).foot).toBe('Next: email the partners a progress update · Sun 10 Mar')
     expect(isWaitingStep('Awaiting decision')).toBe(true)
     expect(isWaitingStep('Wait for their decision.')).toBe(true)
     expect(isWaitingStep('Email the partners a progress update')).toBe(false)

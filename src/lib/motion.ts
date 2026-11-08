@@ -3,20 +3,23 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 
 export const MOTION = {
-  rise: { ms: 420, staggerMs: 60 },
-  pop: { ms: 320 },
+  rise: { ms: 200, staggerMs: 60 },
+  pop: { ms: 200 },
   wobble: { ms: 600 },
   shake: { ms: 400 },
   pulse: { ms: 2000 },
   shine: { ms: 900 },
   bob: { ms: 3000 },
   confetti: { ms: 1200 },
-  toast: { ms: 320, holdMs: 4000 },
+  toast: { ms: 200, holdMs: 4000 },
 } as const
 
 export function prefersReducedMotion(): boolean {
   return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 }
+
+/** How to scroll something into view: smooth, or a jump under reduced motion. */
+export const scrollBehavior = (): ScrollBehavior => (prefersReducedMotion() ? 'auto' : 'smooth')
 
 /** Style for the nth element in a rising group (60ms stagger). */
 export const rise = (i: number): CSSProperties => ({ ['--rise-i' as string]: i })
@@ -34,6 +37,32 @@ export const pop = (el: Element | null | undefined) => replay(el, 'm-pop')
 export const shake = (el: Element | null | undefined) => replay(el, 'm-shake')
 export const wobble = (el: Element | null | undefined) => replay(el, 'm-wobble')
 export const shine = (el: Element | null | undefined) => replay(el, 'm-shine')
+
+// ---------- PST-298 interactions ----------
+/** Motion for one interaction (interactions-batch-1.png): 150–200ms, ease-out. */
+export const MOMENT_MS = 200
+/** var(--ease-out), for animations started from script. */
+export const momentEase = () => (typeof document === 'undefined' ? '' : getComputedStyle(document.documentElement).getPropertyValue('--ease-out').trim()) || 'ease-out'
+
+/**
+ * A row leaving its list (interactions-batch-1.png): it folds up, sliding `slide`
+ * px sideways and greying out first when asked. A fade under reduced motion.
+ * Cancel the animation to bring the row back (a failed save).
+ */
+export function foldAway(el: HTMLElement | null | undefined, { slide = 0, grey = false }: { slide?: number; grey?: boolean } = {}): Animation | null {
+  if (!el || typeof el.animate !== 'function') return null
+  const h = el.offsetHeight + 'px'
+  const filter = grey ? 'grayscale(1)' : 'none'
+  const frames: Keyframe[] = prefersReducedMotion()
+    ? [{ opacity: 1 }, { opacity: 0 }]
+    : [
+        { height: h, opacity: 1, transform: 'none', filter: 'none', overflow: 'hidden' },
+        ...(grey ? [{ height: h, opacity: 0.55, transform: 'none', filter, overflow: 'hidden', offset: 0.35 }] : []),
+        { height: '0px', opacity: 0, transform: `translateX(${slide}px)`, filter, overflow: 'hidden' },
+      ]
+  return el.animate(frames, { duration: MOMENT_MS, easing: momentEase(), fill: 'forwards' })
+}
+// ---------- end PST-298 interactions ----------
 
 /** Pops the element whenever `value` changes after the first render. */
 export function usePop<T extends HTMLElement>(value: unknown) {

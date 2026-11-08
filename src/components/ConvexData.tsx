@@ -3,7 +3,7 @@ import { useMemo, type ReactNode } from 'react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { applyMove, applyUndo } from '../lib/board'
-import { hideTouch, showAdvance, showTouch } from './optimistic'
+import { hideAgentKey, hideInvestor, hideSuggestions, hideTouch, showAdvance, showAI, showBrief, showCorrection, showFactBack, showFacts, showGoogle, showPerson, showPrepTick, showPrimary, showRound, showSave, showStopped, showSuggestionsBack, showTouch } from './optimistic'
 import { todayIST } from '../lib/dates'
 import { NO_GOOGLE, withContact, type GoogleData } from '../lib/google'
 import { DEFAULT_ROUND } from '../lib/round'
@@ -39,7 +39,8 @@ export function ConvexData({ children }: { children: ReactNode }) {
   const investors = useQuery(api.investors.list)
   const acts = useQuery(api.activities.recent)
   const settings = useQuery(api.settings.get)
-  const upsert = useMutation(api.investors.upsert)
+  // PST-298: an edit shows at once too (a new investor waits for its id).
+  const upsert = useMutation(api.investors.upsert).withOptimisticUpdate((store, a) => showSave(store, a))
   // PST-290: a stage move shows at once too.
   const advance = useMutation(api.investors.advance).withOptimisticUpdate((store, a) => showAdvance(store, a))
   // Board moves show at once; Convex replaces the guess with the saved row.
@@ -58,7 +59,7 @@ export function ConvexData({ children }: { children: ReactNode }) {
   const logNote = useMutation(api.investors.logNote).withOptimisticUpdate((store, a) => showTouch(store, a, me))
   const logTouch = useMutation(api.investors.logTouch).withOptimisticUpdate((store, a) => showTouch(store, a, me))
   const undoTouch = useMutation(api.investors.undoTouch).withOptimisticUpdate((store, a) => hideTouch(store, a))
-  const remove = useMutation(api.investors.remove)
+  const remove = useMutation(api.investors.remove).withOptimisticUpdate((store, { id }) => hideInvestor(store, id))
   // PST-302: an application shows at once; a correction is a plain write.
   const setApplication = useMutation(api.applications.set).withOptimisticUpdate((store, { id, application }) => {
     const list = store.getQuery(api.investors.list, {})
@@ -68,21 +69,21 @@ export function ConvexData({ children }: { children: ReactNode }) {
     const list = store.getQuery(api.investors.list, {})
     if (list) store.setQuery(api.investors.list, {}, list.map((i) => (i._id === id ? { ...i, application: changeApplication(i.application, changes) ?? i.application } : i)))
   })
-  const markCorrection = useMutation(api.applications.markCorrection)
+  const markCorrection = useMutation(api.applications.markCorrection).withOptimisticUpdate((store, a) => showCorrection(store, a))
   const importMany = useMutation(api.investors.importMany)
-  const updateRound = useMutation(api.settings.update)
-  const setTick = useMutation(api.prep.set)
+  const updateRound = useMutation(api.settings.update).withOptimisticUpdate((store, { round }) => showRound(store, round))
+  const setTick = useMutation(api.prep.set).withOptimisticUpdate((store, a) => showPrepTick(store, a, me))
   const g = useQuery(api.google.data)
   const gConnect = useAction(api.google.connect)
-  const gDisconnect = useMutation(api.google.disconnect)
-  const gSync = useMutation(api.google.syncNow)
-  const gAnswer = useMutation(api.google.answerMeeting)
-  const gDismiss = useMutation(api.google.dismissPerson)
+  const gDisconnect = useMutation(api.google.disconnect).withOptimisticUpdate((store) => showGoogle(store, { disconnected: true }))
+  const gSync = useMutation(api.google.syncNow).withOptimisticUpdate((store) => showGoogle(store, { syncing: true }))
+  const gAnswer = useMutation(api.google.answerMeeting).withOptimisticUpdate((store, a) => showGoogle(store, a))
+  const gDismiss = useMutation(api.google.dismissPerson).withOptimisticUpdate((store, { email }) => showGoogle(store, { dismiss: email }))
   const suggestionRows = useQuery(api.suggestions.list)
-  const sAccept = useMutation(api.suggestions.accept)
-  const sDismiss = useMutation(api.suggestions.dismiss)
-  const sAcceptSafe = useMutation(api.suggestions.acceptSafe)
-  const sUndo = useMutation(api.suggestions.undo)
+  const sAccept = useMutation(api.suggestions.accept).withOptimisticUpdate((store, { id }) => hideSuggestions(store, { ids: [id] }))
+  const sDismiss = useMutation(api.suggestions.dismiss).withOptimisticUpdate((store, { id }) => hideSuggestions(store, { ids: [id] }))
+  const sAcceptSafe = useMutation(api.suggestions.acceptSafe).withOptimisticUpdate((store) => hideSuggestions(store, { safe: true }))
+  const sUndo = useMutation(api.suggestions.undo).withOptimisticUpdate((store, { ids }) => showSuggestionsBack(store, ids))
   const sRun = useMutation(api.suggestions.run)
   const suggest = useMemo(
     () => ({
@@ -100,18 +101,18 @@ export function ConvexData({ children }: { children: ReactNode }) {
   const aiEnrich = useMutation(api.enrich.enrich)
   const aiEnrichMany = useMutation(api.enrich.enrichMany)
   const aiLookup = useMutation(api.enrich.lookupSender)
-  const aiStop = useMutation(api.enrich.stop)
-  const aiKeep = useMutation(api.enrich.keepFact)
-  const aiDismiss = useMutation(api.enrich.dismissFact)
-  const aiUndo = useMutation(api.enrich.undoDismiss)
-  const aiKeepAll = useMutation(api.enrich.keepAll)
-  const aiDismissAll = useMutation(api.enrich.dismissAll)
-  const aiSetAuto = useMutation(api.enrich.setAuto)
+  const aiStop = useMutation(api.enrich.stop).withOptimisticUpdate((store, { runId }) => showStopped(store, runId))
+  const aiKeep = useMutation(api.enrich.keepFact).withOptimisticUpdate((store, a) => showFacts(store, a, 'kept'))
+  const aiDismiss = useMutation(api.enrich.dismissFact).withOptimisticUpdate((store, a) => showFacts(store, a, 'dismissed'))
+  const aiUndo = useMutation(api.enrich.undoDismiss).withOptimisticUpdate((store, { factId }) => showFactBack(store, factId))
+  const aiKeepAll = useMutation(api.enrich.keepAll).withOptimisticUpdate((store, a) => showFacts(store, a, 'kept'))
+  const aiDismissAll = useMutation(api.enrich.dismissAll).withOptimisticUpdate((store, a) => showFacts(store, a, 'dismissed'))
+  const aiSetAuto = useMutation(api.enrich.setAuto).withOptimisticUpdate((store, auto) => showAI(store, { auto }))
   const aiAddSender = useMutation(api.enrich.addSender)
-  const aiAddPerson = useMutation(api.enrich.addPerson)
-  const aiSetPrimary = useMutation(api.enrich.setPrimary)
-  const aiSetModel = useMutation(api.enrich.setModel)
-  const aiSetJev = useMutation(api.jev.setJev)
+  const aiAddPerson = useMutation(api.enrich.addPerson).withOptimisticUpdate((store, a) => showPerson(store, a))
+  const aiSetPrimary = useMutation(api.enrich.setPrimary).withOptimisticUpdate((store, { personId }) => showPrimary(store, personId))
+  const aiSetModel = useMutation(api.enrich.setModel).withOptimisticUpdate((store, a) => showAI(store, a))
+  const aiSetJev = useMutation(api.jev.setJev).withOptimisticUpdate((store, jev) => showAI(store, { jev }))
   const aiDo = useMemo(
     () => ({
       enrich: (id: string, model?: Model) => aiEnrich({ investorId: id as Id<'investors'>, model }),
@@ -135,7 +136,7 @@ export function ConvexData({ children }: { children: ReactNode }) {
   const agentRows = useQuery(api.agents.list)
   const agents = useMemo(() => (agentRows ? { loaded: true, ...agentRows } : NO_AGENTS), [agentRows])
   const agentCreate = useMutation(api.agents.create)
-  const agentRevoke = useMutation(api.agents.revoke)
+  const agentRevoke = useMutation(api.agents.revoke).withOptimisticUpdate((store, { id }) => hideAgentKey(store, id))
   const agentsDo = useMemo(
     () => ({
       create: (name: string, scope: AgentScope) => agentCreate({ name, scope }),
@@ -145,7 +146,7 @@ export function ConvexData({ children }: { children: ReactNode }) {
   )
   const askStart = useMutation(api.ask.start)
   const brief = useQuery(api.brief.today)
-  const briefDismiss = useMutation(api.brief.setDismissed)
+  const briefDismiss = useMutation(api.brief.setDismissed).withOptimisticUpdate((store, a) => showBrief(store, a))
   // Gone quiet reads email and meeting dates too (`lastContact`): attach them to each investor.
   const withSignals = useMemo(() => withContact(investors ?? [], google, Date.now()), [investors, google])
   const googleDo = useMemo(

@@ -17,7 +17,7 @@
 .mat-error { margin: 8px 0 0; font: 600 13px/1.35 var(--font-ui); color: var(--state-error); }
 
 /* PDF drop zone (Add dialog, a new version, the library's drop tile). Breathes while a file is held over it. */
-.pdrop { display: flex; align-items: center; gap: 14px; padding: 18px 20px; border: 1.5px dashed var(--line-dashed); border-radius: var(--radius-small); background: var(--surface-paper); color: var(--text-secondary); cursor: pointer; text-align: left; transition: background-color 150ms ease, border-color 150ms ease; }
+.pdrop { display: flex; align-items: center; gap: 14px; padding: 18px 20px; border: 1.5px dashed var(--line-dashed); border-radius: var(--radius-small); background: var(--surface-paper); color: var(--text-secondary); cursor: pointer; text-align: left; transition: background-color 150ms var(--ease-out), border-color 150ms var(--ease-out); }
 .pdrop:hover { border-color: var(--board-drop-border); }
 .pdrop:focus-visible { outline: 3px solid var(--brand-lime); outline-offset: 2px; }
 .pdrop.is-over { background: var(--board-drop); border-color: var(--board-drop-border); animation: imp-breathe 1.2s ease-in-out infinite; }
@@ -44,7 +44,7 @@
 .mat-sum__tile--good .mat-sum__label, .mat-sum__tile--good .mat-sum__value { color: var(--brand-leaf); }
 
 .mat-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
-.mcard { position: relative; display: flex; flex-direction: column; min-width: 0; background: var(--surface-white); border: 1px solid var(--line-default); border-radius: var(--radius-card); transition: box-shadow 150ms ease, transform 150ms ease, border-color 150ms ease; }
+.mcard { position: relative; display: flex; flex-direction: column; min-width: 0; background: var(--surface-white); border: 1px solid var(--line-default); border-radius: var(--radius-card); transition: box-shadow 150ms var(--ease-out), transform 150ms var(--ease-out), border-color 150ms var(--ease-out); }
 .mcard:hover { box-shadow: var(--shadow-card); }
 .mcard.is-over { border-color: var(--board-drop-border); background: var(--board-drop); animation: imp-breathe 1.2s ease-in-out infinite; }
 .mcard__main { flex: 1; display: flex; flex-direction: column; padding: 18px 18px 12px; border-radius: var(--radius-card) var(--radius-card) 0 0; cursor: pointer; }
@@ -100,7 +100,7 @@
 .share__label { font: 700 15px/1.3 var(--font-ui); color: var(--text-primary); }
 .share__to { position: relative; display: flex; flex-direction: column; gap: 8px; }
 .share__chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 56px; padding: 4px 10px; border: 2px solid var(--brand-leaf); border-radius: 14px; background: var(--surface-white); }
-.share__chips:focus-within { box-shadow: 0 0 0 3px var(--brand-lime); }
+.share__chips:has(:focus-visible) { box-shadow: 0 0 0 3px var(--brand-lime); }
 .share__chips input { flex: 1; min-width: 140px; height: 44px; border: 0; outline: none; background: none; font: 400 15px/1 var(--font-ui); color: var(--text-primary); }
 .share__chip { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 6px 0 14px; border-radius: var(--radius-chip); background: var(--brand-forest); color: var(--text-on-dark); font: 600 14px/1 var(--font-ui); }
 .share__chip button { position: relative; display: grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 50%; background: none; color: inherit; cursor: pointer; }
@@ -191,7 +191,7 @@
 .views__note { margin: 0; font-size: 13px; color: var(--text-muted); }
 .bars { list-style: none; margin: 18px 0 0; padding: 0; display: grid; grid-template-columns: repeat(var(--pages), minmax(0, 1fr)); gap: 6px; align-items: end; height: 150px; }
 .bars__bar { position: relative; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; padding-bottom: 22px; }
-.bars__bar i { display: block; width: 100%; max-width: 26px; border-radius: 4px 4px 2px 2px; background: #9fd8a9; transform-origin: bottom; animation: bars-grow 600ms var(--ease-out) both; }
+.bars__bar i { display: block; width: 100%; max-width: 26px; border-radius: 4px 4px 2px 2px; background: #9fd8a9; transform-origin: bottom; animation: bars-grow 200ms var(--ease-out) both; }
 .bars__bar--top i { background: var(--brand-leaf); }
 .bars__bar--tail i { background: #ffc9a8; }
 .bars__val { font: 600 12px/1 var(--font-mono); color: var(--brand-leaf); margin-bottom: 6px; }
@@ -289,4 +289,9 @@
 @media (prefers-reduced-motion: reduce) {
   .pdrop.is-over, .mcard.is-over { animation: none; }
   .bars__bar i { animation: m-fade 150ms ease-out both; }
+}
+
+/* PST-298: under reduced motion, movement here becomes a fade (these win over the keyframes above). */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes bars-grow { from { opacity: 0; } }
 }

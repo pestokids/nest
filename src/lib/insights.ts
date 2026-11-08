@@ -2,8 +2,7 @@
 // its target at this week's pace, where the funnel leaks, warm paths against
 // cold ones, and how long conversations sit in each stage. Pure functions over
 // the investors, their stage moves and the round; no AI and nothing made up.
-import { dayDiff, isISODate } from './dates'
-import { longDay } from './investorView'
+import { dayDiff, formatDay, isISODate } from './dates'
 import { money } from './money'
 import { committedOf, maxIdx, withoutCorrections, type Activity, type Investor } from './pipeline'
 import { isAwaiting, type ApplicationFields } from './applications' // PST-302
@@ -322,10 +321,10 @@ export function projectionCopy(p: Projection): { title: string; line: string; ne
       next: recovery(p),
     }
   const pace = p.basis === 'committed' ? 'at this week’s pace' : 'at this week’s pace of asks'
-  const target = `your ${longDay(p.deadline)} target`
+  const target = `your ${formatDay(p.deadline)} target`
   const d = p.days ?? 0
   const line = d === 0 ? `Right on ${target}, ${pace}.` : `${plural(Math.abs(d), 'day')} ${d > 0 ? 'after' : 'before'} ${target}, ${pace}.`
-  if (p.status === 'behind') return { title: longDay(p.projected), line, next: recovery(p) }
+  if (p.status === 'behind') return { title: formatDay(p.projected), line, next: recovery(p) }
   const did = [p.asksThisWeek ? plural(p.asksThisWeek, 'ask') : '', p.committedThisWeek ? `${money(p.committedThisWeek)} committed` : ''].filter(Boolean).join(' and ')
-  return { title: longDay(p.projected), line, next: did ? `On track: ${did} in the last 7 days.` : 'On track. Keep the asks going.' }
+  return { title: formatDay(p.projected), line, next: did ? `On track: ${did} in the last 7 days.` : 'On track. Keep the asks going.' }
 }

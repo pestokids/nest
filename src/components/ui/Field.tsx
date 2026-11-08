@@ -1,5 +1,5 @@
 import { forwardRef, useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
-import { dayMonth } from '../../lib/home'
+import { formatDay } from '../../lib/dates'
 import { Icon } from './Icon'
 
 type FieldBits = { label?: ReactNode; help?: ReactNode; error?: ReactNode; className?: string }
@@ -58,7 +58,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({ l
           <>
             {/* Dates read like the design ("Thu 12 Nov"); the native picker sits underneath. */}
             <span className={`input__date${rest.value ? '' : ' input__date--empty'}`} aria-hidden="true">
-              {typeof rest.value === 'string' && rest.value ? dayMonth(rest.value) : 'Pick a date'}
+              {typeof rest.value === 'string' && rest.value ? formatDay(rest.value) : 'Pick a date'}
             </span>
             {error ? null : <Icon name="chevron-down" size={18} className="select__chevron" />}
           </>

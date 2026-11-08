@@ -22,7 +22,7 @@
   --cols: minmax(0, 1fr) 56px 56px 80px 64px minmax(0, 0.62fr);
   position: relative; display: grid; grid-template-columns: var(--cols); align-items: center; gap: 0 4px;
   min-height: 72px; padding: 0 14px; margin: 0 -14px; border: 2px solid transparent; border-radius: 14px;
-  font: 400 15px/1.35 var(--font-ui); color: var(--text-primary); cursor: pointer; transition: background-color 120ms ease;
+  font: 400 15px/1.35 var(--font-ui); color: var(--text-primary); cursor: pointer; transition: background-color 150ms var(--ease-out);
 }
 .intro-row:not(.intro-row--head)::after { content: ''; position: absolute; left: 14px; right: 14px; bottom: -2px; height: 1px; background: var(--line-default); }
 .intro-row--head { min-height: 36px; cursor: default; font: 600 12px/1 var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
@@ -71,7 +71,7 @@ button.intro-panel__act.is-plain { color: var(--brand-leaf); font-weight: 600; c
 .isteps { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; list-style: none; margin: 0; padding: 0; }
 .isteps__btn { display: flex; flex-direction: column; gap: 8px; width: 100%; padding: 4px 0; border: 0; background: none; text-align: left; cursor: pointer; }
 .isteps__btn:focus-visible { outline: 3px solid var(--brand-lime); outline-offset: 2px; border-radius: 4px; }
-.isteps__bar { height: 5px; border-radius: 3px; background: var(--surface-mint); transition: background-color 200ms ease; }
+.isteps__bar { height: 5px; border-radius: 3px; background: var(--surface-mint); transition: background-color 200ms var(--ease-out); }
 .isteps__btn:hover .isteps__bar { background: var(--line-dashed); }
 .isteps__seg--done .isteps__bar, .isteps__seg--done .isteps__btn:hover .isteps__bar { background: var(--brand-forest); }
 .isteps__seg--now .isteps__bar, .isteps__seg--now .isteps__btn:hover .isteps__bar { background: var(--brand-lime); }
@@ -104,6 +104,17 @@ button.intro-panel__act.is-plain { color: var(--brand-leaf); font-weight: 600; c
 .istep-list__row .checkbox { font-size: 15px; }
 .istep-list__day { flex: none; font-size: 14px; color: var(--text-muted); }
 .istep-list__day.is-hint, .istep-list__day.is-hot { color: var(--text-orange-deep); }
+
+/* ---------- PST-298 interactions: a tick pops, the next step pulses lime once (interactions-batch-1.png) ---------- */
+.isteps__bar--tick { animation: isteps-tick 200ms var(--ease-out); }
+@keyframes isteps-tick { 50% { transform: scaleY(2); } }
+.isteps__bar--pulse, .istep-list__pulse { animation: isteps-pulse 200ms var(--ease-out); }
+@keyframes isteps-pulse { 50% { background-color: var(--brand-lime); border-color: var(--brand-lime); box-shadow: 0 0 0 4px rgb(169 236 25 / 0.35); } }
+.istep-list__tick { animation: m-pop 200ms var(--ease-out); }
+@media (prefers-reduced-motion: reduce) {
+  @keyframes isteps-tick { 50% { opacity: 0.5; } }
+}
+/* ---------- end PST-298 interactions ---------- */
 .wpath__act { margin-top: 12px; }
 .wpath__none { margin: 0 0 12px; font-size: 14px; line-height: 1.4; color: var(--text-secondary); }
 .wpath__add { margin-top: 14px; }

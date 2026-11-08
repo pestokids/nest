@@ -85,7 +85,7 @@ describe('how a key reads in Settings', () => {
     expect(lastUsedLine(now - 12 * 6e4, now, dayOf)).toBe('Used 12 min ago')
     expect(lastUsedLine(now - 3 * 36e5, now, dayOf)).toBe('Used 3h ago')
     expect(lastUsedLine(now - 20 * 36e5, now, dayOf)).toBe('Used yesterday')
-    expect(lastUsedLine(Date.parse('2026-11-02T10:00:00+05:30'), now, dayOf)).toBe('Used Nov 2')
+    expect(lastUsedLine(Date.parse('2026-11-02T10:00:00+05:30'), now, dayOf)).toBe('Used Mon 2 Nov')
   })
   it('with the calls this week', () => {
     expect(keyMeta({ lastUsedAt: now - 12 * 6e4, calls7d: 41 }, now, dayOf)).toBe('Used 12 min ago · 41 calls this week')

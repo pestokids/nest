@@ -1,7 +1,7 @@
 // Raise · Today: the next three moves, the KPI notes, the phase bar details and
 // the advance-stage rule. Pure functions over plain data (unit-tested).
-import { dayDiff } from './dates'
-import { dayMonth, nextPhase, phaseOn } from './home'
+import { dayDiff, formatDay } from './dates'
+import { nextPhase, phaseOn } from './home'
 import { money } from './money'
 import { committedOf, dueList, lastContact, phaseActual, quietList, totals, type Activity, type Investor } from './pipeline'
 import { isDollarMetric, targetValue, type Metric, type Phase, type Round } from './round'
@@ -18,7 +18,7 @@ export function byWhen(iso: string, today: string): string {
   if (n === 0) return 'today'
   if (n === 1) return 'tomorrow'
   if (n > 1 && n < 7) return WEEKDAYS[utc(iso).getUTCDay()]
-  return dayMonth(iso)
+  return formatDay(iso)
 }
 
 /* ---------- Next moves ---------- */
@@ -168,12 +168,12 @@ export function askMove(inv: Investor[], acts: Pick<Activity, 'investorId' | 'to
     key: `ask:${pick._id}`,
     tone: 'hot',
     title: `Ask ${pick.name} for a number`,
-    why: `${DONE_LINE[pick.stage] ?? ''} Ask for a specific amount and get it confirmed in writing by ${dayMonth(due)}.`.trim(),
+    why: `${DONE_LINE[pick.stage] ?? ''} Ask for a specific amount and get it confirmed in writing by ${formatDay(due)}.`.trim(),
     short: `${DONE_LINE[pick.stage] ?? ''} Ask for a specific amount, in writing.`.trim(),
     meta,
     label: 'Log the ask',
     action: { kind: 'ask', investorId: pick._id },
-    count: `Due ${dayMonth(due)}`,
+    count: `Due ${formatDay(due)}`,
   }
 }
 
@@ -235,9 +235,9 @@ export function nextMoves(
 /** "Prep ends Tue 10 Nov. Do these in order." */
 export function movesNote(round: Round, today: string): string {
   const now = phaseOn(round, today)
-  if (now) return `${now.name} ends ${dayMonth(now.to)}. Do these in order.`
+  if (now) return `${now.name} ends ${formatDay(now.to)}. Do these in order.`
   const next = nextPhase(round, today)
-  if (next) return `${next.name} starts ${dayMonth(next.from)}. Do these in order.`
+  if (next) return `${next.name} starts ${formatDay(next.from)}. Do these in order.`
   return 'Do these in order.'
 }
 
@@ -271,10 +271,10 @@ export const shortPhaseName = (name: string) => name.replace(/^wave\s*(\d+)$/i, 
 /** "days to close on Fri 4 Dec. Wave 1 opens Wed 11 Nov." */
 export function daysLine(round: Round, today: string): string {
   const left = dayDiff(round.deadline, today)
-  if (left < 0) return `The round closed on ${dayMonth(round.deadline)}.`
+  if (left < 0) return `The round closed on ${formatDay(round.deadline)}.`
   const next = nextPhase(round, today)
-  const opens = next ? ` ${next.name} ${/^wave/i.test(next.name) ? 'opens' : 'starts'} ${dayMonth(next.from)}.` : ''
-  return `${left === 1 ? 'day' : 'days'} to close on ${dayMonth(round.deadline)}.${opens}`
+  const opens = next ? ` ${next.name} ${/^wave/i.test(next.name) ? 'opens' : 'starts'} ${formatDay(next.from)}.` : ''
+  return `${left === 1 ? 'day' : 'days'} to close on ${formatDay(round.deadline)}.${opens}`
 }
 
 /* ---------- KPI notes ---------- */
@@ -295,7 +295,7 @@ export function kpis(inv: Investor[], round: Round, today: string) {
     },
     still: {
       value: money(t.need),
-      note: t.need <= 0 ? 'The target is covered. Anything more is stretch.' : t.daysLeft < 0 ? 'The close date has passed.' : `${money(t.perDay)} a day until ${dayMonthShort(round.deadline)}.`,
+      note: t.need <= 0 ? 'The target is covered. Anything more is stretch.' : t.daysLeft < 0 ? 'The close date has passed.' : `${money(t.perDay)} a day until ${formatDay(round.deadline)}.`,
     },
     talking: {
       value: inv.filter((i) => ACTIVE.has(i.stage)).length,
@@ -306,12 +306,6 @@ export function kpis(inv: Investor[], round: Round, today: string) {
       note: `${passed.length ? `${names(passed)}.` : 'Nobody has passed.'} ${parked ? `${parked} parked.` : 'Nobody parked.'}`,
     },
   }
-}
-
-/** "Dec 4" */
-const dayMonthShort = (iso: string) => {
-  const d = utc(iso)
-  return `${MONTHS[d.getUTCMonth()][0]}${MONTHS[d.getUTCMonth()].slice(1).toLowerCase()} ${d.getUTCDate()}`
 }
 
 /* ---------- Gone quiet ---------- */

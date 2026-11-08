@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import { BOARD, COLUMN_SORTS, isHiddenStage, type BoardStage, type ColumnSort } from '../../lib/board'
 import { pop } from '../../lib/motion'
 import { Egg } from '../illustrations'
-import { Icon } from '../ui'
+import { Button, Icon } from '../ui'
 
 type Props = {
   stage: BoardStage
@@ -71,7 +71,10 @@ export function Column({ stage, count, bump, over, near, entering, sort, onSort,
         {empty ? (
           <div className="pb-empty">
             <Egg size={28} />
-            <span>Nobody here yet</span>
+            <span>Nobody here yet. A card moves in when its rule is true.</span>
+            <Button variant="secondary" size="sm" onClick={onAdd}>
+              Add investor
+            </Button>
           </div>
         ) : null}
       </div>

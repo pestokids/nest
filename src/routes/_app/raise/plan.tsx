@@ -4,8 +4,7 @@ import { useRaise } from '../../../components/data'
 import { Insights } from '../../../components/plan/Insights'
 import { useHitShine } from '../../../components/plan/targetHits'
 import { buttonClass, Chip } from '../../../components/ui'
-import { todayIST } from '../../../lib/dates'
-import { longDay } from '../../../lib/investorView'
+import { formatDay, todayIST } from '../../../lib/dates'
 import { money } from '../../../lib/money'
 import { useInView } from '../../../lib/motion'
 import { amountLabel, phaseStatuses, progressLine, type PhaseView } from '../../../lib/plan'
@@ -49,8 +48,8 @@ function Plan() {
         <Cell label="Target" value={money(round.target)} />
         <Cell label="Room to" value={money(round.stretch)} />
         <Cell label="Instrument" value={cap(round.instrument)} />
-        <Cell label="Close by" value={longDay(round.deadline)} />
-        <Cell label="Today" value={`${longDay(today)}${where ? ` · ${where}` : ''}`} today />
+        <Cell label="Close by" value={formatDay(round.deadline)} />
+        <Cell label="Today" value={`${formatDay(today)}${where ? ` · ${where}` : ''}`} today />
       </div>
 
       <header className="plan-head">

@@ -6,6 +6,7 @@ import { CloseProvider, useClose } from '../../../components/close/CloseData'
 import { Modeller } from '../../../components/close/Modeller'
 import { Overview } from '../../../components/close/Overview'
 import { ViewSkeleton } from '../../../components/system/Skeleton'
+import { stickyHeight } from '../../../components/system/stickyHeight'
 import { closePreview } from '../../../preview/closeFixture'
 
 /** PST-283 Close: the overview, the round modeller (`?view=modeller`) and the cap table (`?view=captable`). PST-291: Allocation (`?view=allocation`). */
@@ -46,7 +47,7 @@ function Close() {
   if (!c.loaded) return <ViewSkeleton />
   return (
     <section className="close">
-      <nav className="close-chips close-views" aria-label="Close views">
+      <nav className="close-chips close-views raise-sticky" aria-label="Close views" ref={stickyHeight}>
         {CHIPS.map((x) => (
           <Link key={x.label} to="/raise/close" search={x.view ? { view: x.view } : {}} className={`close-chip${view === x.view ? ' is-on' : ''}`} aria-current={view === x.view ? 'page' : undefined}>
             {x.label}

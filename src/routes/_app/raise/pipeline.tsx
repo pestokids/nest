@@ -66,7 +66,7 @@ function Pipeline() {
       {view === 'race' ? (
         <Race />
       ) : view === 'maybes' ? (
-        <Maybes />
+        <Maybes onRace={() => setView('race')} />
       ) : phone ? (
         <PhoneBoard investors={investors} today={today} quietDays={round.quietDays} />
       ) : (

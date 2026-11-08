@@ -66,7 +66,7 @@ describe('labels', () => {
     expect(enrichedCell(undefined)).toEqual({ text: '—', tone: 'none' })
     expect(enrichedCell({ status: 'queued' }).text).toBe('Queued')
     expect(enrichedCell({ status: 'running' }).text).toBe('Running…')
-    expect(enrichedCell({ status: 'done', finishedAt: Date.parse('2026-11-07T06:00:00Z') }).text).toBe('✓ 7 Nov')
+    expect(enrichedCell({ status: 'done', finishedAt: Date.parse('2026-11-07T06:00:00Z') }).text).toBe('✓ Sat 7 Nov')
   })
   it('estimates time left from the finished steps', () => {
     const steps = (done: number) => Array.from({ length: 5 }, (_, i) => ({ label: String(i), state: i < done ? ('done' as const) : ('waiting' as const) }))

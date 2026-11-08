@@ -6,8 +6,8 @@
 // step (sent, viewed, signed, countersigned, wire instructions, wired) is a
 // tick with a date that someone sets by hand.
 import { boardLabel, classifyMove } from './board'
-import { dayDiff, isISODate } from './dates'
-import { money } from './money'
+import { dayDiff, formatDay, isISODate, weekdayOf } from './dates'
+import { exactMoney, money } from './money'
 import type { Investor } from './pipeline'
 import { COMMIT, type Stage } from './stages'
 
@@ -212,16 +212,13 @@ export function ladder(investors: Investor[], closings: Closing[]): Ladder {
 
 /* ---------- how a row reads ---------- */
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-/** "today", "Tue" within the last 6 days, else "3 Nov". */
+/** "today", "Tue" within the last 6 days, else "Tue 3 Nov". */
 export function stepDay(iso: string, today: string): string {
   if (!isISODate(iso)) return ''
   const n = dayDiff(today, iso)
   if (n === 0) return 'today'
-  if (n > 0 && n <= 6) return WEEKDAYS[new Date(iso + 'T00:00:00Z').getUTCDay()]
-  const [, m, d] = iso.split('-').map(Number)
-  return `${d} ${MONTHS[m - 1]}`
+  if (n > 0 && n <= 6) return weekdayOf(iso)
+  return formatDay(iso)
 }
 
 /** The SAFE column, and whether it waits on someone (shown in orange). */
@@ -255,9 +252,6 @@ export function termsLine(t: Partial<ClosingTerms> | null | undefined): string {
     t.sideLetter?.trim() ? 'side letter' : '',
   ].filter(Boolean).join(' · ')
 }
-
-/** "$50,000". */
-export const usd = (n: number) => '$' + Math.round(n).toLocaleString('en-US')
 
 /* ---------- validation ---------- */
 
@@ -315,9 +309,8 @@ const sentPhrase = (iso: string, today: string) => {
   const n = dayDiff(today, iso)
   if (n <= 0) return 'today'
   if (n === 1) return 'yesterday'
-  if (n <= 6) return `on ${WEEKDAYS[new Date(iso + 'T00:00:00Z').getUTCDay()]}`
-  const [, m, d] = iso.split('-').map(Number)
-  return `on ${d} ${MONTHS[m - 1]}`
+  if (n <= 6) return `on ${weekdayOf(iso)}`
+  return `on ${formatDay(iso)}`
 }
 
 /**
@@ -335,7 +328,7 @@ export function reminderText({ kind, investorName, closing, me, today }: {
   const s = stepMap(closing)
   const first = closing.signerName?.trim().split(/\s+/)[0]
   const hi = first ? `Hi ${first},` : `Hi ${investorName.trim() || 'there'} team,`
-  const amount = usd(closing.amount)
+  const amount = exactMoney(closing.amount)
   const bye = me.trim() ? `\n\nThanks so much,\n${me.trim()}` : '\n\nThanks so much'
   if (kind === 'sign') {
     const when = s.sent ? ` I sent it ${sentPhrase(s.sent, today)}.` : ''

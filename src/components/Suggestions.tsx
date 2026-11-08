@@ -27,7 +27,7 @@ declare module '@tanstack/react-router' {
 }
 
 /** How long a row takes to fold away, and the gap between rows in a cascade. */
-const FOLD_MS = 280
+const FOLD_MS = 200
 const CASCADE_MS = 40
 /** Confetti for a cleared list is the small burst. */
 const TIDY_CONFETTI = 24

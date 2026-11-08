@@ -4,11 +4,12 @@
 // 09:00 IST, D drafts and ↵ opens (the shortcut registry's keys, so the ? sheet
 // lists them); E and S have Undo. On a phone, swipe right for done and left to
 // snooze. When it's clear: the sleeping nest, and small confetti once a day.
-import { useNavigate } from '@tanstack/react-router'
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
-import { dayMonth } from '../../lib/home'
+import { Link, useNavigate } from '@tanstack/react-router'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
+import { formatDay } from '../../lib/dates'
 import { groupInbox, inboxChips, inboxKey, INBOX_CHIP, INBOX_TYPE_LABEL, type InboxMarkKind, type InboxRow } from '../../lib/inbox'
-import { confetti, usePop } from '../../lib/motion'
+import { thankedLine } from '../../lib/introducers'
+import { confetti, foldAway, MOMENT_MS, usePop } from '../../lib/motion'
 import { play } from '../../lib/sound'
 import { keyLabel, KEYS, singleKeyOk } from '../../lib/shortcuts'
 import { ASK_NOTE, askFollowUp } from '../../lib/today'
@@ -21,11 +22,11 @@ import { useIntroducers } from '../introducers/data'
 import { useMaterials } from '../materials/data'
 import { usePreviewState } from '../preview-state'
 import { useUI } from '../raise-ui'
-import { Badge, Button, Card, Checkbox, Chip, Icon, Kbd } from '../ui'
+import { Badge, Button, buttonClass, Card, Checkbox, Chip, Icon, Kbd } from '../ui'
 import { INBOX_TONE, useInbox } from './data'
 
-/** How long a done or snoozed row takes to fold away. */
-const FOLD_MS = 260
+/** A done row's tick pops before the row folds up (interactions-batch-1.png). */
+const TICK_MS = 160
 /** How far a swipe has to travel to count. */
 const SWIPE_PX = 96
 /** The clear-inbox burst is the small one. */
@@ -39,27 +40,27 @@ export function Inbox() {
   const preview = usePreviewState()
   const listRef = useRef<HTMLDivElement>(null)
 
-  // Rows folding away: hidden for good once the mark is written (or back on a failure).
-  const [leaving, setLeaving] = useState<ReadonlySet<string>>(() => new Set())
+  // Rows folding away: done folds up after its tick pops, snooze slides off. Hidden for good once the mark is written (or back on a failure).
+  const [leaving, setLeaving] = useState<ReadonlyMap<string, InboxMarkKind>>(() => new Map())
   const acted = useRef(false)
   const mark = useCallback(
     async (row: InboxRow, kind: InboxMarkKind) => {
       acted.current = true
-      play(kind === 'done' ? 'card-pickup' : 'park', kind === 'done' ? { rate: 1.2, volume: 0.6 } : { volume: 0.6 })
-      setLeaving((s) => new Set(s).add(row.key))
-      await new Promise((r) => setTimeout(r, FOLD_MS))
+      if (kind === 'done') play('rule-check', { volume: 0.7 })
+      setLeaving((s) => new Map(s).set(row.key, kind))
+      await new Promise((r) => setTimeout(r, MOMENT_MS + (kind === 'done' ? TICK_MS : 0)))
       try {
         const prev = await inbox.mark(row, kind)
         ui.toast({
           tone: 'info',
           icon: kind === 'done' ? 'check' : 'clock',
-          message: kind === 'done' ? `Done: ${row.name}.` : `Snoozed until tomorrow, 09:00: ${row.name}.`,
+          message: kind === 'done' ? `Done: ${row.name}.` : 'Back tomorrow at 09:00.',
           action: { label: 'Undo', onClick: () => (play('undo'), void inbox.restore(row.key, prev).catch(ui.fail)) },
         })
       } catch (e) {
         ui.fail(e)
       } finally {
-        setLeaving((s) => new Set([...s].filter((k) => k !== row.key)))
+        setLeaving((s) => new Map([...s].filter(([k]) => k !== row.key)))
       }
     },
     [inbox, ui],
@@ -73,6 +74,20 @@ export function Inbox() {
   const [current, setCurrent] = useState<string | null>(null)
   const cur = shown.find((r) => r.key === current) ?? shown[0]
   const [unfold, setUnfold] = useState(false)
+
+  // The focus ring glides from row to row as J and K move (120ms), while focus is from the keyboard.
+  const [ring, setRing] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
+  const placeRing = useCallback(() => {
+    const root = listRef.current
+    const el = document.activeElement
+    if (!root || !(el instanceof HTMLElement) || !el.dataset.inboxKey || !root.contains(el) || !el.matches(':focus-visible')) return setRing(null)
+    const a = root.getBoundingClientRect()
+    const b = el.getBoundingClientRect()
+    setRing({ x: b.left - a.left, y: b.top - a.top, w: b.width, h: b.height })
+  }, [])
+  useLayoutEffect(() => {
+    if (ring) placeRing()
+  }, [shown]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keys: J and K move the focus through the rows, E, S and D act on the focused (or current) row, ↵ opens it.
   const latest = useRef({ shown, cur, mark, run })
@@ -170,7 +185,8 @@ export function Inbox() {
         ) : null}
       </header>
       {count ? (
-        <div className="inbox__groups" ref={listRef}>
+        <div className={'inbox__groups' + (ring ? ' has-ring' : '')} ref={listRef} onFocus={placeRing} onBlur={() => requestAnimationFrame(placeRing)}>
+          {ring ? <span className="inbox__ring" aria-hidden="true" style={{ transform: `translate(${ring.x}px, ${ring.y}px)`, width: ring.w, height: ring.h }} /> : null}
           {groups.map((g) => (
             <section key={g.group} className={'inbox-group inbox-group--' + g.group + (folded && g === later ? ' is-folded' : '')} aria-labelledby={'inbox-g-' + g.group}>
               <h3 id={'inbox-g-' + g.group} className="eyebrow-mono inbox-group__title">
@@ -182,7 +198,7 @@ export function Inbox() {
                     key={r.key}
                     row={r}
                     current={r.key === cur?.key}
-                    leaving={leaving.has(r.key)}
+                    leaving={leaving.get(r.key) ?? null}
                     peek={preview?.today === 'phone' && g === groups[0] && k === 0}
                     onFocus={() => setCurrent(r.key)}
                     onMark={(kind) => void mark(r, kind)}
@@ -232,7 +248,7 @@ export function Inbox() {
 function Row({ row: r, current, leaving, peek, onFocus, onMark, onPrimary, onOpen }: {
   row: InboxRow
   current: boolean
-  leaving: boolean
+  leaving: InboxMarkKind | null
   peek: boolean
   onFocus: () => void
   onMark: (kind: InboxMarkKind) => void
@@ -241,10 +257,21 @@ function Row({ row: r, current, leaving, peek, onFocus, onMark, onPrimary, onOpe
 }) {
   const swipe = useSwipe(onMark, peek)
   const btn = useRef<HTMLButtonElement>(null)
+  const li = useRef<HTMLLIElement>(null)
+  useEffect(() => {
+    if (!leaving) return
+    let a: Animation | null = null
+    const t = setTimeout(() => (a = foldAway(li.current, { slide: leaving === 'snooze' ? -48 : 0 })), leaving === 'done' ? TICK_MS : 0)
+    return () => {
+      clearTimeout(t)
+      a?.cancel()
+    }
+  }, [leaving])
   const hot = r.late || r.group === 'now'
   return (
     <li
-      className={['inbox-row', current && 'is-current', leaving && 'is-leaving', swipe.dx > 0 && 'is-swiping-done', swipe.dx < 0 && 'is-swiping-snooze'].filter(Boolean).join(' ')}
+      ref={li}
+      className={['inbox-row', current && 'is-current', leaving && 'is-leaving is-leaving--' + leaving, swipe.dx > 0 && 'is-swiping-done', swipe.dx < 0 && 'is-swiping-snooze'].filter(Boolean).join(' ')}
       data-inbox-key={r.key}
       tabIndex={0}
       aria-label={`${INBOX_TYPE_LABEL[r.type]}: ${r.name}. ${r.detail}${r.when ? '. ' + r.when : ''}`}
@@ -264,7 +291,7 @@ function Row({ row: r, current, leaving, peek, onFocus, onMark, onPrimary, onOpe
         Snooze <Icon name="clock" size={16} strokeWidth={2.2} />
       </span>
       <div className="inbox-row__in" style={swipe.dx ? ({ '--dx': swipe.dx + 'px' } as CSSProperties) : undefined}>
-        <Checkbox className="inbox-row__tick only-desk" checked={leaving} onChange={() => onMark('done')} tabIndex={-1} aria-label={'Done: ' + r.name} />
+        <Checkbox className="inbox-row__tick only-desk" checked={leaving === 'done'} onChange={() => onMark('done')} tabIndex={-1} aria-label={'Done: ' + r.name} />
         <span className="inbox-row__type">
           <Chip tone={INBOX_TONE[r.type]} dot={false} className="inbox-row__chip">
             {INBOX_TYPE_LABEL[r.type]}
@@ -365,6 +392,9 @@ function Clear({ acted }: { acted: React.RefObject<boolean> }) {
       </div>
       <p className="inbox-clear__title">Inbox clear.</p>
       <p className="inbox-clear__text">You’re done for the day. Snoozed rows come back tomorrow at 09:00, and anything new lands here.</p>
+      <Link to="/raise/pipeline" className={buttonClass({ variant: 'secondary', className: 'empty-state__action' })}>
+        Open Pipeline
+      </Link>
     </div>
   )
 }
@@ -393,7 +423,7 @@ function useRowActions() {
       play('confetti', { delay: 0.15, volume: 0.7 })
       confetti(from)
       const next = askFollowUp(today)
-      ui.toast({ tone: 'win', message: `Ask logged. Follow-up set for ${dayMonth(next.date)}.`, action: { label: 'View', onClick: () => ui.open(id) }, durationMs: WIN_MS })
+      ui.toast({ tone: 'win', message: `Ask logged. Follow-up set for ${formatDay(next.date)}.`, action: { label: 'View', onClick: () => ui.open(id) }, durationMs: WIN_MS })
       try {
         await d.logNote(id, ASK_NOTE, { touch: 'ask', next })
       } catch (e) {
@@ -429,10 +459,13 @@ function useRowActions() {
           if (a.seen?.length) void m.act.seen(a.seen)
           if (id) ui.open(id, a.tab ? { tab: a.tab } : {})
           return
-        case 'step':
-          play('rule-check', { volume: 0.6 })
+        case 'step': {
+          play('rule-check', { volume: 0.7 })
           void Promise.all(a.introIds.map((x) => intro.setStep(x, a.step, today))).catch(ui.fail)
+          const firms = a.introIds.flatMap((x) => d.investors.find((i) => i._id === intro.intros.find((y) => y._id === x)?.investorId)?.name ?? [])
+          if (a.step === 'thanked' && firms.length) ui.toast({ tone: 'info', icon: 'check', message: thankedLine(r.name, firms) })
           return
+        }
         case 'nudge-introducer':
           play('nudge')
           void Promise.all(a.introIds.map((x) => intro.nudged(x))).catch(ui.fail)
@@ -444,9 +477,9 @@ function useRowActions() {
           if (id) openCloseKit(id)
           return
         case 'done':
+          play('rule-check', { volume: 0.7 })
           void inbox.mark(r, 'done').then(
             (prev) => {
-              play('card-pickup', { rate: 1.2, volume: 0.6 })
               ui.toast({ tone: 'info', icon: 'check', message: `Done: ${r.name}.`, action: { label: 'Undo', onClick: () => (play('undo'), void inbox.restore(r.key, prev).catch(ui.fail)) } })
             },
             ui.fail,

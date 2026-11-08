@@ -8,7 +8,6 @@
   --btn-edge: var(--brand-forest);
   --btn-hover: var(--surface-mint);
   --btn-pressed: #d6e3c6;
-  --btn-ring: var(--brand-lime);
   /* The bottom edge. Component PNGs draw it on Primary only; one variable to change. */
   --btn-edge-h: 0px;
   position: relative;
@@ -27,7 +26,7 @@
   white-space: nowrap;
   text-decoration: none;
   box-shadow: 0 var(--btn-edge-h) 0 var(--btn-edge);
-  transition: transform 100ms ease, box-shadow 100ms ease, background-color 150ms ease;
+  transition: transform 150ms var(--ease-out), box-shadow 150ms var(--ease-out), background-color 150ms var(--ease-out);
   -webkit-tap-highlight-color: transparent;
   user-select: none;
 }
@@ -40,7 +39,7 @@
   box-shadow: 0 max(0px, calc(var(--btn-edge-h) - 2px)) 0 var(--btn-edge);
 }
 .btn:focus-visible {
-  outline: 3px solid var(--btn-ring);
+  outline: 3px solid var(--brand-lime);
   outline-offset: 2px;
 }
 .btn:disabled {
@@ -57,7 +56,6 @@
   --btn-bg: var(--brand-lime);
   --btn-hover: var(--brand-lime-hover);
   --btn-pressed: var(--brand-lime-pressed);
-  --btn-ring: var(--brand-leaf);
   --btn-edge-h: 3px;
 }
 .btn--dark {
@@ -75,7 +73,6 @@
   --btn-edge: var(--brand-orange-deep);
   --btn-hover: #ff7a3d;
   --btn-pressed: var(--brand-orange-pressed);
-  --btn-ring: var(--brand-forest);
 }
 .btn--danger {
   --btn-bg: var(--state-error);
@@ -84,7 +81,6 @@
   --btn-edge: #8c2a12;
   --btn-hover: #c4421f;
   --btn-pressed: #9c2f15;
-  --btn-ring: var(--state-error-bg);
 }
 .btn--ghost {
   --btn-bg: transparent;
@@ -141,7 +137,7 @@
   color: var(--text-primary);
   padding: 0;
   position: relative;
-  transition: background-color 150ms ease, transform 100ms ease;
+  transition: background-color 150ms var(--ease-out), transform 150ms var(--ease-out);
   -webkit-tap-highlight-color: transparent;
 }
 .icon-btn:hover { background: var(--surface-mint); }
@@ -229,7 +225,7 @@
   color: var(--text-primary);
 }
 .field__help { font: 400 13px/1.4 var(--font-ui); color: var(--text-muted); }
-.field__error { font: 400 13px/1.4 var(--font-ui); color: var(--state-error); animation: m-slide-down 200ms ease-out; }
+.field__error { font: 400 13px/1.4 var(--font-ui); color: var(--state-error); animation: m-slide-down 200ms var(--ease-out); }
 .input,
 .select {
   position: relative;
@@ -247,7 +243,7 @@
   background: var(--surface-white);
   color: var(--text-primary);
   font: 400 15px/1.4 var(--font-ui);
-  transition: border-color 120ms ease, box-shadow 120ms ease;
+  transition: border-color 150ms var(--ease-out), box-shadow 150ms var(--ease-out);
   appearance: none;
 }
 .select select { padding-right: 40px; cursor: pointer; font-weight: 500; }
@@ -257,9 +253,9 @@
 .input input:hover:not(:disabled),
 .select select:hover:not(:disabled),
 .textarea:hover:not(:disabled) { border-color: var(--line-dashed); }
-.input input:focus,
-.select select:focus,
-.textarea:focus {
+.input input:focus-visible,
+.select select:focus-visible,
+.textarea:focus-visible {
   outline: none;
   border-color: var(--brand-forest);
   box-shadow: 0 0 0 3px var(--brand-lime);
@@ -269,7 +265,7 @@
 .textarea:disabled { background: #f1f1e8; color: var(--text-faint); cursor: not-allowed; }
 .field--error .input input,
 .field--error .select select { border-color: var(--state-error); border-width: 2px; padding-right: 40px; }
-.field--error .input input:focus { box-shadow: 0 0 0 3px var(--state-error-bg); }
+.field--error .input input:focus-visible { box-shadow: 0 0 0 3px var(--state-error-bg); }
 .input--date input { color: transparent; cursor: pointer; padding-right: 40px; }
 .input--date input::-webkit-datetime-edit { color: transparent; }
 .input--date input::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: auto; height: auto; margin: 0; opacity: 0; cursor: pointer; }
@@ -310,9 +306,9 @@
   background: var(--surface-white);
   color: var(--brand-lime);
   pointer-events: none;
-  transition: background-color 160ms ease, border-color 160ms ease;
+  transition: background-color 160ms var(--ease-out), border-color 160ms var(--ease-out);
 }
-.checkbox__mark svg path { stroke-dasharray: 24; stroke-dashoffset: 24; transition: stroke-dashoffset 240ms ease-out; }
+.checkbox__mark svg path { stroke-dasharray: 24; stroke-dashoffset: 24; transition: stroke-dashoffset 200ms var(--ease-out); }
 .checkbox:hover .checkbox__mark { border-color: var(--brand-forest); }
 .checkbox__box input:checked + .checkbox__mark { background: var(--brand-forest); border-color: var(--brand-forest); }
 .checkbox__box input:checked + .checkbox__mark svg path { stroke-dashoffset: 0; }
@@ -329,7 +325,7 @@
   background: #cdd8c6;
   position: relative;
   flex: none;
-  transition: background-color 200ms ease;
+  transition: background-color 200ms var(--ease-out);
 }
 .toggle__thumb {
   position: absolute;
@@ -340,7 +336,7 @@
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 1px 2px rgb(0 63 46 / 0.25);
-  transition: transform 200ms var(--ease-out-back);
+  transition: transform 200ms var(--ease-out);
 }
 .toggle input:checked + .toggle__track { background: var(--brand-leaf); }
 .toggle input:checked + .toggle__track .toggle__thumb { transform: translateX(16px); }
@@ -360,7 +356,7 @@
   font: 600 14px/1 var(--font-ui);
   text-decoration: none;
   white-space: nowrap;
-  transition: background-color 150ms ease;
+  transition: background-color 150ms var(--ease-out);
 }
 a.tab:hover { background: var(--surface-mint); }
 .tab--active,
@@ -406,7 +402,7 @@ a.tab--active:hover { background: var(--brand-forest); color: var(--text-on-dark
   height: 3px;
   border-radius: 3px 3px 0 0;
   background: transparent;
-  transition: background-color 200ms ease;
+  transition: background-color 200ms var(--ease-out);
 }
 .subtab:hover { color: var(--text-primary); }
 .subtab:hover::after { background: var(--line-default); }
@@ -435,7 +431,7 @@ button.subtab:focus-visible { outline: 3px solid var(--brand-lime); outline-offs
   color: var(--text-primary);
   font: 500 15px/1 var(--font-ui);
   cursor: pointer;
-  transition: background-color 150ms ease, color 150ms ease;
+  transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out);
   -webkit-tap-highlight-color: transparent;
 }
 .segmented__opt:hover { background: var(--surface-mint); }
@@ -510,9 +506,9 @@ button.subtab:focus-visible { outline: 3px solid var(--brand-lime); outline-offs
   font: 600 15px/1.35 var(--font-ui);
   box-shadow: 0 16px 36px -14px rgb(0 0 0 / 0.5);
   pointer-events: auto;
-  animation: m-toast-in 320ms var(--ease-out-back);
+  animation: m-toast-in 200ms var(--ease-out);
 }
-.toast--leaving { animation: m-toast-out 200ms ease-in forwards; }
+.toast--leaving { animation: m-toast-out 200ms var(--ease-out) forwards; }
 .toast__msg { flex: 1; min-width: 0; }
 .toast__icon {
   width: 40px;
@@ -537,7 +533,7 @@ button.subtab:focus-visible { outline: 3px solid var(--brand-lime); outline-offs
 }
 .toast--error,
 .toast--info { background: var(--surface-white); color: var(--text-primary); border: 1.5px solid var(--line-default); }
-.toast--error { border-color: var(--state-error); animation: m-toast-in 320ms var(--ease-out-back), m-shake-x 400ms 320ms ease-in-out; }
+.toast--error { border-color: var(--state-error); animation: m-toast-in 200ms var(--ease-out), m-shake-x 400ms 200ms ease-in-out; }
 .toast--error .toast__icon { background: var(--state-error-bg); color: var(--brand-forest); }
 .toast--info .toast__icon { background: var(--surface-mint); color: var(--brand-forest); }
 .toast--error .toast__action,
@@ -550,4 +546,14 @@ button.subtab:focus-visible { outline: 3px solid var(--brand-lime); outline-offs
 /* Touch: every control gets a 44px target. */
 @media (pointer: coarse) {
   .icon-btn--sm { width: 44px; height: 44px; }
+}
+
+/* PST-298: under reduced motion, movement here becomes a fade (these win over the keyframes above). */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes btn-spin { 50% { opacity: 0.4; } }
+}
+
+/* PST-298 phone pass: 44 px tap targets without changing how they look. */
+@media (max-width: 720px) {
+  .toggle { min-width: 44px; min-height: 44px; }
 }

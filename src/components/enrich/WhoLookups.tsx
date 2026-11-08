@@ -123,7 +123,7 @@ function WhoRow({ p, sender, prechecked, onHide }: { p: Stranger; sender?: Sende
   async function notInvestor() {
     play('not-on-list')
     setLeaving(true)
-    await new Promise((r) => setTimeout(r, 240))
+    await new Promise((r) => setTimeout(r, 200))
     onHide(true)
     try {
       await d.googleDo.dismiss(p.email)

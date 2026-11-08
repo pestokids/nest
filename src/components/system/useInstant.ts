@@ -2,8 +2,7 @@
 // show at once (Convex optimistic updates), save behind, and the toast offers
 // Undo instead of a confirm dialog. Permanent deletes keep their confirmation.
 import { useMemo } from 'react'
-import { dayMonth } from '../../lib/home'
-import { todayIST } from '../../lib/dates'
+import { formatDay, todayIST } from '../../lib/dates'
 import type { Investor, TouchOptions } from '../../lib/pipeline'
 import { play } from '../../lib/sound'
 import { ASK_NOTE, askFollowUp } from '../../lib/today'
@@ -48,7 +47,7 @@ export function useInstant() {
         const saved = d.move(inv._id, 'parked', { parkedUntil: until })
         saved.catch(failed)
         toast({
-          message: until ? `Parked until ${dayMonth(until)}. ${first(inv.name)} comes back to Due today then.` : `${inv.name} is parked.`,
+          message: until ? `Parked until ${formatDay(until)}. ${first(inv.name)} comes back to Due today then.` : `${inv.name} is parked.`,
           action: undo(saved, d.undoMove),
         })
       },
@@ -57,7 +56,7 @@ export function useInstant() {
       ask: (inv: Investor) => {
         const next = askFollowUp(todayIST())
         play('ask-logged')
-        logTouch(inv, ASK_NOTE, { touch: 'ask', next }, `Ask logged for ${inv.name}. Follow-up set for ${dayMonth(next.date)}.`)
+        logTouch(inv, ASK_NOTE, { touch: 'ask', next }, `Ask logged for ${inv.name}. Follow-up set for ${formatDay(next.date)}.`)
       },
     }
   }, [d, toast, moveCard])

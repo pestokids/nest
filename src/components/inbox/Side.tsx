@@ -4,7 +4,7 @@
 // follows the list.
 import { Link } from '@tanstack/react-router'
 import { useMemo, type CSSProperties } from 'react'
-import { dayMonth } from '../../lib/home'
+import { formatDay } from '../../lib/dates'
 import { money } from '../../lib/money'
 import { totals } from '../../lib/pipeline'
 import { canLeadOf, countWord, kickoff, OFFER_TARGET, raceLanes, slowDown, type Kickoff } from '../../lib/race'
@@ -51,7 +51,7 @@ export function RaceCard() {
       </h2>
       <p className="inbox-race__text">
         {k.inRace ? `${partner} at partner meetings · ${offers}. ` : 'A firm joins when its 1st meeting is booked. '}
-        Aim: {countWord(OFFER_TARGET)} offers in the same week{k.window.days.length ? ', by ' + dayMonth(k.window.days[k.window.days.length - 1]) : ''}.
+        Aim: {countWord(OFFER_TARGET)} offers in the same week{k.window.days.length ? ', by ' + formatDay(k.window.days[k.window.days.length - 1]) : ''}.
       </p>
       {lanes.length ? (
         <ul className="inbox-race__lanes">
@@ -114,7 +114,7 @@ export function RoundCard({ today }: { today: string }) {
         <span>
           committed of {money(r.target)} · room to {money(r.stretch)}
         </span>
-        <span>{t.daysLeft < 0 ? 'closed ' + dayMonth(r.deadline) : days === 1 ? 'day to close' : 'days to close'}</span>
+        <span>{t.daysLeft < 0 ? 'closed ' + formatDay(r.deadline) : days === 1 ? 'day to close' : 'days to close'}</span>
       </p>
     </Card>
   )

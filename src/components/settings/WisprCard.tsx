@@ -37,8 +37,15 @@ export function WisprCard() {
 function LiveWisprCard() {
   const data = useQuery(api.wispr.status)
   const connect = useAction(api.wispr.connect)
-  const fetchPast = useMutation(api.wispr.fetchPast)
-  const disconnect = useMutation(api.wispr.disconnect)
+  // PST-298: Fetch past meetings and Disconnect (after its confirmation) show at once.
+  const fetchPast = useMutation(api.wispr.fetchPast).withOptimisticUpdate((store) => {
+    const d = store.getQuery(api.wispr.status, {})
+    if (d?.status === 'connected') store.setQuery(api.wispr.status, {}, { ...d, fetching: true })
+  })
+  const disconnect = useMutation(api.wispr.disconnect).withOptimisticUpdate((store) => {
+    const d = store.getQuery(api.wispr.status, {})
+    if (d) store.setQuery(api.wispr.status, {}, { status: 'off', fetching: false, reads: d.reads })
+  })
   return <WisprCardView data={data ?? null} connect={(url) => connect({ url })} fetchPast={() => fetchPast({})} disconnect={() => disconnect({})} />
 }
 

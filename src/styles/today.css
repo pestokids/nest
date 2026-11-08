@@ -11,6 +11,7 @@
 .empty-state svg { flex: none; }
 .empty-state__title { font-weight: 600; font-size: 15px; color: var(--text-primary); margin-bottom: 4px !important; }
 .empty-state--cream { background: var(--surface-cream); }
+.empty-state__action { margin-top: 14px; }
 
 /* ---------- Calendar and Gmail (calendar-gmail-connected.png, PST-263) ---------- */
 .gcard.card { display: flex; flex-direction: column; padding: 22px 22px 18px; min-width: 0; }

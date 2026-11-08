@@ -16,6 +16,7 @@ import { FindMoreButton, FindMorePanel } from '../../../components/investors/Fin
 import { previewFind, usePriorityScores } from '../../../components/investors/findMoreData'
 import { useUI } from '../../../components/raise-ui'
 import { useListKeys } from '../../../components/system/useListKeys'
+import { stickyHeight } from '../../../components/system/stickyHeight'
 import { usePreviewState } from '../../../components/preview-state'
 import { todayIST } from '../../../lib/dates'
 import { titleCase } from '../../../lib/palette'
@@ -209,14 +210,16 @@ function Investors() {
   if (s.view === 'introducers')
     return (
       <section className="inv">
-        <InvestorViews
-          view="introducers"
-          right={
-            <Button variant="secondary" icon="plus" onClick={() => setAddingIntro(true)}>
-              Add introducer
-            </Button>
-          }
-        />
+        <div className="raise-sticky" ref={stickyHeight}>
+          <InvestorViews
+            view="introducers"
+            right={
+              <Button variant="secondary" icon="plus" onClick={() => setAddingIntro(true)}>
+                Add introducer
+              </Button>
+            }
+          />
+        </div>
         <IntroducersView person={s.person} onPerson={(person) => setSearch({ person })} adding={addingIntro} onAdding={setAddingIntro} />
       </section>
     )
@@ -228,19 +231,21 @@ function Investors() {
       <FindMoreButton open={findOpen} onToggle={() => setFindOpen((o) => !o)} />
       {findOpen ? <FindMorePanel /> : null}
       {/* /PST-296 */}
-      <FilterBar
-        s={s}
-        set={setSearch}
-        sort={s.sort ?? 'lastTouch'}
-        onSort={pickSort}
-        count={countText}
-        onExport={() => exportInvestors(selected.size ? inv.filter((i) => selected.has(i._id)) : rows.length && filtered ? rows : inv, toast)}
-        exportLabel={selected.size ? 'Export selected' : filtered ? 'Export these' : 'Export CSV'}
-        active={filtered}
-        onClear={clearAll}
-        resultCount={rows.length}
-      />
-      <FilterChips s={s} set={setSearch} onClear={clearAll} only={only ? only.size : 0} clearOnly={() => setOnly(null)} />
+      <div className="raise-sticky" ref={stickyHeight}>
+        <FilterBar
+          s={s}
+          set={setSearch}
+          sort={s.sort ?? 'lastTouch'}
+          onSort={pickSort}
+          count={countText}
+          onExport={() => exportInvestors(selected.size ? inv.filter((i) => selected.has(i._id)) : rows.length && filtered ? rows : inv, toast)}
+          exportLabel={selected.size ? 'Export selected' : filtered ? 'Export these' : 'Export CSV'}
+          active={filtered}
+          onClear={clearAll}
+          resultCount={rows.length}
+        />
+        <FilterChips s={s} set={setSearch} onClear={clearAll} only={only ? only.size : 0} clearOnly={() => setOnly(null)} />
+      </div>
       {byPriority ? <p className="inv-hint">{PRIORITY_FORMULA}</p> : null}
       <div className={`inv-card${rows.length ? '' : ' is-empty'}`} ref={list}>
         <InvestorList
