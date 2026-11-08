@@ -14,6 +14,7 @@ import { requireUser } from './lib/access'
 import { autoEnrich, forgetInvestor } from './lib/enrichQueue'
 import { saveInvestor } from './investors'
 import { addNoteQuestions, removeNoteQuestions } from './qanda'
+import { carryFindScore } from './lib/fitScores' // PST-296
 import { vSuggestionKind, vSuggestionPatch, vSuggestionSource, type vSuggestionUndo } from './validators'
 import { applyMove, applyUndo } from '../src/lib/board'
 import { dupKey } from '../src/lib/csv'
@@ -178,9 +179,12 @@ async function merge(ctx: MutationCtx, keep: Inv, drop: Inv, stamp: Stamp): Prom
 async function addInvestor(ctx: MutationCtx, s: Row, p: Extract<Row['patch'], { op: 'new_investor' }>, userId: Id<'users'>): Promise<Undo | null> {
   const key = dupKey(p.name, p.firm)
   if ((await ctx.db.query('investors').collect()).some((i) => dupKey(i.name, i.firm) === key)) return null
-  const investorId = await saveInvestor(ctx, userId, undefined, { ...NEW_INVESTOR, name: p.name, firm: p.firm, email: p.email, notes: p.note ?? '', source: `Suggested by ${sourceLabel(s)}` })
+  // PST-296: Find more's wave, type and firm domain, when it gave them.
+  const found = { ...(p.wave ? { wave: p.wave } : {}), ...(p.type ? { type: p.type } : {}), ...(p.domain ? { domains: cleanDomains([p.domain]) } : {}) }
+  const investorId = await saveInvestor(ctx, userId, undefined, { ...NEW_INVESTOR, ...found, name: p.name, firm: p.firm, email: p.email, notes: p.note ?? '', source: `Suggested by ${sourceLabel(s)}` })
   await autoEnrich(ctx, [investorId])
   await ctx.db.patch(s._id, { investorId })
+  if (s.source === 'find_more') await carryFindScore(ctx, s._id, investorId)
   return { op: 'new_investor', investorId }
 }
 

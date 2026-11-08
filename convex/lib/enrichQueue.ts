@@ -187,6 +187,8 @@ export const queueSender = (ctx: MutationCtx, email: string) => queue(ctx, { ema
 
 /** An investor was deleted: its people and facts go too. Its runs stay (they're this month's spend), unlinked, and stop if running. */
 export async function forgetInvestor(ctx: MutationCtx, id: Id<'investors'>) {
+  // PST-296: their Jev fit score.
+  for (const s of await ctx.db.query('jevScores').withIndex('by_investor', (q) => q.eq('investorId', id)).collect()) await ctx.db.delete(s._id)
   for (const p of await ctx.db.query('people').withIndex('by_investor', (q) => q.eq('investorId', id)).collect()) await ctx.db.delete(p._id)
   for (const f of await ctx.db.query('facts').withIndex('by_investor', (q) => q.eq('investorId', id)).collect()) await ctx.db.delete(f._id)
   for (const r of await ctx.db.query('enrichRuns').withIndex('by_investor', (q) => q.eq('investorId', id)).collect()) {

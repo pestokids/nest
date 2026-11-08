@@ -118,6 +118,10 @@ const SCREENS = [
   ...['race', 'race-lead', 'update'].map((s) => [`pipeline-${s}`, `/raise/pipeline?preview&pipeline=${s}`]),
   ['home-race', '/?preview&home=race'],
   ['drafts-lead', '/raise/today?preview&drafts=lead'],
+  // PST-296: Find more like these
+  ['find-more', '/raise/investors?preview&investors=find-more'],
+  ...['running', 'results', 'empty'].map((s) => [`find-more-${s}`, `/raise/investors?preview&investors=find-more&find=${s}`]),
+  ['find-more-spend', '/raise/settings?preview&ai=spend'],
 ]
 
 /** Sideways scroll, and (phones) visible controls smaller than 44 × 44. */

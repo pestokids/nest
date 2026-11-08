@@ -35,10 +35,12 @@ function monthOf(state: PreviewAI): { features: AIData['features']; byModel: Rec
     drafts: { month: 4, real: null },
     ask: { month: 11, real: null },
     brief: { month: 7, real: null },
+    // PST-296
+    find: { month: 2, real: null },
   }
   if (state === 'spend')
-    return { features, byModel: { [HAIKU]: 0.92, [SONNET]: 2.1, [OPUS]: 1.35 }, byFeature: { enrich: 3.05, notes: 0.21, drafts: 0.18, ask: 0.86, brief: 0.07 } }
-  return { features, byModel: { [HAIKU]: 0.31, [SONNET]: 1.53, [OPUS]: 0 }, byFeature: { enrich: 1.62, notes: 0.05, drafts: 0.03, ask: 0.12, brief: 0.02 } }
+    return { features, byModel: { [HAIKU]: 0.92, [SONNET]: 2.1, [OPUS]: 1.35 }, byFeature: { enrich: 3.05, notes: 0.21, drafts: 0.18, ask: 0.86, brief: 0.07, find: 0.14 } }
+  return { features, byModel: { [HAIKU]: 0.31, [SONNET]: 1.53, [OPUS]: 0 }, byFeature: { enrich: 1.62, notes: 0.05, drafts: 0.03, ask: 0.12, brief: 0.02, find: 0.07 } }
 }
 
 const STEPS = ['Who they are and their rank', 'What the fund is and its size', 'Checking recent deals', 'Typical check size, and whether they lead', 'Other partners and what they cover']

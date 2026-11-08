@@ -89,7 +89,11 @@ export const vSuggestionPatch = v.union(
   v.object({ op: v.literal('domain'), domain: v.string() }),
   v.object({ op: v.literal('touch'), touch: vTouch, note: v.string(), date: v.optional(v.string()) }),
   // PST-276: an agent's add_investor.
-  v.object({ op: v.literal('new_investor'), name: v.string(), firm: v.string(), email: v.optional(v.string()), note: v.optional(v.string()) }),
+  // PST-296: Find more adds the wave, the type and the firm's domain.
+  v.object({
+    op: v.literal('new_investor'), name: v.string(), firm: v.string(), email: v.optional(v.string()), note: v.optional(v.string()),
+    wave: v.optional(vWave), type: v.optional(vType), domain: v.optional(v.string()),
+  }),
   v.object({ op: v.literal('merge') }),
   v.object({ op: v.literal('review') }),
   // PST-277: from a meeting note (convex/noteReads.ts).

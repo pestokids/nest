@@ -127,13 +127,13 @@ async function streamed(body: Record<string, unknown>, hooks: Hooks) {
  * between steps, and that thinking counts toward max_tokens, so the cap leaves
  * it room: a request cut off at max_tokens can't be continued and fails the run.
  */
-export async function research(o: { model: Model; system: string; prompt: string; maxTokens?: number; hooks?: Hooks }): Promise<{ text: string; usage: Usage; costUsd: number }> {
+export async function research(o: { model: Model; system: string; prompt: string; maxTokens?: number; hooks?: Hooks; /** PST-296: other server tools than TOOLS (Find more: web search only). */ tools?: unknown[] }): Promise<{ text: string; usage: Usage; costUsd: number }> {
   const messages: Message[] = [{ role: 'user', content: o.prompt }]
   let usage: Usage = {}
   let costUsd = 0
   let text = ''
   for (let round = 0; ; round++) {
-    const r = await streamed({ model: o.model, max_tokens: o.maxTokens ?? 16000, system: cachedSystem(o.system), messages, tools: TOOLS }, o.hooks ?? {})
+    const r = await streamed({ model: o.model, max_tokens: o.maxTokens ?? 16000, system: cachedSystem(o.system), messages, tools: o.tools ?? TOOLS }, o.hooks ?? {})
     usage = addUsage(usage, r.usage)
     // Each step reads at most the instructions and what TOOLS allows (under 50K), so never the long-prompt price, however far the steps add up.
     costUsd += costOf(r.usage, o.model, false)

@@ -20,6 +20,8 @@ export const JEV_FEATURES = [
   'whos_this', 'unmatched_notes', 'duplicate_firms', 'qa_repeats',
   // PST-293: signals from emails and notes (src/lib/signals.ts).
   'email_signals', 'note_signals',
+  // PST-296: Find more's candidates, and Priority for investors already in Nest (src/lib/fitScore.ts).
+  'find_more', 'priority_scoring',
 ] as const
 export type JevFeature = (typeof JEV_FEATURES)[number]
 

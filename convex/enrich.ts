@@ -13,6 +13,7 @@ import { conform, SchemaError } from './lib/jsonSchema'
 import { factsFrom, investorPrompt, parseStep, senderPrompt, SYSTEM, vResearch } from './lib/research'
 import { aiSettings, CACHE_DAYS, capLeft, featureModel, modelChoice, pump, queue, syncReview } from './lib/enrichQueue'
 import { jevStatus } from './lib/jev'
+import { rescoreLater } from './lib/fitScores' // PST-296
 import { saveInvestor } from './investors'
 import { vNewFact, vStep, vVerdict } from './enrichSchema'
 import { vFeature, vModel, vUsage } from './validators'
@@ -82,8 +83,10 @@ export const data = query({
     recent.sort((x, y) => y.at - x.at)
     // PST-273: Drafts count toward the spend too, and every feature's runs this month (by model) and its real usage feed Settings › AI's Model section.
     const drafts = await ctx.db.query('drafts').withIndex('by_created', (q) => q.gte('createdAt', monthStart)).collect()
+    // PST-296: Find more runs (Haiku and web searches; their Jev calls are in Jev's month).
+    const finds = (await ctx.db.query('findRuns').withIndex('by_started', (q) => q.gte('startedAt', monthStart)).collect()).filter((r) => r.status !== 'running')
     const rows: Record<Feature, { model?: Model; usage?: RunUsage; costUsd: number }[]> = {
-      enrich: month.filter((r) => !r.cached), notes: reads.filter((r) => r.status !== 'reading'), drafts: drafts.filter((d) => d.costUsd > 0), ask: asks, brief: briefs,
+      enrich: month.filter((r) => !r.cached), notes: reads.filter((r) => r.status !== 'reading'), drafts: drafts.filter((d) => d.costUsd > 0), ask: asks, brief: briefs, find: finds,
     }
     const lastRuns = {
       enrich: runs.filter((r) => !r.cached),
@@ -91,6 +94,7 @@ export const data = query({
       drafts: await ctx.db.query('drafts').withIndex('by_created').order('desc').take(REAL_RUNS * 4),
       ask: await ctx.db.query('askRuns').withIndex('by_started').order('desc').take(REAL_RUNS * 4),
       brief: await ctx.db.query('briefs').withIndex('by_built').order('desc').take(REAL_RUNS * 2),
+      find: await ctx.db.query('findRuns').withIndex('by_started').order('desc').take(REAL_RUNS),
     }
     const byModel = Object.fromEntries(MODELS.map((m) => [m, 0])) as Record<Model, number>
     const byFeature = Object.fromEntries(FEATURES.map((k) => [k, 0])) as Record<Feature, number>
@@ -117,7 +121,7 @@ export const data = query({
       features,
       spend: { byModel, byFeature },
       month: {
-        usd: [...month, ...reads, ...asks, ...briefs, ...drafts].reduce((s, r) => s + r.costUsd, 0) + jev.monthUsd,
+        usd: [...month, ...reads, ...asks, ...briefs, ...drafts, ...finds].reduce((s, r) => s + r.costUsd, 0) + jev.monthUsd,
         asks: asks.length,
         noteReads: reads.filter((r) => r.status !== 'reading').length,
         lookups: month.filter((r) => !r.investorId && !r.cached).length,
@@ -260,6 +264,8 @@ export const keepFact = mutation({
     if (!f) throw new ConvexError('That fact is gone. Try Refresh.')
     const clash = await keep(ctx, userId, f)
     await syncReview(ctx, f.runId)
+    // PST-296: a kept fund fact can change the investor's Jev fit score (skipped when the facts Jev reads are the same).
+    if (f.investorId && f.group === 'fund') await rescoreLater(ctx, f.investorId)
     return clash ?? null
   },
 })
@@ -300,6 +306,9 @@ export const keepAll = mutation({
     const facts = await pendingOf(ctx, runId)
     for (const f of facts) await keep(ctx, userId, (await ctx.db.get(f._id))!)
     await syncReview(ctx, runId)
+    // PST-296: once for the run's investor, after all of it is kept.
+    const fund = facts.find((f) => f.investorId && f.group === 'fund')
+    if (fund?.investorId) await rescoreLater(ctx, fund.investorId)
     return facts.length
   },
 })
