@@ -11,6 +11,7 @@ import { exportInvestors } from '../../../components/investors/exportCsv'
 import { InvestorViews } from '../../../components/investors/InvestorViews' // PST-294
 import { IntroducersView } from '../../../components/introducers/IntroducersView' // PST-294
 import { Button } from '../../../components/ui' // PST-294
+import { NETWORK_FILTERS, type NetworkFilter } from '../../../lib/network' // PST-305
 // PST-296: Find more like these, and Jev's fit scores in Sort: Priority.
 import { FindMoreButton, FindMorePanel } from '../../../components/investors/FindMore'
 import { previewFind, usePriorityScores } from '../../../components/investors/findMoreData'
@@ -36,9 +37,10 @@ export type InvestorSearch = InvestorFilters & {
   dir?: 'asc' | 'desc'
   /** Open the CSV import (the Raise header's Import CSV links here). */
   import?: boolean
-  /* PST-294: Investors › Introducers, and the introducer whose panel is open. */
-  view?: 'introducers'
+  /* PST-294: Investors › Introducers, and the introducer whose panel is open. PST-305: it's Network now (?view=introducers still opens it), with its filter chip. */
+  view?: 'network'
   person?: string
+  rel?: NetworkFilter
 }
 
 const oneOf = <T extends string | number>(xs: readonly T[], v: unknown): T | undefined => (xs as readonly unknown[]).includes(v) ? (v as T) : (xs as readonly unknown[]).includes(Number(v)) ? (Number(v) as T) : undefined
@@ -57,7 +59,8 @@ export const Route = createFileRoute('/_app/raise/investors')({
     dir: oneOf(['asc', 'desc'] as const, s.dir),
     import: s.import === true || s.import === '1' || s.import === 'true' ? true : undefined,
     // PST-294
-    view: s.view === 'introducers' ? 'introducers' : undefined,
+    view: s.view === 'network' || s.view === 'introducers' ? 'network' : undefined,
+    rel: oneOf(NETWORK_FILTERS, s.rel), // PST-305
     person: typeof s.person === 'string' && s.person ? s.person : undefined,
   }),
   component: Investors,
@@ -90,11 +93,14 @@ function Investors() {
   const [batch, setBatch] = useState<string[] | null>(null)
   const closeBatch = useCallback(() => setBatch(null), [])
   // PST-294: Add introducer (Introducers view), and ?preview&investors=introducers or &introducer=panel|add|ask.
+  // PST-305: Network: Add person and Import CSV; ?preview&investors=network, &network=founder|friend|advisor|lookup|import.
   const [addingIntro, setAddingIntro] = useState(false)
+  const [importingPeople, setImportingPeople] = useState(() => flags?.network === 'import')
   useEffect(() => {
-    if (flags?.investors === 'introducers' || flags?.introducer) setSearch({ view: 'introducers' })
+    const net = flags?.network
+    if (flags?.investors === 'introducers' || flags?.investors === 'network' || flags?.introducer || net) setSearch({ view: 'network', ...(net === 'founder' || net === 'friend' || net === 'advisor' ? { rel: net } : {}) })
     if (flags?.introducer === 'add') setAddingIntro(true)
-  }, [flags?.investors, flags?.introducer, setSearch])
+  }, [flags?.investors, flags?.introducer, flags?.network, setSearch])
 
   // ?preview&investors=filtered|empty|bulk|enrich|exported|import1|import2|import3 (enrich: with &ai=bulk, four enriching); PST-296: find-more
   const previewDone = useRef(false)
@@ -207,20 +213,34 @@ function Investors() {
   const pickSort = (k: SortKey) => setSearch({ sort: k === 'lastTouch' ? undefined : k, dir: undefined })
 
   // PST-294
-  if (s.view === 'introducers')
+  if (s.view === 'network')
     return (
       <section className="inv">
         <div className="raise-sticky" ref={stickyHeight}>
           <InvestorViews
-            view="introducers"
+            view="network"
             right={
-              <Button variant="secondary" icon="plus" onClick={() => setAddingIntro(true)}>
-                Add introducer
-              </Button>
+              <>
+                <Button variant="secondary" icon="upload" onClick={() => setImportingPeople(true)}>
+                  Import CSV
+                </Button>
+                <Button variant="secondary" icon="plus" onClick={() => setAddingIntro(true)}>
+                  Add person
+                </Button>
+              </>
             }
           />
         </div>
-        <IntroducersView person={s.person} onPerson={(person) => setSearch({ person })} adding={addingIntro} onAdding={setAddingIntro} />
+        <IntroducersView
+          person={s.person}
+          onPerson={(person) => setSearch({ person })}
+          adding={addingIntro}
+          onAdding={setAddingIntro}
+          filter={s.rel ?? 'all'}
+          onFilter={(rel) => setSearch({ rel: rel === 'all' ? undefined : rel, person: undefined })}
+          importing={importingPeople}
+          onImporting={setImportingPeople}
+        />
       </section>
     )
 

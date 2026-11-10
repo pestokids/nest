@@ -228,6 +228,46 @@ export const AGENT_TOOLS: readonly AgentTool[] = [
       additionalProperties: false,
     },
   },
+  /* ---------- PST-305: the Network ---------- */
+  {
+    name: 'add_person',
+    title: 'Add a person to the Network',
+    scope: 'suggest',
+    description:
+      'Suggest adding someone who can introduce Dev to investors (a founder, friend, advisor or angel) to Investors › Network. Nothing changes until Dev accepts it in Suggestions. Someone already in the Network (same name or email) isn’t suggested again.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', minLength: 1, maxLength: 120, description: 'Their name.' },
+        relation: { type: 'string', enum: ['founder', 'friend', 'advisor', 'angel', 'other'], description: 'How Dev knows them: founder (a founder whose investors could back Pesto), friend, advisor, angel or other.' },
+        email: { type: 'string', format: 'email', maxLength: 254, description: 'Their email address, if you know it.' },
+        company: { type: 'string', maxLength: 120, description: 'For a founder, their company; for an angel, their title or company.' },
+        note: { type: 'string', maxLength: 500, description: 'How Dev knows them, or what they advise on.' },
+      },
+      required: ['name', 'relation'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'add_to_network_list',
+    title: 'Add an investor to a person’s list',
+    scope: 'suggest',
+    description:
+      'Suggest an investor that someone in the Network could introduce Dev to. Give investorId for an investor already in Nest, or firm (and partner) for one that isn’t: accepting adds that firm to Investors as Not contacted, warm path “via <person>”. Either way the intro waits as “to ask”. Nothing changes until Dev accepts it in Suggestions.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        person: { type: 'string', minLength: 1, maxLength: 120, description: 'The person in the Network, by name.' },
+        investorId: ID,
+        firm: { type: 'string', maxLength: 120, description: 'A firm that isn’t in Nest yet.' },
+        partner: { type: 'string', maxLength: 120, description: 'The partner there, if known.' },
+        why: { type: 'string', maxLength: 300, description: 'Why they could make this intro, e.g. “Backed their company at seed in 2025”.' },
+      },
+      required: ['person'],
+      additionalProperties: false,
+    },
+  },
+  /* ---------- end PST-305 ---------- */
 ]
 
 /** The tools a key can see and call: read keys get the read tools only. */
@@ -340,7 +380,7 @@ export function keyMeta(k: Pick<AgentKeyRow, 'lastUsedAt' | 'calls7d'>, now: num
 }
 
 /** The side card's "Agents can" list, and the one thing they never can. */
-export const AGENTS_CAN = ['Read investors, history, meetings and the Q&A bank', 'Log a touch, add an investor and add meeting notes', 'Suggest stage moves, next steps, notes, outreach and application fixes'] as const
+export const AGENTS_CAN = ['Read investors, history, meetings and the Q&A bank', 'Log a touch, add an investor and add meeting notes', 'Suggest stage moves, next steps, notes, outreach and application fixes', /* PST-305 */ 'Suggest people for the Network and investors for their lists'] as const
 export const AGENTS_NEVER = 'Never send an email, move a stage or delete anything'
 
 /* ---------- the Nest skill ---------- */
@@ -354,7 +394,8 @@ export function nestSkill(serverUrl: string = PROD_MCP_URL): string {
 Nest is Pesto's tracker for its pre-seed raise: every investor with their stage, next step and date, every touch, meetings and email subjects, and a Q&A bank of the questions investors ask with Dev's best answers. You reach it through the Nest MCP server at ${serverUrl}.
 
 - Read: \`search_investors\`, \`get_investor\`, \`todays_moves\`, \`list_questions\`, \`round_totals\`, \`material_opens\`, \`meetings_between\`.
-- Suggest (keys that can suggest changes): \`log_touch\`, \`add_investor\`, \`suggest_change\`, \`enrich\`, \`add_meeting_notes\`.
+- Suggest (keys that can suggest changes): \`log_touch\`, \`add_investor\`, \`suggest_change\`, \`enrich\`, \`add_meeting_notes\`, \`add_person\`, \`add_to_network_list\`.
+- The Network (Investors › Network) is founders, friends and advisors who can introduce Dev. \`add_person\` suggests someone new; \`add_to_network_list\` suggests an investor one of them could introduce (by investorId, or a firm not in Nest yet). Both wait in Suggestions.
 - For "who should I follow up with today?", start with \`todays_moves\`.
 
 ## Always suggest, never claim

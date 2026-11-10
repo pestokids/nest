@@ -78,7 +78,8 @@ function RaiseLayout() {
     // PST-303: &drawer=edit-vc|edit-accelerator|edit-angel opens the edit form on that kind of investor.
     const editOn = PREVIEW_EDIT_ON[preview.drawer]
     // PST-302: &drawer=application opens on the made-up accelerator with an application, its Application row ready to edit.
-    const named = preview.drawer === 'decision' ? 'Orchard Capital' : preview.drawer === 'application' ? 'Northwind Accelerator' : editOn ?? null
+    // PST-305: with &network=advisor, Saltmarsh Angels (Neha's own card: "Also your advisor · Neha Rao").
+    const named = preview.drawer === 'decision' ? 'Orchard Capital' : preview.drawer === 'application' ? 'Northwind Accelerator' : editOn ?? (preview.network === 'advisor' ? 'Saltmarsh Angels' : null)
     const pick = (named ? raw.investors.find((i) => i.name === named) : undefined) ?? raw.investors.find((i) => i.stage === 'booked') ?? raw.investors[0]
     if (preview.drawer === 'new') setDrawer({ id: null, opts: NO_OPTS })
     else if (pick) setDrawer({ id: pick._id, opts: NO_OPTS, start: editOn ? 'edit' : preview.drawer === 'application' ? 'view' : (preview.drawer as DrawerStart) })

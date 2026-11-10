@@ -7,10 +7,18 @@ import { domainOf, normEmail } from './google'
 import { committedOf, type Investor } from './pipeline'
 import { COMMIT, IDX } from './stages'
 
-export const RELATIONS = ['portfolio', 'angel', 'friend', 'committed', 'other'] as const
+// PST-305: Network. Founders, friends, advisors and angels (committed investors stay derived).
+// Rows written before PST-305 may still say 'portfolio' until network.migrateRelations has run:
+// it is read as 'founder' (relationOf).
+export const RELATIONS = ['founder', 'friend', 'advisor', 'angel', 'committed', 'other'] as const
 export type Relation = (typeof RELATIONS)[number]
+/** What a stored row may say: every relation, and the pre-PST-305 'portfolio'. */
+export const STORED_RELATIONS = [...RELATIONS, 'portfolio'] as const
+export type StoredRelation = (typeof STORED_RELATIONS)[number]
+/** A stored relation as Nest reads it: 'portfolio' is a founder. */
+export const relationOf = (r: StoredRelation): Relation => (r === 'portfolio' ? 'founder' : r)
 export const RELATION_LABEL: Record<Relation, string> = {
-  portfolio: 'Portfolio founder', angel: 'Angel', friend: 'Friend', committed: 'Committed investor', other: 'Other',
+  founder: 'Founder', friend: 'Friend', advisor: 'Advisor', angel: 'Angel', committed: 'Committed investor', other: 'Other',
 }
 /** What Dev picks from when adding someone: committed investors come from the list, never typed in. */
 export const PICK_RELATIONS = RELATIONS.filter((r) => r !== 'committed')
@@ -34,7 +42,18 @@ export function stepLabel(s: Step, who: string): string {
 /** Each step's day (YYYY-MM-DD, IST); a step without one isn't done. */
 export type Steps = Partial<Record<Step, string>>
 
-export type Introducer = { _id: string; name: string; email?: string; relation: Relation; notes: string; createdAt?: number }
+export type Introducer = { _id: string; name: string; email?: string; relation: Relation; notes: string; createdAt?: number } & PersonExtras
+
+/** PST-305: what each person can do. Can intro is on unless switched off. */
+export type Roles = { canIntro: boolean; wantsToInvest: boolean; givesAdvice: boolean }
+/** PST-305: a person's company (founders), their roles, and the investor they also are (wants to invest). All optional on old rows. */
+export type PersonExtras = { company?: string; companyDomain?: string; roles?: Partial<Roles>; investorId?: string }
+/** Roles with their defaults: Can intro on, Gives advice on for an advisor. */
+export const rolesOf = (p: { relation: Relation; roles?: Partial<Roles> }): Roles => ({
+  canIntro: p.roles?.canIntro ?? true,
+  wantsToInvest: p.roles?.wantsToInvest ?? false,
+  givesAdvice: p.roles?.givesAdvice ?? p.relation === 'advisor',
+})
 /** One intro: an introducer (a person, or a committed investor) to one investor. */
 export type Intro = {
   _id: string
@@ -51,7 +70,7 @@ export type Intro = {
 }
 
 /** An introducer as every view shows them: a person, or a committed investor (key "inv:<id>"). */
-export type Person = { key: string; name: string; email?: string; relation: Relation; notes: string; introducerId?: string; investorId?: string }
+export type Person = { key: string; name: string; email?: string; relation: Relation; notes: string; introducerId?: string; investorId?: string; company?: string; companyDomain?: string; roles?: Partial<Roles> }
 
 export const personKey = (x: { introducerId?: string; viaInvestorId?: string }) => (x.introducerId ? x.introducerId : 'inv:' + x.viaInvestorId)
 export const firstName = (name: string) => name.trim().split(/\s+/)[0] || name
@@ -98,7 +117,8 @@ export function parsePath(path: string): PathPerson[] {
 /** A guess at the relation from the warm path's note ("portfolio founder", "angel", "ex-colleague"). */
 export function relationFromHint(hint: string): Relation {
   const h = hint.toLowerCase()
-  if (/portfolio|founder/.test(h)) return 'portfolio'
+  if (/portfolio|founder/.test(h)) return 'founder'
+  if (/advis|mentor/.test(h)) return 'advisor'
   if (/angel|invest/.test(h)) return 'angel'
   if (/friend|colleague|cousin|classmate|batch|school|college|family|brother|sister/.test(h)) return 'friend'
   return 'other'
@@ -169,6 +189,9 @@ export const needsMigration = (inv: Pick<Investor, '_id' | 'path'>, intros: read
 export const lastDone = (s: Steps) => STEPS.reduce((a, k, i) => (s[k] ? i : a), -1)
 export const nextStepOf = (s: Steps): Step | null => STEPS[lastDone(s) + 1] ?? null
 
+/** PST-305: the state before "asked": the investor is picked, nobody has been asked yet (no step done). Not a seventh step. */
+export const isToAsk = (x: Pick<Intro, 'steps'>) => lastDone(x.steps) < 0
+
 /**
  * Tick a step on a day: the steps before it that aren't done are done that day
  * too, and none of them stays later than it. Untick (day null): that step and
@@ -203,17 +226,23 @@ export const saidNo = (inv: Decided) => inv.decision === 'no' || (inv.decision !
 
 /* ---------- the people, and each one's numbers ---------- */
 
-/** Committed investors, as introducers (derived: no rows of their own). */
-export function committedPeople(investors: readonly Investor[]): Person[] {
+/** Committed investors, as introducers (derived: no rows of their own). PST-305: one already linked to a person is that person, never a second row. */
+export function committedPeople(investors: readonly Investor[], linked: ReadonlySet<string> = new Set()): Person[] {
   return investors
-    .filter((i) => COMMIT.has(i.stage))
+    .filter((i) => COMMIT.has(i.stage) && !linked.has(i._id))
     .map((i) => ({ key: 'inv:' + i._id, name: i.name, email: i.email, relation: 'committed' as const, notes: i.firm && i.firm !== i.name ? i.firm : '', investorId: i._id }))
 }
 
 export function allPeople(introducers: readonly Introducer[], investors: readonly Investor[]): Person[] {
+  const ids = new Set(investors.map((i) => i._id))
   return [
-    ...introducers.map((p) => ({ key: p._id, name: p.name, email: p.email, relation: p.relation, notes: p.notes, introducerId: p._id })),
-    ...committedPeople(investors),
+    ...introducers.map((p) => ({
+      key: p._id, name: p.name, email: p.email, relation: p.relation, notes: p.notes, introducerId: p._id,
+      // PST-305
+      ...(p.company ? { company: p.company } : {}), ...(p.companyDomain ? { companyDomain: p.companyDomain } : {}), ...(p.roles ? { roles: p.roles } : {}),
+      ...(p.investorId && ids.has(p.investorId) ? { investorId: p.investorId } : {}),
+    })),
+    ...committedPeople(investors, new Set(introducers.flatMap((p) => (p.investorId ? [p.investorId] : [])))),
   ]
 }
 
@@ -306,6 +335,12 @@ export function personNext(intros: readonly Intro[], investors: readonly IntroIn
   if (forwarding) return { tone: 'plain', text: 'Waiting on ' + who + ' to forward' + (forwarding > 1 ? ' ' + forwarding : '') }
   const asked = intros.filter((x) => x.steps.asked && !x.steps.yes).length
   if (asked) return { tone: 'plain', text: asked === 1 ? 'Asked, waiting on a reply' : 'Asked for ' + asked + ' intros' }
+  // PST-305: investors picked ("to ask") and nobody asked yet.
+  const toAsk = intros.filter(isToAsk)
+  if (toAsk.length && !intros.some((x) => x.steps.asked)) {
+    const names = toAsk.map((x) => short(byId.get(x.investorId)))
+    return { tone: 'plain', text: 'Ask ' + who + ' for intros to ' + (names.length <= 2 ? names.join(' and ') : names.slice(0, 2).join(', ') + ' and ' + (names.length - 2) + ' more') }
+  }
   if (intros.some((x) => x.steps.made)) return { tone: 'plain', text: 'All reported back' }
   return { tone: 'plain', text: intros.length ? 'Ask for the intro' : 'Not asked yet' }
 }
@@ -322,9 +357,9 @@ export function personRows(src: IntroSources, today: string): PersonRow[] {
   return rows.sort((a, b) => rank(a) - rank(b) || b.stats.made - a.stats.made || b.stats.asked - a.stats.asked || a.name.localeCompare(b.name))
 }
 
-/** One line about a person: "Founder of Tinkerly · portfolio founder". */
-export const personSub = (p: Pick<Person, 'relation' | 'notes'>) =>
-  [p.notes.trim(), p.relation === 'other' ? '' : RELATION_LABEL[p.relation].toLowerCase()].filter(Boolean).join(' · ') || RELATION_LABEL[p.relation]
+/** One line about a person: "Founder · Tinkerly", "Friend · Ex-colleague". PST-305: relation, then company (or the notes). */
+export const personSub = (p: Pick<Person, 'relation' | 'notes'> & { company?: string }) =>
+  [RELATION_LABEL[p.relation], (p.company ?? '').trim() || p.notes.trim()].filter(Boolean).join(' · ')
 
 /** Two initials for the avatar. */
 export const initials = (name: string) =>

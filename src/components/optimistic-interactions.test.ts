@@ -93,7 +93,7 @@ describe('race: Mark sent and its Undo', () => {
 })
 
 describe('introducers', () => {
-  const ankur = { _id: 'pi1', name: 'Ankur Mehta', relation: 'portfolio', notes: 'Founder of Tinkerly', createdAt: 1 }
+  const ankur = { _id: 'pi1', name: 'Ankur Mehta', relation: 'founder', notes: 'Founder of Tinkerly', createdAt: 1 }
   const intro = { _id: 'pn1', investorId: 'inv1', introducerId: 'pi1', steps: { asked: '2030-03-01' }, createdAt: 1 }
   const seed = () => fakeStore([[api.introducers.list, {}, { introducers: [ankur], intros: [intro] }]])
 

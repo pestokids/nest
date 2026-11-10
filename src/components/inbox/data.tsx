@@ -25,6 +25,7 @@ import type { ChipTone } from '../ui'
 export const INBOX_TONE: Record<InboxType, ChipTone> = {
   followup: 'waiting', reply: 'success', thank: 'success', report: 'success', decide: 'error', awaiting: 'waiting', confirm: 'selected', close: 'selected',
   due: 'outline', review: 'neutral', fix: 'success', opened: 'success', quiet: 'waiting', move: 'muted',
+  introask: 'outline', // PST-305
 }
 
 export type InboxValue = {

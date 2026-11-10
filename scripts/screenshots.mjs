@@ -114,6 +114,11 @@ const SCREENS = [
   // PST-294: Introducers, the warm path and the forwardable intro
   ['investors-introducers', '/raise/investors?preview&investors=introducers'],
   ...['panel', 'add', 'ask'].map((s) => [`introducer-${s}`, `/raise/investors?preview&introducer=${s}`]),
+  // PST-305: Network
+  ['network-view', '/raise/investors?preview&investors=network'],
+  ...['founder', 'friend', 'advisor', 'lookup', 'import'].map((s) => [`network-${s}`, `/raise/investors?preview&network=${s}`]),
+  ['network-intro-ask', '/raise/investors?preview&investors=network&draft=intro-ask'],
+  ['network-also-advisor', '/raise/investors?preview&drawer=view&network=advisor'],
   ['draft-forwardable', '/raise/investors?preview&draft=forwardable'],
   ['drawer-warm-path', '/raise/pipeline?preview&drawer=warm-path'],
   // PST-295: Pipeline › Race and the lead

@@ -1,6 +1,6 @@
 // PST-294: the introducer rows PST-297's Inbox (and Today, for now) shows. Every name is made up.
 import { describe, expect, it } from 'vitest'
-import { introNudges, introReports, introThanks } from './inbox'
+import { introAsks, introNudges, introReports, introThanks } from './inbox'
 import type { Intro, Introducer } from './introducers'
 import type { Investor } from './pipeline'
 
@@ -9,7 +9,7 @@ const inv = (id: string, name: string, o: Partial<Investor> = {}): Investor =>
 
 const today = '2026-11-08'
 const introducers: Introducer[] = [
-  { _id: 'p1', name: 'Ankur Mehta', relation: 'portfolio', notes: '' },
+  { _id: 'p1', name: 'Ankur Mehta', relation: 'founder', notes: '' },
   { _id: 'p2', name: 'Dana Lee', relation: 'friend', notes: '' },
 ]
 const investors = [
@@ -80,5 +80,33 @@ describe('nudge an introducer after 3 days with no reply', () => {
       ['nudge-introducer:g', 'Nudge Dana about Morrow Ventures', 'Asked 5 days ago, no reply', '2026-11-06'],
       ['nudge-introducer:a', 'Nudge Dana about Harbor Light', 'Asked 3 days ago, no reply', '2026-11-08'],
     ])
+  })
+})
+
+/* ---------- PST-305: "to ask" ---------- */
+
+describe('intros "to ask" (picked, not asked yet)', () => {
+  const toAsk = [intro('a', 'l', {}), intro('b', 'h', {}), intro('c', 'pb', {}), intro('d', 's', {}), intro('e', 'q', {}, { introducerId: 'p2' })]
+
+  it('are not started: nothing to thank, report or nudge', () => {
+    const src = { introducers, investors, today, intros: toAsk }
+    expect(introThanks(src)).toEqual([])
+    expect(introReports(src)).toEqual([])
+    expect(introNudges(src)).toEqual([])
+  })
+
+  it('make one "Ask <name> for intros" row per person, leaving out investors who passed or committed', () => {
+    const rows = introAsks({ introducers, investors, today, intros: toAsk })
+    expect(rows.map((r) => [r.personKey, r.name, r.introIds])).toEqual([
+      ['p1', 'Ankur Mehta', ['a', 'b']],
+      ['p2', 'Dana Lee', ['e']],
+    ])
+  })
+
+  it('wait while an ask to that person has no reply, and skip someone who can’t intro', () => {
+    const waiting = [...toAsk, intro('w', 'm', { asked: '2026-11-07' })]
+    expect(introAsks({ introducers, investors, today, intros: waiting }).map((r) => r.personKey)).toEqual(['p2'])
+    const quiet = introducers.map((p) => (p._id === 'p2' ? { ...p, roles: { canIntro: false } } : p))
+    expect(introAsks({ introducers: quiet, investors, today, intros: toAsk }).map((r) => r.personKey)).toEqual(['p1'])
   })
 })

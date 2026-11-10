@@ -11,7 +11,7 @@ import type { Investor } from '../lib/pipeline'
 import { addDays } from '../lib/today'
 
 const PEOPLE: Introducer[] = [
-  { _id: 'pi-ankur', name: 'Ankur Mehta', email: 'ankur@tinkerly.example', relation: 'portfolio', notes: 'Founder of Tinkerly' },
+  { _id: 'pi-ankur', name: 'Ankur Mehta', email: 'ankur@tinkerly.example', relation: 'founder', notes: 'Founder of Tinkerly' },
   { _id: 'pi-mira', name: 'Mira Shah', email: 'mira@shah.example', relation: 'angel', notes: 'Invested in 2 kids startups' },
   { _id: 'pi-ria', name: 'Ria Kapoor', relation: 'friend', notes: 'Ex-colleague' },
   { _id: 'pi-dana', name: 'Dana Lee', email: 'dana@lee.example', relation: 'friend', notes: 'Founder friend' },

@@ -29,14 +29,16 @@ import { LABEL } from '../src/lib/stages'
 import { addRunUsage } from '../src/lib/models'
 import { askByDate } from '../src/lib/decisions' // PST-293
 import { decisionFor } from './decisions' // PST-293
-import { RELATION_LABEL } from '../src/lib/introducers'
+import { RELATION_LABEL, relationOf } from '../src/lib/introducers'
+import { WHY_SLOT } from '../src/lib/network' // PST-305
 
 const noKey = () => new ConvexError({ code: NO_AI_KEY, message: 'AI isn’t set up here.' })
 // PST-294: a forwardable intro also carries its intro and the second email.
 const vForward = v.object({ subject: v.string(), body: v.string() })
-const vInput = { draftId: v.optional(v.id('drafts')), investorId: v.id('investors'), type: vDraftType, to: v.string(), subject: v.string(), body: v.string(), introId: v.optional(v.id('intros')), forward: v.optional(vForward) }
+// PST-305: the intro ask carries its intros.
+const vInput = { draftId: v.optional(v.id('drafts')), investorId: v.id('investors'), type: vDraftType, to: v.string(), subject: v.string(), body: v.string(), introId: v.optional(v.id('intros')), forward: v.optional(vForward), introIds: v.optional(v.array(v.id('intros'))) }
 type Forward = { subject: string; body: string }
-type Input = { draftId?: Id<'drafts'>; investorId: Id<'investors'>; type: Doc<'drafts'>['type']; to: string; subject: string; body: string; introId?: Id<'intros'>; forward?: Forward }
+type Input = { draftId?: Id<'drafts'>; investorId: Id<'investors'>; type: Doc<'drafts'>['type']; to: string; subject: string; body: string; introId?: Id<'intros'>; forward?: Forward; introIds?: Id<'intros'>[] }
 
 /* ---------- what the dialog and the drawer read ---------- */
 
@@ -152,7 +154,7 @@ async function introContext(ctx: QueryCtx, introId: Id<'intros'>, investorId: Id
   const p = x.introducerId ? await ctx.db.get(x.introducerId) : null
   const via = x.viaInvestorId ? await ctx.db.get(x.viaInvestorId) : null
   const introducer = p
-    ? { name: p.name, email: p.email, relation: RELATION_LABEL[p.relation], notes: p.notes }
+    ? { name: p.name, email: p.email, relation: RELATION_LABEL[relationOf(p.relation)], notes: p.notes }
     : via
       ? { name: via.name, email: via.email, relation: RELATION_LABEL.committed, notes: via.firm && via.firm !== via.name ? via.firm : '' }
       : null
@@ -232,7 +234,11 @@ const cleanForward = (f: Forward): Forward => ({ subject: f.subject.trim().repla
 /** The dialog's row, updated with what's in the fields; a new row when there's none yet (Dev wrote it, or AI isn't set up). */
 async function upsert(ctx: MutationCtx, userId: Id<'users'>, a: Input, body: string, patch: Partial<Doc<'drafts'>> = {}) {
   const c = clean(a)
-  const fields = { type: a.type, subject: c.subject, body, ...(c.to ? { to: c.to } : {}), ...(a.introId ? { introId: a.introId } : {}), ...(a.forward ? { forward: cleanForward(a.forward) } : {}), ...patch }
+  const fields = {
+    type: a.type, subject: c.subject, body, ...(c.to ? { to: c.to } : {}), ...(a.introId ? { introId: a.introId } : {}), ...(a.forward ? { forward: cleanForward(a.forward) } : {}),
+    ...(a.introIds ? { introIds: a.introIds } : {}), // PST-305
+    ...patch,
+  }
   const prev = a.draftId ? await ctx.db.get(a.draftId) : null
   if (prev && prev.investorId === a.investorId) {
     await ctx.db.patch(prev._id, fields)
@@ -314,7 +320,9 @@ export const markSent = mutation({
     if (d.status === 'sent') return { logged: false }
     const at = Date.now()
     await ctx.db.patch(draftId, { status: 'sent', sentAt: at })
-    await logTouch(ctx, userId, d)
+    // PST-305: the intro ask goes to the person, not the investors: no investor touch, "Asked" on each intro instead.
+    if (d.type !== 'introAsk') await logTouch(ctx, userId, d)
+    for (const x of d.introIds ?? []) await markAsked(ctx, x)
     // PST-291: a written confirmation that went starts the 48-hour offer.
     if (d.type === 'confirm') await stampConfirmation(ctx, userId, d.investorId, at)
     if (d.introId) await markAsked(ctx, d.introId)
@@ -335,6 +343,7 @@ export const prepareSend = internalMutation({
     const n = blanks(c.subject + '\n' + c.body)
     if (n) throw new ConvexError('Fill in the ' + (n === 1 ? 'blank' : n + ' blanks') + ' ([__]) before sending.')
     if (c.body.includes(SAFE_LINK)) throw new ConvexError('Paste the SAFE link in place of ' + SAFE_LINK + ' before sending.')
+    if (c.body.includes(WHY_SLOT)) throw new ConvexError('Say why each investor fits in place of ' + WHY_SLOT + ' before sending.') // PST-305
     if (a.type === 'confirm') await confirmationTarget(ctx, a.investorId)
     const prev = a.draftId ? await ctx.db.get(a.draftId) : null
     if (prev?.status === 'sent') throw new ConvexError('This one has already gone. Start a new draft.')
@@ -354,7 +363,9 @@ export const sentByEmail = internalMutation({
     if (!d || d.status === 'sent') return
     const at = Date.now()
     await ctx.db.patch(draftId, { status: 'sent', via: 'nest', sentAt: at })
-    await logTouch(ctx, userId, { ...d, via: 'nest' })
+    // PST-305: the intro ask ticks "Asked" on each of its intros, and touches no investor.
+    if (d.type !== 'introAsk') await logTouch(ctx, userId, { ...d, via: 'nest' })
+    for (const x of d.introIds ?? []) await markAsked(ctx, x)
     // PST-291: a written confirmation that went starts the 48-hour offer.
     if (d.type === 'confirm') await stampConfirmation(ctx, userId, d.investorId, at)
     // PST-294: sending a forwardable intro's ask ticks "Asked" and starts the clock.

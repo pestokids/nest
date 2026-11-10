@@ -3,10 +3,13 @@
 // its own block so other branches' schema changes rebase around it.
 import { defineTable } from 'convex/server'
 import { v } from 'convex/values'
-import { RELATIONS, STEPS } from '../src/lib/introducers'
+import { RELATIONS, STEPS, STORED_RELATIONS } from '../src/lib/introducers'
+import { networkPersonFields } from './networkSchema' // PST-305
 
 const lit = <T extends string>(xs: readonly T[]) => v.union(...xs.map((x) => v.literal(x)))
 export const vRelation = lit(RELATIONS)
+/** PST-305: what a row may hold: every relation, and 'portfolio' until network.migrateRelations has run. */
+export const vStoredRelation = lit(STORED_RELATIONS)
 export const vStep = lit(STEPS)
 /** Each step's day (YYYY-MM-DD, IST); absent until done. */
 const day = v.optional(v.string())
@@ -19,11 +22,15 @@ export const introducerTables = {
     /** normName(name): the same person is one row. */
     key: v.string(),
     email: v.optional(v.string()),
-    relation: vRelation,
+    relation: vStoredRelation,
     notes: v.string(),
     createdAt: v.number(),
     createdBy: v.optional(v.id('users')),
-  }).index('by_key', ['key']),
+    // PST-305 (optional, additive): company, its domain, roles, and the investor they also are.
+    ...networkPersonFields,
+  })
+    .index('by_key', ['key'])
+    .index('by_investor', ['investorId']), // PST-305
 
   // One intro per introducer (a person, or a committed investor) and investor.
   intros: defineTable({

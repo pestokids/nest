@@ -59,6 +59,8 @@ export type PreviewState = {
   /** `&stage=correction`: the drawer's history after a move back, with "Mark as a correction" */
   stage?: string | null
   /* ---------- end PST-302 ---------- */
+  /** PST-305 `&network=founder|friend|advisor|lookup|import` (see src/preview/networkFixture.ts) */
+  network?: string | null
 }
 
 /** PST-279 `&ask=…`: the question ⌘K asks as it opens in Ask mode (empty: just Ask mode). See src/preview/askFixture.ts. */

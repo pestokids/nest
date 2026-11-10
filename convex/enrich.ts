@@ -85,8 +85,10 @@ export const data = query({
     const drafts = await ctx.db.query('drafts').withIndex('by_created', (q) => q.gte('createdAt', monthStart)).collect()
     // PST-296: Find more runs (Haiku and web searches; their Jev calls are in Jev's month).
     const finds = (await ctx.db.query('findRuns').withIndex('by_started', (q) => q.gte('startedAt', monthStart)).collect()).filter((r) => r.status !== 'running')
+    // PST-305: Find their investors (a founder's lookup: Haiku and web searches) counts with Find more.
+    const lookups = (await ctx.db.query('founderLookups').withIndex('by_started', (q) => q.gte('startedAt', monthStart)).collect()).filter((r) => r.status !== 'running')
     const rows: Record<Feature, { model?: Model; usage?: RunUsage; costUsd: number }[]> = {
-      enrich: month.filter((r) => !r.cached), notes: reads.filter((r) => r.status !== 'reading'), drafts: drafts.filter((d) => d.costUsd > 0), ask: asks, brief: briefs, find: finds,
+      enrich: month.filter((r) => !r.cached), notes: reads.filter((r) => r.status !== 'reading'), drafts: drafts.filter((d) => d.costUsd > 0), ask: asks, brief: briefs, find: [...finds, /* PST-305 */ ...lookups],
     }
     const lastRuns = {
       enrich: runs.filter((r) => !r.cached),
@@ -121,7 +123,7 @@ export const data = query({
       features,
       spend: { byModel, byFeature },
       month: {
-        usd: [...month, ...reads, ...asks, ...briefs, ...drafts, ...finds].reduce((s, r) => s + r.costUsd, 0) + jev.monthUsd,
+        usd: [...month, ...reads, ...asks, ...briefs, ...drafts, ...finds, /* PST-305 */ ...lookups].reduce((s, r) => s + r.costUsd, 0) + jev.monthUsd,
         asks: asks.length,
         noteReads: reads.filter((r) => r.status !== 'reading').length,
         lookups: month.filter((r) => !r.investorId && !r.cached).length,

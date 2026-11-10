@@ -12,12 +12,15 @@ export const DRAFT_TYPES = [
   'forwardable',
   // PST-295: "Ask if they'll lead".
   'lead',
+  // PST-305: "Ask <name> for intros" (one email to a person in the Network, naming 2–3 investors; convex/network.ts writes it).
+  'introAsk',
 ] as const
 export type DraftType = (typeof DRAFT_TYPES)[number]
 export const TYPE_LABEL: Record<DraftType, string> = {
   intro: 'Intro ask', followup: 'Follow-up', nudge: 'Nudge', thanks: 'Thank you', dataroom: 'Data room', confirm: 'Written confirmation', allocation: 'Allocation', decision: 'Yes or no',
   forwardable: 'Forwardable intro', // PST-294
   lead: 'Ask to lead', // PST-295
+  introAsk: 'Ask for intros', // PST-305
 }
 /**
  * The types Claude writes. PST-291: "confirm" (the written confirmation) and
@@ -140,6 +143,7 @@ export function draftTitle(type: DraftType, investor: string, warm?: Recipient |
     case 'decision': return 'Ask ' + investor + ' for a yes or no'
     case 'forwardable': return 'Ask ' + (warm?.name?.split(/\s+/)[0] || 'them') + ' for an intro to ' + investor
     case 'lead': return 'Ask ' + investor + ' if they’ll lead'
+    case 'introAsk': return 'Ask ' + (warm?.name?.split(/\s+/)[0] || 'them') + ' for intros' // PST-305
   }
 }
 
@@ -222,6 +226,8 @@ export type Draft = {
   /** PST-294: a forwardable intro's intro, and its second email (the note the introducer forwards). */
   introId?: string
   forward?: Forward
+  /** PST-305: the intro ask's intros. */
+  introIds?: string[]
 }
 
 export type Forward = { subject: string; body: string }
@@ -244,5 +250,5 @@ export type InvestorDrafts = {
 export const hasLinkSlot = (body: string) => LINK_SLOTS.some((s) => body.includes(s.slot))
 
 /** What a draft is when the dialog acts on it: the row (once there is one) and what's in the fields. */
-export type DraftInput = { draftId?: string; investorId: string; type: DraftType; to: string; subject: string; body: string; introId?: string; forward?: Forward }
-export type Generated = { draftId: string; subject: string; body: string; costUsd: number; forward?: Forward }
+export type DraftInput = { draftId?: string; investorId: string; type: DraftType; to: string; subject: string; body: string; introId?: string; forward?: Forward; /** PST-305 */ introIds?: string[] }
+export type Generated = { draftId: string; subject: string; body: string; costUsd: number; forward?: Forward; /** PST-305: the intro ask's To (the person's email). */ to?: string }

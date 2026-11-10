@@ -37,7 +37,7 @@ import { Button, buttonClass, Checkbox, Chip, Icon, Input, Segmented, Select, Su
 import { Link } from '@tanstack/react-router'
 import { DecisionSection, useDecisionHistory } from './decisions/DecisionSection' // PST-293
 import { useDecide, useDecisions } from './decisions/data'
-import { WarmPath } from './introducers/WarmPath' // PST-294
+import { AlsoInNetwork, WarmPath } from './introducers/WarmPath' // PST-294
 import { ApplicationSection } from './applications/ApplicationSection' // PST-302
 import { StageMenu } from './pipeline/StageMenu' // PST-302
 import { noteOwnMove } from '../lib/ownMove' // PST-298
@@ -582,6 +582,7 @@ function Details({ inv, log, sheet, onDelete, onEdit }: { inv: Investor; log: Ac
   if (inv.committed) rows.splice(1, 0, ['Committed', money(inv.committed)])
   return (
     <div className="details">
+      <AlsoInNetwork inv={inv} /> {/* PST-305 */}
       {/* PST-302: the application, apart from the stage */}
       <ApplicationSection inv={inv} />
       {/* PST-293 */}

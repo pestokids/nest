@@ -9,7 +9,8 @@ import { acceptsTogether, KIND_LABEL, type Suggestion } from './suggestions'
 // PST-293
 import { ASK_OR_DROP_CALLS, DECISION_LABEL, decideByLine, isDecideByPassed, undecided, type Decision } from './decisions'
 import { ASK_LABEL, decideQuestion, type SignalChange, type SignalView } from './signals'
-import { allPeople, firstName, hasDecided, NUDGE_AFTER, personKey, saidNo, waitingDays, type Intro, type IntroSources } from './introducers' // PST-294
+import { allPeople, firstName, hasDecided, NUDGE_AFTER, personKey, rolesOf, saidNo, waitingDays, type Intro, type IntroSources } from './introducers' // PST-294
+import { askable } from './network' // PST-305
 import { addDays, nextMoves, type MoveAction } from './today' // PST-294, PST-297
 // PST-297
 import { closeDue, endOfDayIST, KIT_LABEL } from './closeKit'
@@ -192,6 +193,34 @@ export function introNudges(src: IntroInboxSources): IntroRow[] {
 
 /* ---------- end PST-294 ---------- */
 
+/* ---------- PST-305: ask someone in the Network for intros ---------- */
+
+/** A person with investors "to ask" (still open), who can intro and has no ask waiting on a reply. */
+export type AskIntrosRow = { personKey: string; name: string; introIds: string[]; investorIds: string[] }
+
+/**
+ * "Ask <name> for intros": one per person with intros picked and not asked yet.
+ * Someone already asked (no yes yet) waits for their reply first. Every other
+ * introducer selector treats a "to ask" intro as not started: nothing to thank,
+ * report or nudge.
+ */
+export function introAsks(src: IntroInboxSources): AskIntrosRow[] {
+  const person = nameOf(src)
+  const byId = new Map(src.investors.map((i) => [i._id, i]))
+  const waiting = new Set(src.intros.filter((x) => x.steps.asked && !x.steps.yes && !hasDecided(byId.get(x.investorId) ?? { stage: 'passed' })).map(personKey))
+  const out = new Map<string, AskIntrosRow>()
+  for (const x of src.intros) {
+    const p = person(x)
+    if (!p || waiting.has(p.key) || !rolesOf(p).canIntro || !askable(x, byId.get(x.investorId))) continue
+    const row = out.get(p.key) ?? { personKey: p.key, name: p.name, introIds: [], investorIds: [] }
+    row.introIds.push(x._id)
+    row.investorIds.push(x.investorId)
+    out.set(p.key, row)
+  }
+  return [...out.values()].sort((a, b) => b.introIds.length - a.introIds.length || a.name.localeCompare(b.name))
+}
+/* ---------- end PST-305 ---------- */
+
 /* ---------- PST-297: the Inbox ---------- */
 // One list from every selector above and each feature's own: follow-ups after a
 // meeting, replies (with what they asked for), introducers to thank or report
@@ -203,16 +232,18 @@ export function introNudges(src: IntroInboxSources): IntroRow[] {
 // changes (a new email, a new date).
 
 /** `awaiting` is PST-302's slot: an application whose decision date passed. Its selector joins buildInbox; the rest already handles the type. */
-export const INBOX_TYPES = ['followup', 'reply', 'thank', 'report', 'decide', 'awaiting', 'confirm', 'close', 'due', 'review', 'fix', 'opened', 'quiet', 'move'] as const
+export const INBOX_TYPES = ['followup', 'reply', 'thank', 'report', 'decide', 'awaiting', 'confirm', 'close', 'due', 'review', 'fix', 'opened', 'quiet', 'move', /* PST-305 */ 'introask'] as const
 export type InboxType = (typeof INBOX_TYPES)[number]
 export const INBOX_TYPE_LABEL: Record<InboxType, string> = {
   followup: 'Follow up', reply: 'Reply', thank: 'Thank', report: 'Report back', decide: 'Decide', awaiting: 'Decision due', confirm: 'Confirm', close: 'Close',
   due: 'Next step', review: 'Review', fix: 'Fix', opened: 'Opened', quiet: 'Quiet', move: 'Next move',
+  introask: 'Ask for intros', // PST-305
 }
 /** The filter chips over the list: introducers' rows share one, and so do the close kit's. */
 export const INBOX_CHIP: Record<InboxType, string> = {
-  followup: 'Follow up', reply: 'Reply', thank: 'Introducers', report: 'Introducers', decide: 'Decide', awaiting: 'Awaiting', confirm: 'Close', close: 'Close',
+  followup: 'Follow up', reply: 'Reply', thank: 'Network', report: 'Network', decide: 'Decide', awaiting: 'Awaiting', confirm: 'Close', close: 'Close',
   due: 'Next steps', review: 'Review', fix: 'Fixes', opened: 'Opened', quiet: 'Quiet', move: 'Moves',
+  introask: 'Network', // PST-305
 }
 
 export const INBOX_GROUPS = ['now', 'today', 'later'] as const
@@ -226,6 +257,7 @@ export type InboxAction =
   | { kind: 'open'; tab?: 'materials' | 'notes'; /** Opened links: their notices are seen once opened. */ seen?: string[] }
   | { kind: 'step'; introIds: string[]; step: 'thanked' | 'reported' }
   | { kind: 'nudge-introducer'; introIds: string[] }
+  | { kind: 'ask-intros'; personKey: string; investorId: string } // PST-305
   | { kind: 'resolve'; signalId: string }
   | { kind: 'kit' }
   | { kind: 'done' }
@@ -398,6 +430,13 @@ function introRows(src: InboxSources): Raw[] {
       key: 'quiet:' + key, type: 'quiet', group: 'later', name: rs[0].name, personKey: key, investorId: rs.length === 1 ? rs[0].investorId : undefined,
       detail: rs[0].detail + ' about ' + names(rs.map((r) => inv.get(r.investorId)!)) + '.', when: '',
       version: rs.map((r) => r.introId + '@' + r.due).join(','), label: 'Nudge', action: { kind: 'nudge-introducer', introIds: rs.map((r) => r.introId) },
+    })
+  // PST-305: Ask <name> for intros.
+  for (const a of introAsks(isrc))
+    out.push({
+      key: 'introask:' + a.personKey, type: 'introask', group: 'later', name: a.name, personKey: a.personKey,
+      detail: a.introIds.length + ' to ask about: ' + names(a.investorIds.slice(0, 3).map((id) => inv.get(id)!)) + (a.investorIds.length > 3 ? ' and more' : ''), when: '',
+      version: a.introIds.join(','), label: 'Ask ' + firstName(a.name) + ' for intros', action: { kind: 'ask-intros', personKey: a.personKey, investorId: a.investorIds[0] },
     })
   return out
 }

@@ -1,3 +1,4 @@
+import { PICK_RELATIONS } from '../src/lib/introducers' // PST-305
 import { v } from 'convex/values'
 import { ALL, GEOS, METRICS_LIST, PIPELINE_LIST, SUGGESTION_KINDS, SUGGESTION_SOURCES, SUGGESTION_STATUSES, TIERS, TOUCHES, TYPES, WARMTHS } from './lib/enums'
 import { FEATURES, MODELS } from '../src/lib/models'
@@ -109,6 +110,9 @@ export const vSuggestionPatch = v.union(
   v.object({ op: v.literal('notes'), mode: v.union(v.literal('replace'), v.literal('append')), text: v.string(), before: v.string() }),
   v.object({ op: v.literal('outreach'), path: v.optional(v.string()), warmth: v.optional(vWarmth), source: v.optional(v.string()) }),
   v.object({ op: v.literal('application'), status: lit(APPLICATION_STATUSES), program: v.optional(v.string()), submittedOn: v.optional(v.string()), decisionBy: v.optional(v.string()) }),
+  // PST-305: an agent's new person for the Network, and an investor for a person's list.
+  v.object({ op: v.literal('network_person'), name: v.string(), email: v.optional(v.string()), relation: lit(PICK_RELATIONS), company: v.optional(v.string()), note: v.optional(v.string()) }),
+  v.object({ op: v.literal('network_target'), introducerId: v.id('introducers'), investorId: v.optional(v.id('investors')), firm: v.optional(v.string()), partner: v.optional(v.string()) }),
 )
 
 /* ---------- PST-302: applications ---------- */
@@ -155,6 +159,9 @@ export const vSuggestionUndo = v.union(
     created: v.array(v.id('questions')),
     answered: v.array(v.object({ id: v.id('questions'), bestAnswer: v.string(), answerVersions: v.array(v.object({ text: v.string(), at: v.number(), by: v.optional(v.id('users')) })) })),
   }),
+  // PST-305: the person an accepted network_person added; the intros (and new investors) a network_target made.
+  v.object({ op: v.literal('network_person'), introducerId: v.id('introducers') }),
+  v.object({ op: v.literal('network_target'), introIds: v.array(v.id('intros')), investorIds: v.array(v.id('investors')) }),
 )
 
 /* ---------- PST-281: Q&A bank ---------- */

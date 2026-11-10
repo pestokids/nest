@@ -25,6 +25,9 @@ import { IDX } from '../src/lib/stages'
 import { acceptsTogether, CHECK_PREFIX, reconcile, ruleSuggestions, sortSuggestions, sourceLabel, type SuggestionDraft } from '../src/lib/suggestions'
 import { applicationAfter, noOpReason, notesAfter, outreachChanges } from '../src/lib/suggestions' // PST-302
 import { logStageMove } from './lib/stageLog' // PST-302
+import { addTargetsFor } from './network' // PST-305
+import { normName } from '../src/lib/introducers' // PST-305
+import { normEmail } from '../src/lib/google' // PST-305
 
 type Row = Doc<'suggestions'>
 type Inv = Doc<'investors'>
@@ -190,11 +193,35 @@ async function addInvestor(ctx: MutationCtx, s: Row, p: Extract<Row['patch'], { 
   return { op: 'new_investor', investorId }
 }
 
+/* ---------- PST-305: an agent's Network suggestions ---------- */
+
+/** A new person in the Network, unless someone with that name or email is there by now. */
+async function addNetworkPerson(ctx: MutationCtx, p: Extract<Row['patch'], { op: 'network_person' }>, userId: Id<'users'>): Promise<Undo | null> {
+  const key = normName(p.name)
+  const email = normEmail(p.email)
+  const people = await ctx.db.query('introducers').collect()
+  if (!key || people.some((x) => x.key === key || (!!email && normEmail(x.email) === email))) return null
+  const introducerId = await ctx.db.insert('introducers', {
+    name: p.name.trim(), key, ...(email ? { email } : {}), relation: p.relation, notes: (p.note ?? '').trim(), ...(p.company?.trim() ? { company: p.company.trim() } : {}), createdAt: Date.now(), createdBy: userId,
+  })
+  return { op: 'network_person', introducerId }
+}
+
+/** An investor on a person's list ("to ask"): one in Nest, or a new firm added as Not contacted. Null when the person is gone or it's already there. */
+async function addNetworkTarget(ctx: MutationCtx, p: Extract<Row['patch'], { op: 'network_target' }>, userId: Id<'users'>): Promise<Undo | null> {
+  if (!(await ctx.db.get(p.introducerId))) return null
+  const r = await addTargetsFor(ctx, userId, { introducerId: p.introducerId }, p.investorId ? [p.investorId] : [], p.firm ? [{ firm: p.firm, ...(p.partner ? { partner: p.partner } : {}) }] : [])
+  return r.made.length ? { op: 'network_target', introIds: r.made, investorIds: r.createdIds } : null
+}
+/* ---------- end PST-305 ---------- */
+
 /** Apply one suggestion's patch. Null when it no longer fits (the investor is gone, or the stage moved since). */
 async function apply(ctx: MutationCtx, s: Row, userId: Id<'users'>): Promise<Undo | null> {
   const p = s.patch
   if (p.op === 'review') throw new ConvexError('This one needs a look in the drawer.')
   if (p.op === 'new_investor') return await addInvestor(ctx, s, p, userId)
+  if (p.op === 'network_person') return await addNetworkPerson(ctx, p, userId) // PST-305
+  if (p.op === 'network_target') return await addNetworkTarget(ctx, p, userId) // PST-305
   const i = s.investorId ? await ctx.db.get(s.investorId) : null
   if (!i) return null
   const today = todayIST()
@@ -305,6 +332,22 @@ export const dismiss = mutation({
 
 /** Put back what an accept changed. Returns the new id of a card a merge had deleted. */
 async function revert(ctx: MutationCtx, s: Row, u: Undo, userId: Id<'users'>): Promise<Id<'investors'> | undefined> {
+  // PST-305: the person, or the intros and new investors, an agent's Network suggestion added.
+  if (u.op === 'network_person') {
+    for (const x of await ctx.db.query('intros').collect()) if (x.introducerId === u.introducerId) await ctx.db.delete(x._id)
+    if (await ctx.db.get(u.introducerId)) await ctx.db.delete(u.introducerId)
+    return
+  }
+  if (u.op === 'network_target') {
+    for (const id of u.introIds) if (await ctx.db.get(id)) await ctx.db.delete(id)
+    for (const id of u.investorIds) {
+      if (!(await ctx.db.get(id))) continue
+      for (const a of await ctx.db.query('activities').withIndex('by_investor', (q) => q.eq('investorId', id)).collect()) await ctx.db.delete(a._id)
+      await ctx.db.delete(id)
+      await forgetInvestor(ctx, id)
+    }
+    return
+  }
   const i = s.investorId ? await ctx.db.get(s.investorId) : null
   if (!i) throw new ConvexError('That investor was deleted')
   const stamp = { updatedAt: Date.now(), updatedBy: userId }

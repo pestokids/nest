@@ -135,7 +135,7 @@ function usePaletteActions() {
     const openDrawer = (id: string | null, opts?: OpenOptions) =>
       void navigate({ to: inRaise ? path : '/raise/today', search: inRaise ? true : undefined, state: (s) => ({ ...s, drawer: { id, opts } }) })
     return {
-      go: (to: string) => void navigate({ to }),
+      go: (to: string, search?: Record<string, string>) => void navigate({ to, ...(search ? { search: search as never } : {}) }), // PST-305: search (Network)
       openInvestor: (i: Investor, opts?: OpenOptions) => {
         rememberInvestor(i._id)
         openDrawer(i._id, opts)
@@ -308,7 +308,7 @@ function Palette({
     if (n && ['review suggestions', 'suggestions', 'suggested fixes', 'fix the list'].some((t) => matchScore(t, query) > 0)) out.push({ title: 'Suggestions', items: [review] })
     if (['send feedback', 'feedback', 'report a bug', 'bug', 'idea'].some((t) => matchScore(t, query) > 0)) out.push({ title: 'Feedback', items: [feedback] }) // PST-289
     const sections = searchSections(query)
-    if (sections.length) out.push({ title: 'Jump to', items: sections.map((s) => ({ id: 's-' + s.to, icon: 'arrow-right', label: `Go to ${s.label}`, keys: s.keys, run: close(() => actions.go(s.to)) })) })
+    if (sections.length) out.push({ title: 'Jump to', items: sections.map((s) => ({ id: 's-' + s.label, icon: 'arrow-right', label: `Go to ${s.label}`, keys: s.keys, run: close(() => actions.go(s.to, s.search)) })) })
     const notes = searchNotes(investors, query, new Set(found.map((i) => i._id)))
     if (notes.length) out.push({ title: 'In notes', items: notes.map(({ i, quote }) => ({ id: 'n-' + i._id, icon: 'note', label: `${i.name}: “${quote}”`, run: close(() => actions.openInvestor(i)) })) })
     const asked = searchQuestions(questions, query, 3)
