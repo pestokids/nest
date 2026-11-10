@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   cleanDomains, cleanEmails, contactSignals, followUps, makeMatcher, nameFromEmail, normDomain, normEmail, parseAddresses, scanProgress,
-  syncStageMove, waitingOnYou, whoIsThis, withContact, WAITING_MS, type SyncedMeeting, type SyncedThread,
+  isWaiting, syncStageMove, waitingOnYou, whoIsThis, withContact, WAITING_MS, type SyncedMeeting, type SyncedThread,
 } from './google'
 import { lastContact, quietFor, quietList, type Investor } from './pipeline'
 import { quietDaysOf } from './board'
@@ -155,6 +155,18 @@ describe('waiting on you', () => {
     const a = thread({ threadId: 'a', lastAt: NOW - 3 * D, mine: true })
     const b = thread({ threadId: 'b', lastAt: NOW - 3 * D, mine: false, subject: 'Hello' })
     expect(waitingOnYou([b, a], NOW).map((t) => t.threadId)).toEqual(['a'])
+  })
+  // PST-306
+  it('counts from the message Dev owes, and skips calendar and automated mail', () => {
+    const ts = [
+      thread({ threadId: 'invite-after-question', lastAt: NOW - H, owed: { at: NOW - 3 * D, messageId: 'q' } }),
+      thread({ threadId: 'calendar-only', lastAt: NOW - 3 * D, owed: null }),
+      thread({ threadId: 'old-row-invite', lastAt: NOW - 3 * D, subject: 'Invitation: Kite x Pesto @ Thu' }),
+      thread({ threadId: 'old-row-noreply', lastAt: NOW - 3 * D, lastFromEmail: 'noreply@kite.example.com' }),
+      thread({ threadId: 'old-row-question', lastAt: NOW - 4 * D }),
+    ]
+    expect(waitingOnYou(ts, NOW).map((t) => t.threadId)).toEqual(['invite-after-question', 'old-row-question'])
+    expect(isWaiting(ts[1], NOW)).toBe(false)
   })
 })
 

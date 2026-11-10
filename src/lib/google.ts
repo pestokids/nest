@@ -3,6 +3,7 @@
 // meeting lists on Today. Pure functions, shared by the UI and Convex.
 import { dayDiff, formatDay, todayIST } from './dates'
 import { IDX, STAGES, type PipelineStage, type Stage } from './stages'
+import { owedReply } from './mail' // PST-306
 
 /** Our own Workspace: these addresses are us, never an investor. */
 export const OUR_DOMAINS = ['pestokids.com'] as const
@@ -212,6 +213,8 @@ export type SyncedThread = {
   count: number
   by: string
   mine: boolean
+  /** PST-306: the investor message Dev owes a reply to (calendar and automated mail skipped); null when none, absent on rows synced before. Read it through owedReply. */
+  owed?: { at: number; messageId: string } | null
 }
 export type ConnectionStatus = 'syncing' | 'connected' | 'reconnect'
 export type MyConnection = {
@@ -300,21 +303,25 @@ export function followUps<I extends { _id: string; stage: Stage }>(ms: readonly 
   return out
 }
 
-/** "Waiting on you": the other side wrote last, 48 hours or more ago. Newest first, one per conversation. */
+/** "Waiting on you": the other side wrote 48 hours or more ago and Dev owes a reply (PST-306: calendar and automated mail never count). Newest first, one per conversation. */
 export function waitingOnYou(ts: readonly SyncedThread[], now: number): SyncedThread[] {
   const seen = new Set<string>()
+  const since = (t: SyncedThread) => owedReply(t)?.at ?? 0
   return [...ts]
-    .filter((t) => t.lastFrom === 'them' && now - t.lastAt >= WAITING_MS && t.investorIds.length > 0)
-    .sort((a, b) => b.lastAt - a.lastAt || Number(b.mine) - Number(a.mine))
+    .filter((t) => isWaiting(t, now) && t.investorIds.length > 0)
+    .sort((a, b) => since(b) - since(a) || Number(b.mine) - Number(a.mine))
     .filter((t) => {
-      const k = `${t.subject.replace(/^(re|fwd?):\s*/gi, '').toLowerCase()}|${t.lastFromEmail}|${t.lastAt}`
+      const k = `${t.subject.replace(/^(re|fwd?):\s*/gi, '').toLowerCase()}|${t.lastFromEmail}|${since(t)}`
       if (seen.has(k)) return false
       seen.add(k)
       return true
     })
 }
 
-export const isWaiting = (t: Pick<SyncedThread, 'lastFrom' | 'lastAt'>, now: number) => t.lastFrom === 'them' && now - t.lastAt >= WAITING_MS
+export function isWaiting(t: Pick<SyncedThread, 'owed' | 'lastFrom' | 'lastAt' | 'lastFromEmail' | 'subject'>, now: number) {
+  const o = owedReply(t)
+  return !!o && now - o.at >= WAITING_MS
+}
 
 export type Stranger = { email: string; name: string; meeting: SyncedMeeting }
 

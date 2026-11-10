@@ -86,6 +86,10 @@
 //   &today=win               the ask logged from its Next move row (confetti and the Cheer toast)
 //   &system=list-focus       on Today: the J/K focus ring on the second row
 //   ---------- end PST-297 ----------
+//   ---------- PST-306: Reply rows only for mail that waits on Dev ----------
+//   &today=replies           the Inbox with a reply waiting ("Waiting 1 day") and one past its due date ("N days over");
+//                            a calendar update, an automated confirmation and an email Jev says asks for nothing make no row
+//   ---------- end PST-306 ----------
 //   ---------- PST-298 empty states (every empty list says why and offers one next step) ----------
 //   &home=firstrun           on any route, no investors and no round: Home's This week, the board's columns (and the
 //                            phone stage view at 440), Race's Who's ahead and Who to update, Maybes, Insights with no target

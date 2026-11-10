@@ -74,6 +74,9 @@ export const signalView = (s: Doc<'signals'>): SignalView => ({
   ...(s.doneAt ? { doneAt: s.doneAt } : {}),
   ...(s.askDoneAt ? { askDoneAt: s.askDoneAt } : {}),
   ...(s.undoneAt ? { undoneAt: s.undoneAt } : {}),
+  // PST-306
+  ...(s.messageId ? { messageId: s.messageId } : {}),
+  ...(s.probabilities.ask?.nothing !== undefined ? { nothing: s.probabilities.ask.nothing } : {}),
 })
 
 /** One investor's decision, worked out the way `data` does (Drafts' "Ask for a yes or no" reads its decide-by date). */

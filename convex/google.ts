@@ -31,6 +31,7 @@ const vThread = v.object({
   lastFromEmail: v.string(),
   count: v.number(),
   link: v.string(),
+  owed: v.union(v.object({ at: v.number(), messageId: v.string() }), v.null()), // PST-306
 })
 
 const myConnection = (ctx: QueryCtx, userId: Id<'users'>) =>
@@ -78,6 +79,7 @@ export const data = query({
       threads.push({
         _id: t._id, threadId: t.threadId, subject: t.subject, lastAt: t.lastAt, lastFrom: t.lastFrom, lastFromEmail: t.lastFromEmail,
         participants: t.participants, investorIds: t.investorIds, link: t.link, count: t.count, by: await nameOf(t.userId), mine: t.userId === userId,
+        ...(t.owed !== undefined ? { owed: t.owed } : {}), // PST-306
       })
     return {
       me: mine
@@ -286,14 +288,16 @@ export const saveCursors = internalMutation({
       ),
     ),
     rescan: v.optional(v.boolean()),
+    gmailThreads: v.optional(v.number()), // PST-306
   },
-  handler: async (ctx, { connectionId, calendarSyncToken, gmailHistoryId, scan, rescan }) => {
+  handler: async (ctx, { connectionId, calendarSyncToken, gmailHistoryId, scan, rescan, gmailThreads }) => {
     if (!(await ctx.db.get(connectionId))) return
     await ctx.db.patch(connectionId, {
       ...(calendarSyncToken !== undefined ? { calendarSyncToken: calendarSyncToken ?? undefined } : {}),
       ...(gmailHistoryId !== undefined ? { gmailHistoryId } : {}),
       ...(scan !== undefined ? { scan: scan ?? undefined } : {}),
       ...(rescan !== undefined ? { rescan: rescan || undefined } : {}),
+      ...(gmailThreads !== undefined ? { gmailThreads } : {}),
     })
   },
 })
@@ -451,7 +455,10 @@ export const upsertThreads = internalMutation({
       kept++
       const doc = { ...t, userId, investorIds: ids }
       if (!row) await ctx.db.insert('emailTouches', doc)
-      else if (row.lastAt !== t.lastAt || row.count !== t.count || row.subject !== t.subject || !sameIds(row.investorIds, ids) || row.participants.length !== t.participants.length)
+      else if (
+        row.lastAt !== t.lastAt || row.count !== t.count || row.subject !== t.subject || !sameIds(row.investorIds, ids) || row.participants.length !== t.participants.length ||
+        /* PST-306 */ row.owed === undefined || row.owed?.messageId !== t.owed?.messageId
+      )
         await ctx.db.patch(row._id, doc)
       for (const id of ids) {
         const i = await ctx.db.get(id)

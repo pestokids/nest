@@ -119,18 +119,8 @@ export function bodyText(p: GPart | undefined): string {
   }
 }
 
-const NO_REPLY = /^(no-?reply|do-?not-?reply|mailer-daemon|postmaster|bounces?|notifications?)([+._-][^@]*)?@/i
-const AUTO_SUBJECT = /^(auto(matic)?[ -]?reply|out of (the )?office|autoreply|auto:|away from)/i
-
-/** Skip it: an auto-reply (Auto-Submitted, X-Autoreply, bulk Precedence, an out-of-office subject) or a no-reply sender. */
-export function isAutomated(from: string, subject: string, header: (name: string) => string): boolean {
-  if (NO_REPLY.test(from)) return true
-  const auto = header('Auto-Submitted').trim().toLowerCase()
-  if (auto && auto !== 'no') return true
-  if (header('X-Autoreply') || header('X-Autorespond')) return true
-  if (/^(auto_reply|bulk|junk|list)$/i.test(header('Precedence').trim())) return true
-  return AUTO_SUBJECT.test(subject.trim())
-}
+/** PST-306: the automated-mail check moved to mail.ts, beside the calendar one. */
+export { isAutomated } from './mail'
 
 /* ---------- acting on the answers ---------- */
 
@@ -219,6 +209,9 @@ export type SignalView = {
   askDoneAt?: number
   /** Dev undid the change it made. */
   undoneAt?: number
+  /** PST-306: an email's Gmail message id, and how sure Jev is that it asks for nothing (a Reply row's off when sure). */
+  messageId?: string
+  nothing?: number
 }
 
 /** The newest signal about an investor (PST-295's race lanes read it through useDecisions().latestSignal). */

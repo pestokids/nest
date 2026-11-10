@@ -6,9 +6,9 @@ import { api, internal } from './_generated/api'
 import type { Id } from './_generated/dataModel'
 import schema from './schema'
 import { decryptToken, encryptToken, signState, verifyState } from './lib/crypto'
-import { parseEvent, parseThread, RETRY } from './lib/googleApi'
+import { inboundMessages, parseEvent, parseThread, RETRY } from './lib/googleApi'
 import { mapLimit } from './lib/mapLimit'
-import { PACE } from './googleSync'
+import { PACE, THREADS_VERSION } from './googleSync'
 
 const modules = import.meta.glob('./**/*.ts')
 
@@ -802,5 +802,116 @@ describe('email bodies (PST-293)', () => {
     const s = await setup()
     await s.t.mutation(internal.google.store, { userId: s.dev, googleEmail: 'founder@pestokids.com', sealed: await encryptToken('refresh-ok') })
     expect((await s.asDev.query(api.google.data, {})).me).toMatchObject({ emailBodies: true })
+  })
+})
+
+/* ---------- PST-306: what waits on Dev ---------- */
+
+describe('what waits on Dev (PST-306)', () => {
+  const self = 'founder@pestokids.com'
+  const sam = 'Sam <sam@kite.example.com>'
+  const withHeaders = (m: ReturnType<typeof msg>, h: Record<string, string>) => ({ ...m, payload: { headers: [...m.payload.headers, ...Object.entries(h).map(([name, value]) => ({ name, value }))] } })
+  const owed = (id: string, ...messages: ReturnType<typeof msg>[]) => parseThread({ id, messages }, self)!.owed
+
+  it('owes the newest message from them, skipping calendar and automated mail; ours ends the wait', () => {
+    const now = Date.now()
+    expect(owed('q', msg('q', 1, self, sam, now - 3 * D), msg('q', 2, sam, self, now - 2 * D, 'Re: Pesto'), msg('q', 3, sam, self, now - D, 'Accepted: Kite x Pesto @ Fri'))).toEqual({ at: now - 2 * D, messageId: 'q-2' })
+    expect(owed('inv', msg('inv', 1, sam, self, now - D, 'Updated invitation: Kite <> Pesto @ Wed'))).toBeNull()
+    expect(owed('cal', withHeaders(msg('cal', 1, sam, self, now - D, 'Partner meeting'), { Sender: 'Google Calendar <calendar-notification@google.com>' }))).toBeNull()
+    expect(owed('ics', withHeaders(msg('ics', 1, sam, self, now - D, 'Partner meeting'), { 'Content-Type': 'text/calendar; method=REQUEST' }))).toBeNull()
+    expect(owed('apps', msg('apps', 1, 'Kite Applications <applications@kite.example.com>', self, now - D, 'Application received'))).toBeNull()
+    expect(owed('list', withHeaders(msg('list', 1, sam, self, now - D, 'Kite quarterly letter'), { 'List-Unsubscribe': '<mailto:leave@kite.example.com>' }))).toBeNull()
+    expect(owed('auto', withHeaders(msg('auto', 1, sam, self, now - D, 'Re: Pesto'), { 'Auto-Submitted': 'auto-generated' }))).toBeNull()
+    expect(owed('bulk', withHeaders(msg('bulk', 1, sam, self, now - D, 'Portfolio news'), { Precedence: 'bulk' }))).toBeNull()
+    expect(owed('ours', msg('ours', 1, sam, self, now - 2 * D, 'Can you send the deck?'), msg('ours', 2, self, sam, now - D, 'Re: Can you send the deck?'))).toBeNull()
+  })
+
+  it('spends no Jev call on calendar mail (PST-293 signals)', () => {
+    const now = Date.now()
+    const t = { id: 'x', messages: [msg('x', 1, sam, self, now, 'Accepted: Kite x Pesto'), msg('x', 2, sam, self, now, 'Re: Pesto')] }
+    expect(inboundMessages(t, self, new Set(['x-1', 'x-2'])).map((m) => m.messageId)).toEqual(['x-2'])
+  })
+
+  /** Gmail with each message's parts (types and file names); `asked` gets the format and fields mask of every parts request. */
+  const withParts = (byMessage: Record<string, unknown>, asked: string[], refuse = false) =>
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input))
+      const m = /\/users\/me\/messages\/([^/]+)$/.exec(url.pathname)
+      if (!m) return fakeFetch(input, init)
+      asked.push(url.searchParams.get('format') + ' ' + url.searchParams.get('fields'))
+      return refuse ? json({ error: { errors: [{ reason: 'insufficientPermissions' }] } }, 403) : json({ payload: byMessage[m[1]] })
+    }))
+  const multipart = { 'Content-Type': 'multipart/mixed; boundary=x' }
+  const threadsWithAttachments = (now: number) => [
+    { id: 'th-ics', messages: [msg('th-ics', 1, self, sam, now - 4 * D), withHeaders(msg('th-ics', 2, sam, self, now - 3 * D, 'Re: Pesto'), multipart)] },
+    { id: 'th-deck', messages: [withHeaders(msg('th-deck', 1, 'ana@fernhill.example.com', self, now - 3 * D, 'Our questions'), multipart)] },
+  ]
+  const PARTS = {
+    'th-ics-2': { mimeType: 'multipart/mixed', parts: [{ mimeType: 'text/plain' }, { mimeType: 'application/ics', filename: 'invite.ics' }] },
+    'th-deck-1': { mimeType: 'multipart/mixed', parts: [{ mimeType: 'text/plain' }, { mimeType: 'application/pdf', filename: 'questions.pdf' }] },
+  }
+  const owedByThread = (s: Awaited<ReturnType<typeof setup>>) => s.t.run(async (ctx) => Object.fromEntries((await ctx.db.query('emailTouches').collect()).map((r) => [r.threadId, r.owed])))
+
+  it('skips a message whose only attachment is an invite, reading part types and names only', async () => {
+    const s = await setup()
+    const now = Date.now()
+    const conn = await s.connect(s.dev, self)
+    google.threads = threadsWithAttachments(now)
+    const asked: string[] = []
+    withParts(PARTS, asked)
+    expect(await s.t.action(internal.googleSync.run, { connectionId: conn })).toBe('done')
+    expect(await owedByThread(s)).toEqual({ 'th-ics': null, 'th-deck': { at: now - 3 * D, messageId: 'th-deck-1' } })
+    expect(asked).toHaveLength(2)
+    for (const a of asked) expect(a).toMatch(/^full payload\(mimeType,filename,parts\(/)
+    for (const a of asked) expect(a).not.toMatch(/headers|body|data/)
+  })
+
+  it('never asks for parts under a gmail.metadata grant, and a refusal stops it asking without failing the sync', async () => {
+    const s = await setup()
+    const now = Date.now()
+    const conn = await s.connect(s.dev, self)
+    await s.t.run((ctx) => ctx.db.patch(conn, { gmailBodies: false }))
+    google.threads = threadsWithAttachments(now)
+    const asked: string[] = []
+    withParts(PARTS, asked)
+    expect(await s.t.action(internal.googleSync.run, { connectionId: conn })).toBe('done')
+    expect(asked).toEqual([])
+    // Without the parts, both still wait on Dev.
+    expect(await owedByThread(s)).toEqual({ 'th-ics': { at: now - 3 * D, messageId: 'th-ics-2' }, 'th-deck': { at: now - 3 * D, messageId: 'th-deck-1' } })
+
+    const s2 = await setup()
+    const conn2 = await s2.connect(s2.dev, self)
+    google.threads = [1, 2, 3, 4, 5, 6].map((k) => ({ id: 'th-' + k, messages: [withHeaders(msg('th-' + k, 1, sam, self, now - 3 * D, 'Re: Pesto ' + k), multipart)] }))
+    const refused: string[] = []
+    withParts(PARTS, refused, true)
+    expect(await s2.t.action(internal.googleSync.run, { connectionId: conn2 })).toBe('done')
+    // Only the reads already under way when Google refused (two run at once).
+    expect(refused.length).toBeLessThanOrEqual(2)
+    expect(await s2.t.run((ctx) => ctx.db.get(conn2))).toMatchObject({ status: 'connected' })
+  })
+
+  it('reads the last 30 days again once when the stored threads predate it, then goes back to history', async () => {
+    const s = await setup()
+    const now = Date.now()
+    const conn = await s.connect(s.dev, self)
+    await s.t.run(async (ctx) => {
+      await ctx.db.patch(conn, { gmailHistoryId: '90' })
+      await ctx.db.insert('emailTouches', {
+        userId: s.dev, threadId: 'th-old', subject: 'Re: Kite x Pesto', participants: ['sam@kite.example.com', self], lastAt: now - 3 * D, lastFrom: 'them',
+        lastFromEmail: 'sam@kite.example.com', count: 1, link: '', investorIds: [s.kite],
+      })
+    })
+    google.threads = [{ id: 'th-old', messages: [withHeaders(msg('th-old', 1, sam, self, now - 3 * D, 'Re: Kite x Pesto'), { Sender: 'Google Calendar <calendar-notification@google.com>' })] }]
+    expect(await s.t.action(internal.googleSync.run, { connectionId: conn })).toBe('done')
+    expect(google.calls).toContain('GET /gmail/v1/users/me/threads')
+    expect(google.calls).not.toContain('GET /gmail/v1/users/me/history')
+    expect(await owedByThread(s)).toEqual({ 'th-old': null })
+    expect(await s.t.run((ctx) => ctx.db.get(conn))).toMatchObject({ gmailThreads: THREADS_VERSION, gmailHistoryId: '100' })
+    expect((await s.asDev.query(api.google.data, {})).threads[0].owed).toBeNull()
+
+    google.calls = []
+    expect(await s.t.action(internal.googleSync.run, { connectionId: conn })).toBe('done')
+    expect(google.calls).toContain('GET /gmail/v1/users/me/history')
+    expect(google.calls).not.toContain('GET /gmail/v1/users/me/threads')
   })
 })

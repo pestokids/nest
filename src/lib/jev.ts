@@ -136,6 +136,8 @@ export const THRESHOLDS = {
   signalYes: 0.85,
   signalNo: 0.15,
   /* ---------- end PST-293 ---------- */
+  /** PST-306: Jev at least this sure an investor's newest email asks for nothing: no Reply row for it. */
+  replyNothing: 0.8,
 } as const
 
 /** The option with the highest probability, and that probability. */
