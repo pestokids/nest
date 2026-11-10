@@ -7,7 +7,7 @@
 // introduce; the panel adds their roles, an Investing card for someone who
 // also invests, Find their investors for a founder, "Who do they know" and one
 // ask naming 2–3 investors.
-import { useEffect, useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { todayIST } from '../../lib/dates'
 import { cents } from '../../lib/enrich'
 import { firstName, initials, introLine, introNext, lastDone, personSub, RELATION_LABEL, type Intro } from '../../lib/introducers'
@@ -410,6 +410,15 @@ function FounderLookup({ row, onEdit }: { row: NetworkRow; onEdit: () => void })
   useEffect(() => {
     if (autoRun && st && !run && row.company && row.introducerId) void x.startLookup(row.introducerId).catch(() => {})
   }, [autoRun, !!st, !!run]) // eslint-disable-line react-hooks/exhaustive-deps
+  // A search that finishes while the panel is open: a notification when results are in, caution when it failed.
+  const was = useRef(run?.status)
+  useEffect(() => {
+    const prev = was.current
+    was.current = run?.status
+    if (prev !== 'running') return
+    if (run?.status === 'done') play('import-done')
+    else if (run?.status === 'failed') play('failed')
+  }, [run?.status])
 
   async function start() {
     setTicked(new Set())
