@@ -43,8 +43,8 @@ export function PhoneBoard({ investors, today, quietDays }: { investors: Investo
     pop(el?.querySelector('.pb-chip__n'))
   }, [lit])
 
-  const moveTo = (inv: Investor, to: BoardStage, el?: Element | null) => {
-    moveCard(inv, to, { from: el })
+  const moveTo = (inv: Investor, to: BoardStage, el?: Element | null, swipe = false) => {
+    moveCard(inv, to, { from: el, swipe })
     setLit((l) => ({ stage: to, n: (l?.n ?? 0) + 1 }))
   }
 
@@ -79,7 +79,7 @@ export function PhoneBoard({ investors, today, quietDays }: { investors: Investo
             today={today}
             quietDays={quietDays}
             onOpen={() => open(inv._id)}
-            onSwipe={(el) => next && moveTo(inv, next, el)}
+            onSwipe={(el) => next && moveTo(inv, next, el, true)}
             onKeyDown={(e) => {
               if (e.target !== e.currentTarget) return
               const a = cardKeyAction(e.key, inv.stage, { meta: e.metaKey, ctrl: e.ctrlKey, alt: e.altKey })

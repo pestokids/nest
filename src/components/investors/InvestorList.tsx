@@ -343,7 +343,7 @@ function RowMenu({ i }: { i: Investor }) {
             void save(() => d.logNote(i._id, 'Nudged'), {
               failMessage: `Couldn’t log the nudge for ${i.name}.`,
               onDone: () => {
-                play('nudge')
+                play('log')
                 toast(`Nudged ${i.name}. Logged as a touch.`)
               },
             }),

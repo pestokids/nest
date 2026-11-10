@@ -101,8 +101,7 @@ function WhoRow({ p, sender, prechecked, onHide }: { p: Stranger; sender?: Sende
       const id = await d.aiDo.addSender(p.email, firm?._id)
       if (firm) ui.toast({ tone: 'info', icon: 'check', message: first(name) + ' is part of ' + firm.name + ' now. Their meetings count from here.', action: { label: 'Open', onClick: () => ui.open(firm._id) } })
       else {
-        play('egg-crack')
-        play('pesto-chirp', { delay: 0.45 })
+        play('save')
         ui.toast({ tone: 'hatch', message: first(name) + ' is in the nest', action: facts.length ? { label: 'Review ' + facts.length + ' facts', onClick: () => ui.open(id) } : { label: 'Open', onClick: () => ui.open(id) } })
       }
     } catch (e) {
@@ -121,7 +120,7 @@ function WhoRow({ p, sender, prechecked, onHide }: { p: Stranger; sender?: Sende
     }
   }
   async function notInvestor() {
-    play('not-on-list')
+    play('remove')
     setLeaving(true)
     await new Promise((r) => setTimeout(r, 200))
     onHide(true)

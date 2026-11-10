@@ -118,7 +118,7 @@ export function VersionForm({ materialId, next, file, onDone }: { materialId: st
     await save(async () => m.act.addVersion(materialId, await source(kind, picked, url, note)), {
       failMessage: `Couldn’t add v${next}.`,
       onDone: () => {
-        play('card-drop')
+        play('save')
         toast(`v${next} is current. Links made for older versions keep showing theirs.`)
         setPicked(null)
         setUrl('')

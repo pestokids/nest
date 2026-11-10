@@ -44,7 +44,7 @@ function RaiseLayout() {
   const open = useCallback((id: string | null, opts: OpenOptions = {}) => {
     if (!opts.swap) {
       opener.current = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null
-      play('drawer', { volume: 0.5 })
+      play('drawer-open')
     }
     setDrawer({ id, opts })
   }, [])

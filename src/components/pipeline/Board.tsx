@@ -87,7 +87,7 @@ export function Board({ investors, total, filter, setFilter, today, quietDays, w
 
   const dnd = useBoardDrag(scroller, {
     onLift: (id, h) => {
-      play('card-pickup')
+      play('pick')
       const snapshot = live.current
       const inv = snapshot.find((i) => i._id === id)
       if (inv) setDrag({ id, from: inv.stage, over: null, h, snapshot })
@@ -104,10 +104,7 @@ export function Board({ investors, total, filter, setFilter, today, quietDays, w
       const m = moveCard(inv, stage, { from: slotRef.current })
       if (m.kind !== 'same') after(id, [inv.stage, stage])
     },
-    onCancel: (byUser) => {
-      setDrag(null)
-      if (byUser) play('undo')
-    },
+    onCancel: () => setDrag(null),
   })
 
   const onKey = useCallback(

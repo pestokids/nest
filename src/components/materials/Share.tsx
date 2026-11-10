@@ -75,7 +75,7 @@ export function ShareForm({ titleId, start, onDone, pickMaterial }: { titleId: s
     await save(() => m.act.share({ materialId, versionId: pin === 'current' ? 'current' : cur._id, investorIds: who, options: normOptions(opts), expiresInDays: days }), {
       failMessage: 'Couldn’t make the links.',
       onDone: (links) => {
-        play('rule-check')
+        play('save')
         setMade(links)
       },
     })
@@ -289,7 +289,6 @@ function Made({ titleId, links, what, onDone }: { titleId: string; links: NewLin
 
   async function copy(l: NewLink, el: HTMLElement) {
     if (await copyText(shareUrl(l.token, origin))) {
-      play('card-pickup', { rate: 1.2, volume: 0.5 })
       pop(el)
       toast({ tone: 'info', icon: 'link', message: `Copied ${byId.get(l.investorId)?.name ?? 'the'} link.` })
     }
@@ -300,7 +299,7 @@ function Made({ titleId, links, what, onDone }: { titleId: string; links: NewLin
       failMessage: 'Couldn’t send the emails.',
       onDone: (r) => {
         if (r.sent) {
-          play('export')
+          play('log')
           setSent(new Set(withEmail.map((l) => l.linkId)))
         }
         toast(

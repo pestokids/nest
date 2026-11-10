@@ -102,7 +102,7 @@ export function AnswerPanel({ req, level, onClose }: { req: Extract<PanelRequest
       openPanel({ kind: 'answer', id: r.id })
       return
     }
-    play('rule-check')
+    play('save')
     ui.toast(!q ? 'Added to the bank.' : answer.trim() && answer.trim() !== q.bestAnswer.trim() ? 'Answer saved. The earlier one is kept.' : 'Saved.')
     c.close()
   }

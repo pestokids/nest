@@ -65,7 +65,7 @@ export function InvestorEnrich({ inv, sheet }: { inv: Investor; sheet: boolean }
   /** Enrich, Refresh, or (PST-273) Redo with another model, just this once. */
   async function start(model?: Model) {
     setStarting(true)
-    play('pesto-hop', { volume: 0.5 })
+    play('save')
     try {
       await d.aiDo.enrich(inv._id, model)
     } catch (e) {
@@ -261,7 +261,7 @@ function Review({ inv, run, facts, fresh, onRedo }: { inv: Investor; run: Run; f
 
   async function keep(f: Fact, row: HTMLElement | null) {
     pop(row?.querySelector('.enrich-fact__keep'))
-    play('rule-check', { volume: 0.6 })
+    play('save')
     setFolding((s) => add(s, f._id))
     const { patch } = investorWrite(inv, f)
     try {
@@ -292,7 +292,7 @@ function Review({ inv, run, facts, fresh, onRedo }: { inv: Investor; run: Run; f
     const patches = facts.map((f) => investorWrite(inv, f).patch)
     try {
       const [n] = await Promise.all([d.aiDo.keepAll(run._id), sleep(ids.length * 40 + 240)])
-      play('stage-up')
+      play('save')
       flashFields(card.current, patches)
       ui.toast({ tone: 'success', icon: 'check', message: 'Kept ' + plural(n, 'fact') + ' about ' + inv.name + '.' })
     } catch (e) {

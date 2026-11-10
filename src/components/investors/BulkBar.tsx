@@ -26,7 +26,7 @@ export function BulkBar({ ids, onClear, onEnriching }: { ids: Set<string>; onCle
   const n = picked.length
 
   /** PST-298: shows on every row at once, with Undo (./bulk.ts). */
-  const update = (change: BulkChange, done: string, sound?: 'stage-up') => {
+  const update = (change: BulkChange, done: string, sound?: 'save') => {
     const { saved, undo } = bulkChange(d, picked, change)
     if (sound) play(sound)
     toast({
@@ -44,7 +44,7 @@ export function BulkBar({ ids, onClear, onEnriching }: { ids: Set<string>; onCle
 
   async function enrich() {
     setStarting(true)
-    play('pesto-hop', { volume: 0.5 })
+    play('save')
     try {
       const list = picked.map((i) => i._id)
       await d.aiDo.enrichMany(list)
@@ -89,7 +89,7 @@ export function BulkBar({ ids, onClear, onEnriching }: { ids: Set<string>; onCle
           placement="above"
           align="start"
           onClose={() => setMenu(null)}
-          items={ALL.map((s) => ({ label: STAGE_TILE[s.k], onSelect: () => update({ stage: s.k }, `Moved ${plural(n)} to ${STAGE_TILE[s.k]}.`, 'stage-up') }))}
+          items={ALL.map((s) => ({ label: STAGE_TILE[s.k], onSelect: () => update({ stage: s.k }, `Moved ${plural(n)} to ${STAGE_TILE[s.k]}.`, 'save') }))}
         />
       ) : null}
       {menu === 'wave' ? (

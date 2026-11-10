@@ -2,7 +2,6 @@ import { useAuthActions } from '@convex-dev/auth/react'
 import { useConvexAuth, useQuery } from 'convex/react'
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api } from '../../convex/_generated/api'
-import { play } from '../lib/sound'
 import { SessionContext, type Me } from './session'
 import { SignIn } from './SignIn'
 
@@ -41,7 +40,6 @@ export function AuthGate({ children }: { children: ReactNode }) {
       setDeniedEmail(status.email || '')
       void signOut()
     } else if (status?.status === 'ok') {
-      if (read(PENDING)) play('signed-in')
       write(PENDING, null)
       write(DENIED, null)
       setDeniedEmail(null)
@@ -72,7 +70,6 @@ export function AuthGate({ children }: { children: ReactNode }) {
     setError(false)
     setSignedOut(false)
     setClicked(true)
-    play('card-pickup', { volume: 0.6 })
     signIn('google', { redirectTo: location.pathname + location.search }).catch(() => {
       write(PENDING, null)
       setClicked(false)

@@ -38,7 +38,7 @@ export function UnmatchedNotes() {
     const i = d.investors.find((x) => x._id === investorId)
     if (!i) return
     hide(u._id, true)
-    play('rule-check', { volume: 0.6 })
+    play('save')
     void save(() => act.matchUnmatched(u._id, investorId), {
       failMessage: 'Couldn’t add the notes to ' + i.name + '.',
       onError: () => (hide(u._id, false), false),

@@ -178,6 +178,7 @@ export function Drawer({ id, start = 'view', forceSheet, onClose }: { id: string
 
   const close = useCallback(() => {
     if (closing) return
+    play('drawer-close')
     setClosing(true)
     setTimeout(onClose, 200)
   }, [closing, onClose])
@@ -688,7 +689,7 @@ function CorrectionToggle({ act }: { act: Activity }) {
   const ui = useUI()
   const on = !!act.correction
   const toggle = () => {
-    play(on ? 'undo' : 'rule-check', { volume: 0.7 })
+    play(on ? 'toggle-off' : 'toggle-on')
     d.markCorrection(act._id, !on).then(() => ui.toast({ tone: 'info', message: on ? 'Not a correction any more.' : 'Marked as a correction. It’s left out of the funnel and conversion numbers.' }), ui.fail)
   }
   return (
@@ -834,7 +835,7 @@ export function EditForm({ inv, onDone, onCelebrate }: { inv: Investor | null; o
       else if (body.stage !== inv.stage) {
         const how = stageChange(inv.stage, body.stage)
         if (celebrates(inv.stage, body.stage)) {
-          hatchSounds()
+          play('stage-up')
           ui.toast({ tone: 'hatch', message: `${body.name} moved to ${STAGE_TILE[body.stage]}.`, ...(body.stage === 'verbal' ? { action: confirmAction(inv._id) } : {}) })
           onCelebrate?.()
         } else {
@@ -930,16 +931,6 @@ export function EditForm({ inv, onDone, onCelebrate }: { inv: Investor | null; o
   )
 }
 
-/** egg-crack ×2 → pesto-chirp + stage-up (interactions.png, Raise · Drawer · Advance stage). */
-function hatchSounds(win = false) {
-  play('egg-crack')
-  play('egg-crack', { delay: 0.5 })
-  play('pesto-chirp', { delay: 1 })
-  if (win) {
-    play('signed', { delay: 1.2 })
-    play('confetti', { delay: 1.3, volume: 0.7 })
-  } else play('stage-up', { delay: 1.2, volume: 0.7 })
-}
 
 /* ---------- advance stage ---------- */
 
@@ -977,7 +968,7 @@ function AdvancePanel({ inv, to: target, onDone, onPass, onPark }: { inv: Invest
       } else await d.save(inv._id, { ...fieldsOf(inv), stage: to, ...(nextStep ? { nextStep: nextStep.step, nextDate: nextStep.date } : {}) })
       if (notes.trim()) await d.logNote(inv._id, notes.trim(), { touch: to === 'm1' || to === 'm2' ? 'meeting' : 'note' })
       const win = to === 'signed' || to === 'wired'
-      hatchSounds(win)
+      play(win ? 'signed' : 'stage-up')
       setHatch('cracking')
       timers.current.push(
         setTimeout(() => {

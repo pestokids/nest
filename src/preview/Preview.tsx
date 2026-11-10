@@ -105,6 +105,9 @@
 //                            inbox-snooze (with &today=inbox); race-move, race-ahead, race-offer, race-lead, maybe-no (with
 //                            &pipeline=race); intro-step, intro-thanked (with &introducer=panel)
 //   ---------- end PST-298 interactions ----------
+//   ---------- PST-304: the UI sound kit ----------
+//   &settings=sounds         Settings › Sounds: the on/off switch, a Preview button per kind of sound, the kit's credit
+//   ---------- end PST-304 ----------
 //   &fail                    every write fails (save-failed toast with Retry)
 //   any unknown path         the 404, e.g. /nowhere?preview
 import { useEffect, useRef } from 'react'

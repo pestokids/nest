@@ -57,7 +57,7 @@ export function Suggestions({ today }: { today: string }) {
     if (list.length || !acted.current) return
     acted.current = false
     if (!firstTidyToday(today)) return
-    play('target-hit')
+    play('confetti')
     requestAnimationFrame(() => confetti(tidyAt.current, { count: TIDY_CONFETTI }))
   }, [list.length, today])
 
@@ -98,7 +98,7 @@ export function Suggestions({ today }: { today: string }) {
 
   async function accept(s: Suggestion) {
     const merge = actionOf(s) === 'merge'
-    play(merge ? 'card-drop' : 'rule-check')
+    play('save')
     await fold([s._id], merge ? 'merge' : 'accept')
     const r = await save(() => d.suggest.accept(s._id), { failMessage: merge ? 'Couldn’t merge them.' : 'Couldn’t apply that.' })
     unhide([s._id])
@@ -127,7 +127,7 @@ export function Suggestions({ today }: { today: string }) {
     if (!ids.length) return
     await fold(ids, 'accept')
     // One sound for the whole batch, at the end of the cascade.
-    play('stage-up')
+    play('save')
     const r = await save(() => d.suggest.acceptSafe(), { failMessage: 'Couldn’t accept them.' })
     unhide(ids)
     if (!r) return void (acted.current = false)

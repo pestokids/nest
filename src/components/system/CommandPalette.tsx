@@ -162,7 +162,7 @@ function usePaletteActions() {
         void save(() => d.logNote(i._id, ASK_NOTE, { touch: 'ask', next }), {
           failMessage: `Couldn’t log the ask for ${i.name}.`,
           onDone: () => {
-            play('ask-logged')
+            play('ask')
             toast(`Ask logged for ${i.name}. Follow-up set for ${formatDay(next.date)}.`)
           },
         })

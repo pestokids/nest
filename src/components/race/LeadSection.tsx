@@ -26,17 +26,14 @@ export function LeadSection({ inv: raw }: { inv: Investor }) {
   const undo = (fn: () => Promise<unknown>) => ({ label: 'Undo', onClick: () => (play('undo'), void fn().catch(ui.fail)) })
 
   function asked() {
-    play('rule-check')
+    play('ask')
     race.setLeadAsked(inv._id, true).catch(ui.fail)
     ui.toast({ message: `Asked ${first(inv.name)} to lead.`, action: undo(() => race.setLeadAsked(inv._id, false)) })
   }
   function setLead(on: boolean) {
     const saved = race.setLead(on ? inv._id : null)
     saved.catch(ui.fail)
-    if (on) {
-      play('egg-crack')
-      play('pesto-chirp', { delay: 0.5 })
-    }
+    if (on) play('save')
     ui.toast({ tone: on ? 'win' : 'info', message: on ? `${first(inv.name)} is leading the round.` : 'The round has no lead now.', action: undo(() => saved.then((r) => race.setLead(r.before))) })
   }
 

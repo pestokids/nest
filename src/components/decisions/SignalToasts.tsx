@@ -34,7 +34,7 @@ export function SignalToasts() {
           onClick: () => {
             play('undo')
             x.undoSignal(s._id).catch((e) => {
-              play('nope')
+              play('save-failed')
               ui.toast({ tone: 'error', message: errorMessage(e) })
             })
           },

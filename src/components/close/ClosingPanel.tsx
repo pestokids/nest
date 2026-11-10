@@ -93,7 +93,7 @@ export function ClosingPanel({ row, onClose, onRecord, onRemind }: { row: CloseR
           confirm="Remove"
           onConfirm={async () => {
             await c.remove(closing._id)
-            play('card-drop', { rate: 0.85 })
+            play('remove')
             onClose()
           }}
           onClose={() => setRemoving(false)}

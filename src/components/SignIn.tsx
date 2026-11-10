@@ -2,7 +2,7 @@
 // decides the state; this component draws Pesto, the bubble and the card.
 import { useEffect, useRef, useState } from 'react'
 import { replay, shake } from '../lib/motion'
-import { play, type SoundName } from '../lib/sound'
+import { play, type Action } from '../lib/sound'
 import { EggCracking, Mug } from './illustrations'
 import { Button, Icon } from './ui'
 import { Wordmark } from './Wordmark'
@@ -11,13 +11,13 @@ export type SignInState = 'default' | 'hover' | 'checking' | 'noaccess' | 'error
 export const SIGN_IN_STATES: SignInState[] = ['default', 'hover', 'checking', 'noaccess', 'error', 'signedout']
 
 type Pose = 'office-typing' | 'office-glasses-up' | 'checking' | 'bouncer' | 'spill' | 'leaving'
-const SCENE: Record<SignInState, { pose: Pose; say?: string; mug: boolean; sound?: SoundName }> = {
+const SCENE: Record<SignInState, { pose: Pose; say?: string; mug: boolean; sound?: Action }> = {
   default: { pose: 'office-typing', mug: true },
   hover: { pose: 'office-glasses-up', mug: true },
   checking: { pose: 'checking', say: 'Hmm. Let me see some ID.', mug: true },
   noaccess: { pose: 'bouncer', say: 'Sorry pal. Not on the list.', mug: false, sound: 'not-on-list' },
-  error: { pose: 'spill', say: 'That was not me.', mug: false, sound: 'spill' },
-  signedout: { pose: 'leaving', say: 'See you tomorrow!', mug: false, sound: 'signed-out' },
+  error: { pose: 'spill', say: 'That was not me.', mug: false, sound: 'failed' },
+  signedout: { pose: 'leaving', say: 'See you tomorrow!', mug: false },
 }
 const POSES = [...new Set(Object.values(SCENE).map((s) => s.pose))]
 

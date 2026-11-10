@@ -2,7 +2,7 @@
 // phone swipe (PST-290: and the drawer's M and N keys and ⌘K): sounds, confetti
 // on a win, the save, and a toast with Undo. Uses the app-wide toast, so ⌘K can too.
 import { useCallback } from 'react'
-import { classifyMove, moveSounds, moveToast, type Move, type MoveRecord } from '../../lib/board'
+import { classifyMove, moveSound, moveToast, type Move, type MoveRecord } from '../../lib/board'
 import { noteOwnMove } from '../../lib/ownMove' // PST-298
 import { confetti, MOTION } from '../../lib/motion'
 import { isBackward, type Investor } from '../../lib/pipeline'
@@ -16,9 +16,10 @@ export function useMoveCard() {
   const { move, undoMove, markCorrection } = useRaise()
   const toast = useToast()
   return useCallback(
-    (inv: Investor, to: Stage, opts: { from?: Element | null } = {}): Move => {
+    (inv: Investor, to: Stage, opts: { from?: Element | null; swipe?: boolean } = {}): Move => {
       const m = classifyMove(inv.stage, to)
-      for (const c of moveSounds(m)) play(c.name, c.opts)
+      const sound = opts.swipe && !m.win ? 'swipe' : moveSound(m)
+      if (sound) play(sound)
       if (m.kind === 'same') return m
       if (m.win) confetti(opts.from)
       noteOwnMove(inv._id, to)
@@ -35,12 +36,12 @@ export function useMoveCard() {
         ? {
             label: 'Mark as a correction',
             onClick: () => {
-              play('rule-check', { volume: 0.7 })
+              play('toggle-on')
               saved
                 .then((rec) => (rec.activityId ? markCorrection(rec.activityId, true) : null))
                 .then(() => toast({ tone: 'info', message: `Marked as a correction. ${inv.name} never got past ${STAGE_TILE[to]}.` }))
                 .catch((e) => {
-                  play('nope')
+                  play('save-failed')
                   toast({ tone: 'error', message: errorMessage(e) })
                 })
             },
@@ -60,7 +61,7 @@ export function useMoveCard() {
               saved
                 .then((rec) => undoMove(rec))
                 .catch((e) => {
-                  play('nope')
+                  play('save-failed')
                   toast({ tone: 'error', message: errorMessage(e) })
                 })
             },

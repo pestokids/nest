@@ -140,7 +140,7 @@ function Results({ s, add, start }: { s: FindState; add: (ids: string[], wave?: 
   const addOne = async (c: FindCandidate) => {
     const r = await save(() => add([c._id]), { failMessage: 'Couldn’t add ' + c.name + '.' })
     if (!r) return
-    play('rule-check')
+    play('save')
     ui.toast({ message: r.added ? c.name + ' is in Suggestions as Not contacted.' : c.name + ' was already suggested.', action: review })
   }
   const addAll = async () => {
@@ -148,7 +148,7 @@ function Results({ s, add, start }: { s: FindState; add: (ids: string[], wave?: 
     const r = await save(() => add(s.candidates.map((c) => c._id), 2), { failMessage: 'Couldn’t add them.' })
     setBusy(false)
     if (!r) return
-    play('stage-up')
+    play('save')
     ui.toast({ message: r.added + (r.added === 1 ? ' investor is' : ' investors are') + ' in Suggestions as Not contacted, ' + s.waveLabel + '.', action: review })
   }
 

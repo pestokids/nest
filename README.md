@@ -11,7 +11,7 @@ src/            Frontend: TanStack Start (React, TypeScript, file-based routes)
   lib/          Shared logic: stages, scoring, round maths, dates, money, CSV, Home, motion, sound (unit-tested)
   styles/       Plain CSS: tokens (named after the Sketch swatches), base, motion, ui, shell, sign-in, home, raise
   preview/      ?preview fixture (made-up data; local dev and Vercel PR previews only)
-public/         mascot/ (WebP), sounds/ (UI sounds)
+public/         mascot/ (WebP), sounds/snd01/ (the UI sound kit, copied in at build time; not in git)
 convex/         Backend: schema, queries, mutations, Convex Auth (Google), seed
 scripts/        Auth key generator, unauthenticated-access check, preview screenshots
 internal/       Private, never committed (design handoff, prototype, seed.json); copied into worktrees by .worktreeinclude
@@ -23,7 +23,7 @@ Everything behind sign-in is client-rendered (`ssr: false` on the `_app` layout)
 
 Tokens are CSS custom properties in `src/styles/tokens.css`, named after the Sketch swatches (`Brand/Forest` → `--brand-forest`), light theme only. Fonts: Bricolage Grotesque (display, at its 14pt optical size), Inter (UI), JetBrains Mono (labels). Components live in `src/components/ui/`; illustrations in `src/components/illustrations.tsx`.
 
-Motion (`src/lib/motion.ts` + `src/styles/motion.css`): rise, pop, wobble, shake, pulse, shine, bob, confetti and toast slide, all respecting `prefers-reduced-motion`. Sound (`src/lib/sound.ts`): one Web Audio player, `play(name, { volume, delay, rate })`, silent until the first gesture, while the tab is hidden, or when the user turns Sounds off in the avatar menu (stored per user in Convex, `prefs` table).
+Motion (`src/lib/motion.ts` + `src/styles/motion.css`): rise, pop, wobble, shake, pulse, shine, bob, confetti and toast slide, all respecting `prefers-reduced-motion`. Sound (`src/lib/sound.ts`): one Web Audio player, `play(action)`, silent until the first gesture, while the tab is hidden, or when the user turns Sounds off in the avatar menu or Settings › Sounds (stored per user in Convex, `prefs` table). See UI sounds below.
 
 ## Local setup
 
@@ -290,6 +290,17 @@ The drawer's edit form and Add investor name their fields by type, and the label
 
 Preview: `/raise/pipeline?preview&drawer=edit-vc` (or `edit-accelerator`, `edit-angel`).
 <!-- end PST-303 -->
+
+<!-- ---------- PST-304: UI sounds ---------- -->
+## UI sounds
+
+Nest's UI sounds are one designed kit: **SND01 “sine” by Yasuhiro Tsuchiya**, from [SND](https://snd.dev/) (Dentsu), via the `snd-lib` npm package. The kit's code is MIT; the sounds are free to use, and their copyright stays with the designer.
+
+- **Self-hosted.** `vite.config.ts` copies the kit's one sprite (`audioSprite.m4a`, 140 KB) from `node_modules/snd-lib` into `public/sounds/snd01/` whenever Vite starts (dev or build), so the app serves it from its own origin and nothing loads from a CDN. SND's terms forbid redistributing the raw files on their own, so that folder is gitignored and never committed.
+- **One table.** `ACTIONS` in `src/lib/sound.ts` maps each Nest action to a kit sound (`play('save')` → BUTTON, `play('undo')` → TRANSITION_DOWN, `play('nope')` → CAUTION…), and `KIT_SOUNDS` holds where each sound sits in the sprite and its gain, so the kit plays at an even loudness. Master volume 30%, ±4% random pitch, never two sounds within 120 ms.
+- **Fewer sounds.** Only for something you changed, or a refused action you just tried. Nothing for navigation, ⌘K, the ? sheet, focus moves, hover or page load. `src/lib/soundCalls.test.ts` checks every `play()` call in `src` against the table.
+- **Settings › Sounds** has the on/off switch, a Preview button per kind of sound, and the kit's credit (`?preview&settings=sounds`).
+<!-- ---------- end PST-304 ---------- -->
 
 ## Seed
 

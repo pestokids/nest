@@ -11,6 +11,7 @@ import { CapTableCard } from '../../../components/settings/CapTableCard'
 import { AgentsCard, ConnectAgentCard } from '../../../components/settings/AgentsCard'
 import { WisprCard } from '../../../components/settings/WisprCard'
 import { FeedbackCard } from '../../../components/system/Feedback' // PST-289
+import { SoundsCard } from '../../../components/settings/SoundsCard' // PST-304
 import { usePreviewState } from '../../../components/preview-state'
 import { useSaveAction } from '../../../components/system/useSaveAction'
 import { Button, Icon } from '../../../components/ui'
@@ -65,7 +66,6 @@ function Settings() {
     const q = new URLSearchParams(window.location.search)
     const m = connectMessage(q.get('connect'))
     if (!m) return
-    if (m.tone === 'error') play('save-failed')
     toast({ tone: m.tone, ...(m.tone === 'info' ? { icon: 'check' as const } : {}), message: m.message })
     q.delete('connect')
     window.history.replaceState(window.history.state, '', `${window.location.pathname}${q.size ? `?${q}` : ''}${window.location.hash}`)
@@ -91,20 +91,23 @@ function Settings() {
   }
   const setTop = <K extends keyof Round>(k: K, v: Round[K]) => edit((r) => ({ ...r, [k]: v }))
 
-  /** On leaving a field: if it's wrong, its message slides in, it shakes, `nope`. */
+  /** On leaving a field: if it's wrong, its message slides in and it shakes. */
   const touch = (k: string) => {
     if (touched.has(k)) return
     setTouched((t) => new Set(t).add(k))
-    if (errors[k] && !attempted) complain([k])
+    if (errors[k] && !attempted) flag([k])
   }
-  const complain = (keys: string[]) => {
-    play('nope')
+  /** PST-304: leaving a field shakes it silently; `nope` is for a save you tried. */
+  const flag = (keys: string[]) =>
     requestAnimationFrame(() =>
       keys.forEach((k) => {
         const el = form.current?.querySelector(`[data-err="${CSS.escape(k)}"]`) ?? form.current?.querySelector(`[data-field="${CSS.escape(fieldId(k))}"]`)
         shake(el?.querySelector('.input, .select') ?? el)
       }),
     )
+  const complain = (keys: string[]) => {
+    play('nope')
+    flag(keys)
   }
 
   async function submit() {
@@ -241,6 +244,8 @@ function Settings() {
         <WisprCard />
         {/* PST-289 */}
         <FeedbackCard />
+        {/* PST-304 */}
+        <SoundsCard />
         <ClaudeSees />
         <ConnectAgentCard />
         <MembersCard members={members} />

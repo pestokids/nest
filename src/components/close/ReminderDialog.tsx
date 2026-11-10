@@ -26,8 +26,8 @@ export function ReminderDialog({ row, closing, onClose }: { row: CloseRow; closi
 
   /** Once per reminder: a Nudged touch, so Today knows you followed up. */
   const log = () => {
-    play('nudge')
     if (logged) return
+    play('log')
     setLogged(true)
     d.logNote(row.investor._id, kind === 'sign' ? 'Reminded them to sign the SAFE' : 'Reminded them about the wire', { touch: 'nudge' }).catch(fail)
   }
@@ -37,7 +37,7 @@ export function ReminderDialog({ row, closing, onClose }: { row: CloseRow; closi
       log()
       toast({ tone: 'success', icon: 'check', message: 'Copied. Paste it wherever you talk to them.' })
     } catch {
-      play('nope')
+      play('failed')
       toast({ tone: 'error', message: 'Couldn’t copy here. Select the text and copy it yourself.' })
     }
   }
@@ -46,7 +46,7 @@ export function ReminderDialog({ row, closing, onClose }: { row: CloseRow; closi
     setSending(true)
     try {
       const { to } = await c.emailReminder(closing._id, msg.subject, text)
-      play('nudge')
+      play('log')
       toast({ tone: 'success', icon: 'check', message: `Sent to ${to}.` })
       onClose()
     } catch (e) {

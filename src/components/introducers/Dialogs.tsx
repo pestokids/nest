@@ -33,7 +33,7 @@ export function IntroducerDialog({ edit, onClose, onSaved }: { edit?: Person; on
         onSaved?.(edit.introducerId)
       } else {
         const r = await x.add(f)
-        play('card-drop', { volume: 0.6 })
+        play('save')
         toast({ tone: 'success', icon: 'check', message: r.existed ? f.name.trim() + ' was already here.' : 'Added ' + f.name.trim() + '.' })
         onSaved?.(r.id)
       }

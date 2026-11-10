@@ -129,7 +129,7 @@ export function MaterialPanel({ materialId, tab: startTab, file, onClose, onShar
     await save(() => m.act.remove(materialId), {
       failMessage: `Couldn’t delete ${material!.title}.`,
       onDone: () => {
-        play('park')
+        play('remove')
         onClose()
       },
     })
@@ -217,7 +217,7 @@ function Versions({ materialId, file, onShare }: { materialId: string; file?: Pi
     await save(() => m.act.makeCurrent(v._id), {
       failMessage: `Couldn’t make v${v.n} current.`,
       onDone: () => {
-        play('card-drop')
+        play('save')
         toast(`v${v.n} is current again.`)
       },
     })

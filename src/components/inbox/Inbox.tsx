@@ -44,9 +44,9 @@ export function Inbox() {
   const [leaving, setLeaving] = useState<ReadonlyMap<string, InboxMarkKind>>(() => new Map())
   const acted = useRef(false)
   const mark = useCallback(
-    async (row: InboxRow, kind: InboxMarkKind) => {
+    async (row: InboxRow, kind: InboxMarkKind, swiped = false) => {
       acted.current = true
-      if (kind === 'done') play('rule-check', { volume: 0.7 })
+      play(swiped ? 'swipe' : kind === 'done' ? 'save' : 'snooze')
       setLeaving((s) => new Map(s).set(row.key, kind))
       await new Promise((r) => setTimeout(r, MOMENT_MS + (kind === 'done' ? TICK_MS : 0)))
       try {
@@ -201,7 +201,7 @@ export function Inbox() {
                     leaving={leaving.get(r.key) ?? null}
                     peek={preview?.today === 'phone' && g === groups[0] && k === 0}
                     onFocus={() => setCurrent(r.key)}
-                    onMark={(kind) => void mark(r, kind)}
+                    onMark={(kind, swiped) => void mark(r, kind, swiped)}
                     onPrimary={(el) => run.primary(r, el)}
                     onOpen={() => run.open(r)}
                   />
@@ -251,7 +251,7 @@ function Row({ row: r, current, leaving, peek, onFocus, onMark, onPrimary, onOpe
   leaving: InboxMarkKind | null
   peek: boolean
   onFocus: () => void
-  onMark: (kind: InboxMarkKind) => void
+  onMark: (kind: InboxMarkKind, swiped?: boolean) => void
   onPrimary: (el: HTMLElement | null) => void
   onOpen: () => void
 }) {
@@ -314,7 +314,7 @@ function Row({ row: r, current, leaving, peek, onFocus, onMark, onPrimary, onOpe
 }
 
 /** A touch swipe on a row: right past SWIPE_PX marks it done, left snoozes; a tick of haptics as it arms. */
-function useSwipe(onMark: (kind: InboxMarkKind) => void, peek: boolean) {
+function useSwipe(onMark: (kind: InboxMarkKind, swiped?: boolean) => void, peek: boolean) {
   const [dx, setDx] = useState(peek ? SWIPE_PX : 0)
   const s = useRef<{ x: number; y: number; axis?: 'x' | 'y'; armed: boolean } | null>(null)
   const moved = useRef(false)
@@ -325,7 +325,7 @@ function useSwipe(onMark: (kind: InboxMarkKind) => void, peek: boolean) {
     if (!cancel && st.armed) {
       const done = dx > 0
       setDx((done ? 1 : -1) * e.currentTarget.offsetWidth)
-      onMark(done ? 'done' : 'snooze')
+      onMark(done ? 'done' : 'snooze', true)
     } else setDx(0)
   }
   const handlers = {
@@ -345,7 +345,6 @@ function useSwipe(onMark: (kind: InboxMarkKind) => void, peek: boolean) {
         if (st.axis === 'x') {
           e.currentTarget.setPointerCapture(e.pointerId)
           moved.current = true
-          play('card-pickup', { volume: 0.4 })
         }
       }
       if (st.axis !== 'x') return
@@ -380,7 +379,7 @@ function Clear({ acted }: { acted: React.RefObject<boolean> }) {
       .cleared(inbox.today)
       .then((first) => {
         if (!first) return
-        if (acted.current) play('target-hit')
+        if (acted.current) play('inbox-cleared')
         requestAnimationFrame(() => confetti(at.current, { count: CLEAR_CONFETTI }))
       })
       .catch(() => {})
@@ -419,8 +418,7 @@ function useRowActions() {
     const logAsk = async (id: string, from: HTMLElement | null) => {
       const i = d.investors.find((x) => x._id === id)
       if (!i) return
-      play('ask-logged')
-      play('confetti', { delay: 0.15, volume: 0.7 })
+      play('ask')
       confetti(from)
       const next = askFollowUp(today)
       ui.toast({ tone: 'win', message: `Ask logged. Follow-up set for ${formatDay(next.date)}.`, action: { label: 'View', onClick: () => ui.open(id) }, durationMs: WIN_MS })
@@ -460,14 +458,14 @@ function useRowActions() {
           if (id) ui.open(id, a.tab ? { tab: a.tab } : {})
           return
         case 'step': {
-          play('rule-check', { volume: 0.7 })
+          play('toggle-on')
           void Promise.all(a.introIds.map((x) => intro.setStep(x, a.step, today))).catch(ui.fail)
           const firms = a.introIds.flatMap((x) => d.investors.find((i) => i._id === intro.intros.find((y) => y._id === x)?.investorId)?.name ?? [])
           if (a.step === 'thanked' && firms.length) ui.toast({ tone: 'info', icon: 'check', message: thankedLine(r.name, firms) })
           return
         }
         case 'nudge-introducer':
-          play('nudge')
+          play('log')
           void Promise.all(a.introIds.map((x) => intro.nudged(x))).catch(ui.fail)
           return
         case 'resolve':
@@ -477,7 +475,7 @@ function useRowActions() {
           if (id) openCloseKit(id)
           return
         case 'done':
-          play('rule-check', { volume: 0.7 })
+          play('save')
           void inbox.mark(r, 'done').then(
             (prev) => {
               ui.toast({ tone: 'info', icon: 'check', message: `Done: ${r.name}.`, action: { label: 'Undo', onClick: () => (play('undo'), void inbox.restore(r.key, prev).catch(ui.fail)) } })
@@ -486,7 +484,7 @@ function useRowActions() {
           )
           return
         case 'accept-fixes':
-          play('stage-up')
+          play('save')
           void d.suggest.acceptSafe().then((res) => {
             const n = res.ids.length
             ui.toast({ message: `Accepted ${n} safe ${n === 1 ? 'one' : 'ones'}.`, action: { label: 'Undo', onClick: () => (play('undo'), void d.suggest.undo(res.ids).catch(ui.fail)) } })

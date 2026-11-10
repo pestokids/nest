@@ -75,7 +75,7 @@ export function CloseKit({ investor, onClose }: { investor: Investor; onClose: (
     setBusy(true)
     try {
       const r = await x.send(input(edited ?? textAt(Date.now())))
-      play('ask-logged')
+      play('log')
       toast({ tone: 'success', icon: 'check', message: `Sent to ${r.to}. The 48-hour offer is running.` })
     } catch (e) {
       fail(e)
@@ -100,7 +100,7 @@ export function CloseKit({ investor, onClose }: { investor: Investor; onClose: (
     await save(() => x.markSent(copiedId), {
       failMessage: 'Couldn’t start the clock.',
       onDone: () => {
-        play('ask-logged')
+        play('log')
         toast({ tone: 'success', icon: 'check', message: 'Logged. The 48-hour offer is running.' })
       },
     })
