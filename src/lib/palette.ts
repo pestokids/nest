@@ -57,13 +57,14 @@ export function searchNotes<T extends PaletteInvestor>(investors: T[], query: st
   return out
 }
 
-export type Section = { label: string; to: string; keys?: string[] }
+export type Section = { label: string; to: string; keys?: string[]; /** PST-305: Network is a view of Investors. */ search?: Record<string, string> }
 
 export const SECTIONS: Section[] = [
   { label: 'Home', to: '/', keys: ['G', 'H'] },
   { label: 'Today', to: '/raise/today', keys: ['G', 'T'] },
   { label: 'Pipeline', to: '/raise/pipeline', keys: ['G', 'P'] },
   { label: 'Investors', to: '/raise/investors', keys: ['G', 'I'] },
+  { label: 'Network', to: '/raise/investors', search: { view: 'network' } }, // PST-305: founders, friends and advisors
   { label: 'Q&A', to: '/raise/qanda', keys: ['G', 'Q'] },
   { label: 'Plan', to: '/raise/plan', keys: ['G', 'L'] },
   { label: 'Settings', to: '/raise/settings', keys: ['G', 'S'] },

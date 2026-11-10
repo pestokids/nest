@@ -411,7 +411,7 @@ function useRowActions() {
   const today = inbox.today
 
   return useMemo(() => {
-    const openPerson = (key: string) => void navigate({ to: '/raise/investors', search: { view: 'introducers', person: key } })
+    const openPerson = (key: string) => void navigate({ to: '/raise/investors', search: { view: 'network', person: key } })
     const openFixes = () => void navigate({ to: '.', search: true, state: (s) => ({ ...s, suggestions: true }) })
 
     /** Log the ask (the win): confetti from the button, the sounds and the Cheer toast. */
@@ -464,6 +464,9 @@ function useRowActions() {
           if (a.step === 'thanked' && firms.length) ui.toast({ tone: 'info', icon: 'check', message: thankedLine(r.name, firms) })
           return
         }
+        case 'ask-intros': // PST-305
+          openDraft({ investorId: a.investorId, type: 'introAsk', personKey: a.personKey })
+          return
         case 'nudge-introducer':
           play('log')
           void Promise.all(a.introIds.map((x) => intro.nudged(x))).catch(ui.fail)

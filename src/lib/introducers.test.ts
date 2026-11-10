@@ -23,7 +23,8 @@ describe('names and old warm paths', () => {
   })
 
   it('guesses the relation from the note', () => {
-    expect(relationFromHint('portfolio founder')).toBe('portfolio')
+    expect(relationFromHint('portfolio founder')).toBe('founder')
+    expect(relationFromHint('advisor')).toBe('advisor')
     expect(relationFromHint('angel')).toBe('angel')
     expect(relationFromHint('ex-colleague')).toBe('friend')
     expect(relationFromHint('')).toBe('other')
@@ -50,7 +51,7 @@ describe('the migration', () => {
   it('makes each person once (by normalised name) and one intro per person and investor', () => {
     const plan = migrationPlan(investors, [], [])
     expect(plan.create.map((c) => [c.name, c.relation, c.notes])).toEqual([
-      ['Ankur Mehta', 'portfolio', 'portfolio founder'],
+      ['Ankur Mehta', 'founder', 'portfolio founder'],
       ['Ria', 'other', ''],
     ])
     expect(plan.link.map((l) => [l.investorId, l.introducer, l.fromPath])).toEqual([
@@ -114,7 +115,7 @@ describe('the Introducers table', () => {
     inv('k', 'Kite Angels', { stage: 'm1', maxStage: 'm1' }),
     inv('s', 'Sable Fund', { stage: 'signed', maxStage: 'signed', committed: 25000, email: 'gp@sable.example' }),
   ]
-  const people: Introducer[] = [{ _id: 'p1', name: 'Ankur Mehta', relation: 'portfolio', notes: 'Founder of Tinkerly' }]
+  const people: Introducer[] = [{ _id: 'p1', name: 'Ankur Mehta', relation: 'founder', notes: 'Founder of Tinkerly' }]
   const intros: Intro[] = [
     { _id: 'i1', investorId: 'l', introducerId: 'p1', steps: { asked: '2026-11-02', yes: '2026-11-03', sent: '2026-11-03', made: today } },
     { _id: 'i2', investorId: 'o', introducerId: 'p1', steps: { asked: '2026-10-20', yes: '2026-10-21', sent: '2026-10-21', made: '2026-10-22', thanked: '2026-10-22' } },
@@ -135,7 +136,7 @@ describe('the Introducers table', () => {
   it('shows committed investors as introducers too, derived from the list', () => {
     const rows = personRows({ introducers: people, intros, investors }, today)
     expect(rows.map((r) => [r.key, r.relation])).toEqual([
-      ['p1', 'portfolio'],
+      ['p1', 'founder'],
       ['inv:o', 'committed'],
       ['inv:s', 'committed'],
     ])

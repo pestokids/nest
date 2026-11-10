@@ -108,6 +108,13 @@
 //   ---------- PST-304: the UI sound kit ----------
 //   &settings=sounds         Settings › Sounds: the on/off switch, a Preview button per kind of sound, the kit's credit
 //   ---------- end PST-304 ----------
+//   ---------- PST-305: Network (see preview/networkFixture.ts) ----------
+//   &investors=network       Investors › Network (&investors=introducers still works)
+//   &network=founder|friend|advisor  a founder's panel (Ankur), a friend's (Ria), an advisor who also invests (Neha)
+//   &network=lookup          Ankur's Find their investors: a pretend search, then results to tick (two already in Nest)
+//   &network=import          the CSV import of people with its preview (a duplicate and a bad email skipped)
+//   &draft=intro-ask         Ask Ankur for intros: three investors, a line on why each fits, the note to forward
+//   ---------- end PST-305 ----------
 //   &fail                    every write fails (save-failed toast with Retry)
 //   any unknown path         the 404, e.g. /nowhere?preview
 import { useEffect, useRef } from 'react'
@@ -194,10 +201,13 @@ export function Preview() {
   /* ---------- PST-298 interactions: &moment=<name> ---------- */
   const moment = (PREVIEW_MOMENTS as readonly string[]).includes(q.get('moment') ?? '') ? (q.get('moment') as PreviewMoment) : null
   /* ---------- end PST-298 interactions ---------- */
+  /* ---------- PST-305: &network=founder|friend|advisor|lookup|import ---------- */
+  const networkState = { network: q.get('network') }
+  /* ---------- end PST-305 ---------- */
   return (
     <LocalSounds>
       <SessionContext.Provider value={session}>
-        <PreviewStateContext.Provider value={{ ...state, ...decisionState, /* PST-302 */ ...applicationState }}>
+        <PreviewStateContext.Provider value={{ ...state, ...decisionState, /* PST-302 */ ...applicationState, /* PST-305 */ ...networkState }}>
           <PreviewData
             source={sessionStorage.getItem('nest_preview_data') === 'seed' ? 'seed' : 'fixture'}
             home={home}

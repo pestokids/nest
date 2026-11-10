@@ -20,11 +20,15 @@ import { useMaterials } from '../materials/data'
 import { usePreviewState } from '../preview-state'
 import { DraftDialog } from './DraftDialog'
 import { ForwardableDialog } from './ForwardableDialog'
+import { IntroAskDialog } from './IntroAskDialog' // PST-305
+import { previewAsk } from '../../preview/networkFixture' // PST-305
+import { allPeople, personKey } from '../../lib/introducers' // PST-305
+import { WHY_SLOT } from '../../lib/network' // PST-305
 import { useIntroducers } from '../introducers/data'
 import { PREVIEW_FORWARDABLE, previewForwardable } from '../../preview/introducersFixture'
 
 /** Open the dialog on an investor: a type to start on (else the drawer's pick), or a saved draft to reopen. */
-export type DraftOpen = { investorId: string; type?: DraftType; draftId?: string; /** PST-294: a forwardable intro's intro. */ introId?: string }
+export type DraftOpen = { investorId: string; type?: DraftType; draftId?: string; /** PST-294: a forwardable intro's intro. */ introId?: string; /** PST-305: the intro ask's person (their key in the Network). */ personKey?: string }
 
 let request: DraftOpen | null = null
 const listeners = new Set<() => void>()
@@ -55,6 +59,8 @@ export type DraftsValue = {
   send: (d: DraftInput) => Promise<{ draftId: string; to: string }>
   /** PST-291: several drafts at once (allocation emails), each to the investor's main contact when `to` is empty. Nothing is sent. */
   saveMany: (ds: Omit<DraftInput, 'draftId'>[]) => Promise<string[]>
+  /** PST-305: the intro ask (one email to a person, naming 2–3 of their intros). */
+  writeAsk: (i: { draftId?: string; introIds: string[] }) => Promise<Generated>
 }
 
 const DraftsContext = createContext<DraftsValue | null>(null)
@@ -78,11 +84,13 @@ export function DraftHost() {
   if (!r || !inv) return null
   // PST-294: a forwardable intro has its own dialog (two emails, to the introducer).
   if (r.type === 'forwardable') return r.introId ? <ForwardableDialog key={r.introId + (r.draftId ?? '')} start={r} introId={r.introId} investor={inv} onClose={() => openDraft(null)} /> : null
+  // PST-305: the intro ask has its own dialog too (pick 2–3, then one email to the person).
+  if (r.type === 'introAsk') return <IntroAskDialog key={(r.personKey ?? '') + (r.draftId ?? '')} start={r} onClose={() => openDraft(null)} />
   return <DraftDialog key={r.investorId + (r.draftId ?? r.type ?? '')} start={r} investor={inv} onClose={() => openDraft(null)} />
 }
 
 const useInvestorDrafts = (investorId: string | null) => useQuery(api.drafts.forInvestor, investorId ? { investorId: investorId as Id<'investors'> } : 'skip')
-const ids = (d: DraftInput) => ({ ...d, draftId: d.draftId as Id<'drafts'> | undefined, investorId: d.investorId as Id<'investors'>, introId: d.introId as Id<'intros'> | undefined })
+const ids = (d: DraftInput) => ({ ...d, draftId: d.draftId as Id<'drafts'> | undefined, investorId: d.investorId as Id<'investors'>, introId: d.introId as Id<'intros'> | undefined, introIds: d.introIds as Id<'intros'>[] | undefined })
 
 function ConvexDrafts({ children }: { children: ReactNode }) {
   const generate = useAction(api.drafts.generate)
@@ -94,6 +102,7 @@ function ConvexDrafts({ children }: { children: ReactNode }) {
   const markSent = useMutation(api.drafts.markSent).withOptimisticUpdate((store, { draftId }) => showDraft(store, { draftId, sent: true }))
   const send = useAction(api.drafts.send)
   const saveMany = useMutation(api.drafts.saveMany)
+  const writeAsk = useAction(api.network.writeAsk) // PST-305
   const value = useMemo<DraftsValue>(
     () => ({
       useInvestorDrafts,
@@ -103,8 +112,9 @@ function ConvexDrafts({ children }: { children: ReactNode }) {
       markSent: (draftId) => markSent({ draftId: draftId as Id<'drafts'> }),
       send: (d) => send(ids(d)),
       saveMany: (ds) => saveMany({ drafts: ds.map((d) => ({ ...d, investorId: d.investorId as Id<'investors'> })) }),
+      writeAsk: (i) => writeAsk({ draftId: i.draftId as Id<'drafts'> | undefined, introIds: i.introIds as Id<'intros'>[] }),
     }),
-    [generate, save, copied, markSent, send, saveMany],
+    [generate, save, copied, markSent, send, saveMany, writeAsk],
   )
   return <DraftsContext.Provider value={value}>{children}</DraftsContext.Provider>
 }
@@ -178,6 +188,12 @@ function PreviewDrafts({ state, children }: { state: PreviewDrafts | null; child
     if (previewDraft !== 'forwardable' || !d.loaded || !intro.loaded || !inv) return
     void intro.link(inv._id, { introducerId: PREVIEW_FORWARDABLE.introducerId }).then((introId) => openDraft({ investorId: inv._id, type: 'forwardable', introId }))
   }, [previewDraft, d.loaded, intro.loaded]) // eslint-disable-line react-hooks/exhaustive-deps
+  // PST-305: &draft=intro-ask opens Ask Ankur for intros (it writes at once).
+  useEffect(() => {
+    if (previewDraft !== 'intro-ask' || !d.loaded || !intro.loaded) return
+    const x = intro.intros.find((y) => y.introducerId === PREVIEW_FORWARDABLE.introducerId && !Object.keys(y.steps).length)
+    if (x) openDraft({ investorId: x.investorId, type: 'introAsk', personKey: PREVIEW_FORWARDABLE.introducerId })
+  }, [previewDraft, d.loaded, intro.loaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const value = useMemo<DraftsValue>(() => {
     const fill = (investorId: string, body: string) => {
@@ -192,7 +208,7 @@ function PreviewDrafts({ state, children }: { state: PreviewDrafts | null; child
         const prev = xs.find((y) => y._id === id)
         const row: Draft = {
           status: 'draft', costUsd: 0, createdAt: Date.now(), ...prev, _id: id, investorId: x.investorId, type: x.type, subject: x.subject.trim(), body: x.body.trim(),
-          ...(x.to.trim() ? { to: normEmail(x.to) } : {}), ...(x.introId ? { introId: x.introId } : {}), ...(x.forward ? { forward: x.forward } : {}), ...patch,
+          ...(x.to.trim() ? { to: normEmail(x.to) } : {}), ...(x.introId ? { introId: x.introId } : {}), ...(x.forward ? { forward: x.forward } : {}), ...(x.introIds ? { introIds: x.introIds } : {}), ...patch,
         }
         return [row, ...xs.filter((y) => y._id !== id)]
       })
@@ -204,7 +220,9 @@ function PreviewDrafts({ state, children }: { state: PreviewDrafts | null; child
       const at = Date.now()
       writeDrafts((xs) => xs.map((y) => (y._id === id ? { ...y, status: 'sent', sentAt: at } : y)))
       if (x.type === 'confirm') previewConfirmSent(x.investorId, at)
-      void d.logNote(x.investorId, (x.via === 'whatsapp' ? 'On WhatsApp: ' : '') + x.subject, { touch: x.via === 'whatsapp' ? 'note' : 'email' })
+      // PST-305: the intro ask touches no investor; it ticks Asked on each of its intros.
+      for (const id of x.introIds ?? []) if (!intro.intros.find((y) => y._id === id)?.steps.asked) void intro.setStep(id, 'asked', todayIST())
+      if (x.type !== 'introAsk') void d.logNote(x.investorId, (x.via === 'whatsapp' ? 'On WhatsApp: ' : '') + x.subject, { touch: x.via === 'whatsapp' ? 'note' : 'email' })
       // PST-294: a forwardable intro's ask going ticks Asked.
       if (x.introId && !intro.intros.find((y) => y._id === x.introId)?.steps.asked) void intro.setStep(x.introId, 'asked', todayIST())
       return true
@@ -254,6 +272,7 @@ function PreviewDrafts({ state, children }: { state: PreviewDrafts | null; child
         const n = blanks(x.subject + '\n' + x.body)
         if (n) return reject('Fill in the ' + (n === 1 ? 'blank' : n + ' blanks') + ' (' + BLANK + ') before sending.')
         if (x.body.includes(SAFE_LINK)) return reject('Paste the SAFE link in place of ' + SAFE_LINK + ' before sending.')
+        if (x.body.includes(WHY_SLOT)) return reject('Say why each investor fits in place of ' + WHY_SLOT + ' before sending.') // PST-305
         if (find(x.draftId)?.status === 'sent') return reject('This one has already gone. Start a new draft.')
         await wait(700)
         const draftId = upsert({ ...x, to, body: fill(x.investorId, x.body.trim()) }, { via: 'nest' })
@@ -271,6 +290,21 @@ function PreviewDrafts({ state, children }: { state: PreviewDrafts | null; child
           ...xs,
         ])
         return made.map((x) => x._id)
+      },
+      // PST-305
+      writeAsk: async (i) => {
+        if (state === 'nokey') return Promise.reject({ data: { code: NO_AI_KEY, message: 'AI isn’t set up here.' } })
+        await wait(900)
+        const xs = i.introIds.map((id) => intro.intros.find((y) => y._id === id)).filter((y) => !!y)
+        const p = xs[0] && allPeople(intro.introducers, d.investors).find((q) => q.key === personKey(xs[0]!))
+        if (!p || !xs.length) return reject('Pick who to ask about first.')
+        const text = previewAsk({ who: p.name, picked: xs.map((y) => d.investors.find((v) => v._id === y!.investorId)?.name ?? '') })
+        const prev = find(i.draftId)
+        const reuse = prev && prev.status !== 'sent' ? prev : undefined
+        const costUsd = (reuse?.costUsd ?? 0) + 0.002
+        const to = normEmail(p.email)
+        const draftId = upsert({ draftId: reuse?._id, investorId: xs[0]!.investorId, type: 'introAsk', to, introIds: i.introIds, ...text }, { costUsd })
+        return { draftId, ...text, costUsd, ...(to ? { to } : {}) }
       },
     }
   }, [d, linkOf, state, intro])

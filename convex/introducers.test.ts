@@ -47,7 +47,7 @@ describe('migrating the old warm paths', () => {
     const { t, as, rows, lantern, kite, orchard } = await setup()
     expect(await as.mutation(api.introducers.migrate, {})).toEqual({ created: 2, linked: 4 })
     const { introducers, intros } = await rows()
-    expect(introducers.map((p) => [p.name, p.relation, p.notes]).sort()).toEqual([['Ankur Mehta', 'portfolio', 'portfolio founder'], ['Ria', 'other', '']])
+    expect(introducers.map((p) => [p.name, p.relation, p.notes]).sort()).toEqual([['Ankur Mehta', 'founder', 'portfolio founder'], ['Ria', 'other', '']])
     const ankur = introducers.find((p) => p.name === 'Ankur Mehta')!._id
     expect(intros.filter((x) => x.introducerId === ankur).map((x) => x.investorId).sort()).toEqual([lantern, kite, orchard].sort())
     expect(intros.every((x) => Object.keys(x.steps).length === 0)).toBe(true)
@@ -133,7 +133,7 @@ const ANSWER = {
 
 async function forwardable() {
   const s = await setup()
-  const { id } = await s.as.mutation(api.introducers.add, { name: 'Ankur Mehta', email: 'ankur@tinkerly.example', relation: 'portfolio', notes: 'Founder of Tinkerly' })
+  const { id } = await s.as.mutation(api.introducers.add, { name: 'Ankur Mehta', email: 'ankur@tinkerly.example', relation: 'founder', notes: 'Founder of Tinkerly' })
   const introId = await s.as.mutation(api.introducers.link, { investorId: s.lantern, introducerId: id as Id<'introducers'> })
   const deck = await s.t.run(async (ctx) => {
     const m = await ctx.db.insert('materials', { kind: 'deck', title: 'Pitch deck', createdAt: 1, createdBy: s.dev })
@@ -154,7 +154,7 @@ describe('the forwardable intro', () => {
     const req = calls[0].body as { model: string; messages: { content: string }[] }
     expect(req.model).toMatch(/haiku/)
     const prompt = req.messages[0].content
-    expect(prompt).toContain('Ankur Mehta (Portfolio founder): Founder of Tinkerly')
+    expect(prompt).toContain('Ankur Mehta (Founder): Founder of Tinkerly')
     expect(prompt).toContain('Never invent traction, terms or numbers')
     expect(prompt).toContain('write [deck link] where it goes')
     expect(r.body).toContain('Pesto has [__] families and grew [__]x last quarter.')

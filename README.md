@@ -41,6 +41,10 @@ Preview: `?preview` renders Home and every Raise view from a small made-up fixtu
 Introducers (PST-294): `&investors=introducers` (Investors › Introducers), `&introducer=panel|add|ask` (one introducer's panel, the Add introducer dialog, the Ask for an intro dialog), `&draft=forwardable` (the forwardable intro draft) and `&drawer=warm-path` (the drawer's warm path with its steps).
 <!-- end PST-294 -->
 
+<!-- PST-305 -->
+Network (PST-305): `&investors=network` (Investors › Network; `&investors=introducers` and `?view=introducers` still open it), `&network=founder|friend|advisor` (a founder's, a friend's or an advisor-who-invests' panel), `&network=lookup` (a founder's Find their investors with results to tick), `&network=import` (the CSV import with its preview), `&draft=intro-ask` (Ask Ankur for intros), and `&drawer=view&network=advisor` (an investor's drawer with "Also your advisor").
+<!-- end PST-305 -->
+
 Screenshots of every preview screen at 1440 × 900, 440 × 956 and 412 × 915: run `pnpm dev:web`, then `node scripts/screenshots.mjs http://localhost:3000` (writes to `.context/screens/`). They use the fixture, never real data. The script also reports any screen that scrolls sideways and, on phones, any control under 44 × 44 (`checks.json`).
 
 ## Environment variables
@@ -250,6 +254,24 @@ Without a key, or when Linear fails, the row stays "Not sent yet": Raise › Set
 
 Preview: `?preview&feedback=open|sent|unsent` (unsent also fills Settings › Feedback with rows waiting and no key).
 <!-- end PST-289 -->
+
+<!-- PST-305 -->
+## Network: founders, friends and advisors
+
+Investors › Network (it was Introducers) is everyone who can introduce Dev to investors. Filter chips: All, Founders, Friends, Advisors, Angels, and Investors who intro (committed investors, and anyone who also invests). Each row has the relation and company, role chips, how many investors they can introduce, asked, made, meetings, money in, and what's next, sorted by what's next and then by intros made. ⌘K has "Go to Network".
+
+**People**: an `introducers` row now also keeps `company`, `companyDomain` (founders), `roles` (`canIntro`, on by default; `wantsToInvest`; `givesAdvice`, on by default for advisors) and `investorId` when they're also an investor. Relations are founder, friend, advisor, angel, committed (derived) and other. Old `portfolio` rows are read as founders and rewritten once by `network.migrateRelations`, which the Network calls on first load while the list says some are left (`legacy`); it's idempotent, so there's nothing to run by hand. Add person labels its fields by relation (src/lib/network.ts `personFieldCopy`), and editing saves only the fields you touched. Import CSV takes name, email, relation, company and notes, shows a preview first, and skips anyone already there by email or name.
+
+**"To ask"**: an intro with no steps yet is "to ask", ahead of the six steps (which are unchanged). Who do they know adds investors from the list, or a firm and partner not in Nest yet (added as Not contacted, source Network, warm path "via <name>"), each as an intro "to ask". The thank, report-back and nudge rows treat "to ask" as not started, and the Inbox has an "Ask <name> for intros" row (When you can) for someone with investors to ask and no ask waiting on a reply.
+
+**Find their investors** (founders): Haiku with web search looks up who backed the founder's company. Only the company's name and website leave Nest. The panel shows the estimate first; the real cost goes into Settings › AI spend under Find. Up to 15 results (firm, partner when a page names one, round, year, source link), with the ones already in Nest marked by domain or name. Nothing is added until you tick: an investor in Nest gets the founder as a warm path, a new one is added as above, each with an intro "to ask" (`founderLookups`, convex/network.ts).
+
+**Ask for intros**: a draft type (`introAsk`, Haiku). Pick 2–3 of a person's "to ask" investors (the three highest by Priority come ticked); it writes one line on why each fits from Nest's kept facts only (a missing reason stays `[why they fit]`), and a short note about Pesto they can forward. Numbers Nest doesn't have stay `[__]`. Copy it, or send it from nest@ with reply-to you; sending (or "I sent it") ticks Asked on each of those intros and logs no investor touch.
+
+**Wants to invest**: switching it on makes an Angel at Intro asked (source Network) linked both ways, or offers to link an investor already in Nest with the same email or name. The panel shows an Investing card, the row shows their stage, and the investor's drawer says "Also your advisor · <name>" with a link back. They're one person in the Network (a committed investor linked to someone isn't listed twice) and one investor everywhere else. Switching it off unlinks them and keeps the investor, with Undo.
+
+**Agents**: `add_person` and `add_to_network_list` on the MCP server wait in Suggestions like every other agent change, and the same suggestion is never queued twice.
+<!-- end PST-305 -->
 
 <!-- PST-294 -->
 ## Introducers and the forwardable intro

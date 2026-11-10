@@ -1,10 +1,14 @@
 // PST-294: the drawer's warm path (drawer-decision-lead-warm-path.png): the
 // person, their relation, and the intro's six steps, each tickable. Loading a
 // drawer whose investor still has only a free-text warm path migrates it.
+// PST-305: an investor who is someone in the Network too (an advisor who
+// invests) says so at the top, with a link back to their Network entry.
+import { Link } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 import { todayIST } from '../../lib/dates'
 import { allPeople, firstName, initials, introNext, lastDone, parsePath, personKey, personSub, RELATION_LABEL, type Person } from '../../lib/introducers'
 import type { Investor } from '../../lib/pipeline'
+import { alsoLine } from '../../lib/network' // PST-305
 import { play } from '../../lib/sound'
 import { openDraft } from '../drafts/data'
 import { usePreviewState } from '../preview-state'
@@ -62,14 +66,14 @@ export function WarmPath({ inv }: { inv: Investor }) {
         return (
           <div key={intro._id} className="wpath__intro">
             <div className="wpath__who">
-              <span className={'enrich-avatar' + (p.relation === 'portfolio' ? ' enrich-avatar--main' : '')} aria-hidden="true">
+              <span className={'enrich-avatar' + (p.relation === 'founder' ? ' enrich-avatar--main' : '')} aria-hidden="true">
                 {initials(p.name)}
               </span>
               <span className="wpath__text">
                 <span className="wpath__name">{p.name}</span>
                 <span className="wpath__sub">{personSub(p)}</span>
               </span>
-              {p.relation === 'portfolio' ? (
+              {p.relation === 'founder' ? (
                 <Chip tone="selected" dot={false} className="wpath__best">
                   Best kind of intro
                 </Chip>
@@ -129,5 +133,19 @@ export function WarmPath({ inv }: { inv: Investor }) {
         />
       ) : null}
     </Card>
+  )
+}
+
+/** PST-305: the drawer's line for an investor who is someone in the Network too ("Also your advisor · Neha Rao"), linking back to them. */
+export function AlsoInNetwork({ inv }: { inv: Pick<Investor, '_id'> }) {
+  const x = useIntroducers()
+  const p = x.introducers.find((y) => y.investorId === inv._id)
+  if (!p) return null
+  return (
+    <p className="wpath__also">
+      <Link to="/raise/investors" search={{ view: 'network', person: p._id }}>
+        {alsoLine(p)}
+      </Link>
+    </p>
   )
 }

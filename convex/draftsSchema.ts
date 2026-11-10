@@ -5,6 +5,7 @@ import { defineTable } from 'convex/server'
 import { v } from 'convex/values'
 import { DRAFT_STATUSES, DRAFT_TYPES, TWEAKS } from '../src/lib/drafts'
 import { runModelFields } from './validators'
+import { networkDraftFields } from './networkSchema' // PST-305
 
 const lit = <T extends string>(xs: readonly T[]) => v.union(...xs.map((x) => v.literal(x)))
 export const vDraftType = lit(DRAFT_TYPES)
@@ -33,6 +34,8 @@ export const draftTables = {
     // PST-294 (optional, additive): a forwardable intro's intro, and its second email (the note the introducer forwards).
     introId: v.optional(v.id('intros')),
     forward: v.optional(v.object({ subject: v.string(), body: v.string() })),
+    // PST-305 (optional, additive): the intro ask's intros.
+    ...networkDraftFields,
   })
     .index('by_investor', ['investorId', 'createdAt'])
     .index('by_created', ['createdAt']),

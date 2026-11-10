@@ -37,6 +37,8 @@ import { APPLICATION_STATUSES, applicationChip, isApplicationStatus, isAwaiting,
 import { decisionPassedRows } from '../src/lib/inbox'
 import { applicationAfter, fixLine, noOpReason } from '../src/lib/suggestions'
 import { WARMTHS, type Warmth } from '../src/lib/stages'
+import { normName, PICK_RELATIONS, RELATION_LABEL } from '../src/lib/introducers' // PST-305
+import { matchInvestor } from '../src/lib/network' // PST-305
 
 /** What a read looked at, by id (Ask adds them up across its calls). */
 export type Seen = { investors?: string[]; threads?: string[]; meetings?: string[] }
@@ -370,7 +372,7 @@ async function suggest(ctx: MutationCtx, agent: Agent, s: { kind: SuggestionKind
       ? (await ctx.db.query('suggestions').withIndex('by_status', (q) => q.eq('status', 'open')).collect()).find((o) => o.investorId === s.investorId && o.kind === s.kind && strip(o.patch) === strip(s.patch))
       : undefined)
   if (open) return not('duplicate', 'That same suggestion is already waiting in Dev’s Suggestions. Nothing new was added.')
-  const id = await insertSuggestion(ctx, { ...s, source: 'agent', agentName: agent.name, safe: false, key })
+  const id = await insertSuggestion(ctx, { ...s, patch: s.patch as Parameters<typeof insertSuggestion>[1]['patch'], source: 'agent', agentName: agent.name, safe: false, key })
   if (!id) return not('duplicate', 'That same suggestion is already in Dev’s queue. Nothing new was added.')
   return done({ suggested: true, suggestionId: id, message: 'Added to Dev’s Suggestions queue. Nothing has changed yet: Dev will accept or dismiss it.' })
 }
@@ -404,6 +406,54 @@ async function addInvestor(ctx: MutationCtx, agent: Agent, a: Args): Promise<Out
     patch: { op: 'new_investor', name, firm, ...(email ? { email } : {}), ...(note ? { note } : {}) },
   })
 }
+
+/* ---------- PST-305: the Network ---------- */
+
+/** add_person: someone who can introduce Dev to investors. Waits in Suggestions; nothing is added until Dev accepts. */
+async function addPerson(ctx: MutationCtx, agent: Agent, a: Args): Promise<Out> {
+  const name = String(a.name).trim().replace(/\s+/g, ' ')
+  const email = typeof a.email === 'string' ? normEmail(a.email) || undefined : undefined
+  const relation = (PICK_RELATIONS as readonly string[]).includes(String(a.relation)) ? (a.relation as (typeof PICK_RELATIONS)[number]) : 'other'
+  const company = typeof a.company === 'string' && a.company.trim() ? a.company.trim() : undefined
+  const note = typeof a.note === 'string' && a.note.trim() ? a.note.trim() : undefined
+  const same = (await ctx.db.query('introducers').collect()).find((p) => p.key === normName(name) || (!!email && normEmail(p.email) === email))
+  if (same) return nope(`${same.name} is already in Dev’s Network. Use add_to_network_list to add investors they could introduce.`)
+  return await suggest(ctx, agent, {
+    kind: 'network_person', title: note ? `${name}: ${note}` : `${name} could introduce Dev to investors.`,
+    fix: `Add ${name} to the Network as ${RELATION_LABEL[relation].toLowerCase()}${company ? ' (' + company + ')' : ''}`,
+    patch: { op: 'network_person', name, relation, ...(email ? { email } : {}), ...(company ? { company } : {}), ...(note ? { note } : {}) },
+  })
+}
+
+/** add_to_network_list: an investor (in Nest, or a firm that isn't) a person in the Network could introduce. Waits in Suggestions. */
+async function addToNetworkList(ctx: MutationCtx, agent: Agent, a: Args): Promise<Out> {
+  const who = String(a.person).trim()
+  const people = await ctx.db.query('introducers').collect()
+  const p = people.find((x) => x._id === who) ?? people.find((x) => x.key === normName(who))
+  if (!p) return nope(`Nobody called “${who}” is in Dev’s Network. Suggest them with add_person first.`)
+  const why = typeof a.why === 'string' && a.why.trim() ? a.why.trim() : ''
+  const first = p.name.split(/\s+/)[0]
+  let inv = a.investorId !== undefined ? await investorById(ctx, a.investorId) : null
+  if (a.investorId !== undefined && !inv) return nope(NO_INVESTOR)
+  const firm = typeof a.firm === 'string' ? a.firm.trim() : ''
+  const partner = typeof a.partner === 'string' && a.partner.trim() ? a.partner.trim() : undefined
+  if (!inv && !firm) return nope('Give investorId for an investor in Nest, or firm for one that isn’t.')
+  inv = inv ?? matchInvestor({ firm }, await ctx.db.query('investors').collect()) ?? null
+  if (inv) {
+    const there = await ctx.db.query('intros').withIndex('by_investor', (q) => q.eq('investorId', inv!._id)).collect()
+    if (there.some((x) => x.introducerId === p._id)) return nope(`${inv.name} is already on ${first}’s list.`)
+    return await suggest(ctx, agent, {
+      kind: 'network_target', investorId: inv._id, title: why ? about(inv, why) : `${p.name} could introduce Dev to ${inv.name}.`, fix: `Add ${inv.name} to ${first}’s list (to ask)`,
+      patch: { op: 'network_target', introducerId: p._id, investorId: inv._id },
+    })
+  }
+  const label = firm + (partner ? ' (' + partner + ')' : '')
+  return await suggest(ctx, agent, {
+    kind: 'network_target', title: why ? `${label}: ${why}` : `${p.name} could introduce Dev to ${label}.`, fix: `Add ${label} to Investors and to ${first}’s list (to ask)`,
+    patch: { op: 'network_target', introducerId: p._id, firm, ...(partner ? { partner } : {}) },
+  })
+}
+/* ---------- end PST-305 ---------- */
 
 async function suggestChange(ctx: MutationCtx, agent: Agent, a: Args): Promise<Out> {
   const i = await investorById(ctx, a.investorId)
@@ -523,6 +573,8 @@ export const write = internalMutation({
     if (tool === 'suggest_change') return await suggestChange(ctx, agent, args)
     if (tool === 'enrich') return await enrich(ctx, args)
     if (tool === 'add_meeting_notes') return await addNotes(ctx, args)
+    if (tool === 'add_person') return await addPerson(ctx, agent, args) // PST-305
+    if (tool === 'add_to_network_list') return await addToNetworkList(ctx, agent, args) // PST-305
     return nope(`${tool} isn’t a write tool.`)
   },
 })

@@ -9,7 +9,8 @@ import { mutation, query, type MutationCtx } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
 import { requireUser } from './lib/access'
 import { vRelation, vStep } from './introducersSchema'
-import { migrationPlan, normName, setStep, type Step } from '../src/lib/introducers'
+import { migrationPlan, normName, relationOf, setStep, type Step } from '../src/lib/introducers'
+import { cleanDomain } from '../src/lib/network' // PST-305
 import { isISODate, todayIST } from '../src/lib/dates'
 import { isEmail } from '../src/lib/drafts'
 import { normEmail } from '../src/lib/google'
@@ -24,8 +25,14 @@ export const list = query({
     const introducers = await ctx.db.query('introducers').collect()
     const intros = await ctx.db.query('intros').collect()
     return {
-      introducers: introducers.map((p) => ({ _id: p._id, name: p.name, email: p.email, relation: p.relation, notes: p.notes, createdAt: p.createdAt })),
+      // PST-305: 'portfolio' reads as 'founder' until network.migrateRelations has run; company, roles and the investor they also are.
+      introducers: introducers.map((p) => ({
+        _id: p._id, name: p.name, email: p.email, relation: relationOf(p.relation), notes: p.notes, createdAt: p.createdAt,
+        company: p.company, companyDomain: p.companyDomain, roles: p.roles, investorId: p.investorId,
+      })),
       intros: intros.map(({ _creationTime: _, updatedAt: __, ...x }) => x),
+      /** PST-305: some rows still say 'portfolio' (the client runs the migration). */
+      legacy: introducers.some((p) => p.relation === 'portfolio'),
     }
   },
 })
@@ -52,8 +59,9 @@ export const migrate = mutation({
   },
 })
 
-const vFields = { name: v.string(), email: v.optional(v.string()), relation: vRelation, notes: v.string() }
-type Fields = { name: string; email?: string; relation: Doc<'introducers'>['relation']; notes: string }
+// PST-305: a founder's company and its website (an angel's title or company), when the form shows them.
+const vFields = { name: v.string(), email: v.optional(v.string()), relation: vRelation, notes: v.string(), company: v.optional(v.string()), companyDomain: v.optional(v.string()) }
+type Fields = { name: string; email?: string; relation: Doc<'introducers'>['relation']; notes: string; company?: string; companyDomain?: string }
 
 function clean(f: Fields) {
   const name = f.name.trim().replace(/\s+/g, ' ').slice(0, MAX_NAME)
@@ -61,7 +69,12 @@ function clean(f: Fields) {
   const email = normEmail(f.email)
   if (email && !isEmail(email)) throw new ConvexError('That email doesn’t look right.')
   if (f.relation === 'committed') throw new ConvexError('Committed investors come from the investor list.')
-  return { name, key: normName(name), email: email || undefined, relation: f.relation, notes: f.notes.trim().slice(0, MAX_NOTES) }
+  return {
+    name, key: normName(name), email: email || undefined, relation: f.relation, notes: f.notes.trim().slice(0, MAX_NOTES),
+    // PST-305: only when given, so an older form never clears them.
+    ...(f.company !== undefined ? { company: f.company.trim().slice(0, MAX_NAME) || undefined } : {}),
+    ...(f.companyDomain !== undefined ? { companyDomain: cleanDomain(f.companyDomain) || undefined } : {}),
+  }
 }
 
 /** A new introducer; someone already there by that name is kept (their empty email and notes filled in). */
@@ -72,7 +85,10 @@ export const add = mutation({
     const c = clean(f)
     const same = await ctx.db.query('introducers').withIndex('by_key', (q) => q.eq('key', c.key)).first()
     if (same) {
-      await ctx.db.patch(same._id, { ...(c.email && !same.email ? { email: c.email } : {}), ...(c.notes && !same.notes ? { notes: c.notes } : {}) })
+      await ctx.db.patch(same._id, {
+        ...(c.email && !same.email ? { email: c.email } : {}), ...(c.notes && !same.notes ? { notes: c.notes } : {}),
+        ...(c.company && !same.company ? { company: c.company } : {}), ...(c.companyDomain && !same.companyDomain ? { companyDomain: c.companyDomain } : {}), // PST-305
+      })
       return { id: same._id, existed: true }
     }
     return { id: await ctx.db.insert('introducers', { ...c, createdAt: Date.now(), createdBy: userId }), existed: false }
@@ -144,8 +160,10 @@ export const nudged = mutation({
   },
 })
 
-/** An investor was deleted: intros to them, and the ones they were making, go too. */
+/** An investor was deleted: intros to them, and the ones they were making, go too. PST-305: a person who was also that investor stays, unlinked. */
 export async function forgetIntros(ctx: MutationCtx, investorId: Id<'investors'>) {
   for (const x of await ctx.db.query('intros').withIndex('by_investor', (q) => q.eq('investorId', investorId)).collect()) await ctx.db.delete(x._id)
   for (const x of await ctx.db.query('intros').withIndex('by_via', (q) => q.eq('viaInvestorId', investorId)).collect()) await ctx.db.delete(x._id)
+  for (const p of await ctx.db.query('introducers').withIndex('by_investor', (q) => q.eq('investorId', investorId)).collect())
+    await ctx.db.patch(p._id, { investorId: undefined, roles: { ...p.roles, wantsToInvest: false } })
 }

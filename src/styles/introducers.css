@@ -19,7 +19,7 @@
 
 .intro-table { display: flex; flex-direction: column; }
 .intro-row {
-  --cols: minmax(0, 1fr) 56px 56px 80px 64px minmax(0, 0.62fr);
+  --cols: minmax(0, 1fr) 72px 56px 56px 80px 64px minmax(0, 0.62fr); /* PST-305: Can intro */
   position: relative; display: grid; grid-template-columns: var(--cols); align-items: center; gap: 0 4px;
   min-height: 72px; padding: 0 14px; margin: 0 -14px; border: 2px solid transparent; border-radius: 14px;
   font: 400 15px/1.35 var(--font-ui); color: var(--text-primary); cursor: pointer; transition: background-color 150ms var(--ease-out);
@@ -128,6 +128,73 @@ button.intro-panel__act.is-plain { color: var(--brand-leaf); font-weight: 600; c
 .draft__head input[readonly] { cursor: default; }
 .draft__head input[readonly]:hover, .draft__head input[readonly]:focus { background: none; box-shadow: none; }
 
+/* ---------- PST-305: Network (extends Introducers; same chips, rows, panel and dialogs) ---------- */
+.net-filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
+.net-filters .draft-chip .num { margin-left: 4px; color: var(--text-muted); }
+.net-filters .draft-chip.is-on .num { color: inherit; }
+.net-roles { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.net-roles .chip { height: 24px; padding: 0 9px; font-size: 12px; }
+.intro-row:has(.net-roles) { min-height: 84px; padding-top: 8px; padding-bottom: 8px; }
+.intro-row__who .enrich-avatar { flex: none; }
+.net-panel__chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.net-roles-panel { margin-top: 4px; }
+.net-toggles { display: flex; flex-direction: column; gap: 10px; margin: 4px 0 6px; }
+.net-toggles .toggle { justify-content: space-between; font-size: 15px; }
+.net-offer { margin: 12px 0 4px; padding: 14px 16px; border-radius: 14px; background: var(--surface-cream); font-size: 14px; line-height: 1.45; color: var(--text-secondary); }
+.net-offer p { margin: 0 0 10px; }
+.net-offer__acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.net-invest.card { margin: 14px 0 4px; padding: 16px 18px; border-width: 1.5px; border-color: var(--brand-leaf); }
+.net-invest__eyebrow { margin: 0 0 6px; color: var(--brand-leaf); }
+.net-invest__name { margin: 0; font: 700 15px/1.3 var(--font-ui); color: var(--text-primary); }
+.net-invest__meta { margin: 4px 0 12px; font-size: 14px; color: var(--text-secondary); }
+.net-lookup { margin-bottom: 4px; }
+.net-lookup .btn { margin-top: 6px; }
+.net-lookup__error { margin: 6px 0; font-size: 14px; color: var(--text-orange-deep); }
+.net-lookup__foot { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.net-results { list-style: none; margin: 10px 0 0; padding: 0; }
+.net-results li { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line-default); }
+.net-results li:last-child { border-bottom: 1px solid var(--line-default); }
+.net-results .checkbox { align-items: flex-start; }
+.net-results__text { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 0; font-size: 15px; line-height: 1.35; }
+.net-results__text small { flex-basis: 100%; margin-top: 2px; font-size: 13px; color: var(--text-muted); }
+.net-results__text a { color: var(--brand-leaf); font-weight: 600; text-decoration: none; }
+.net-results__text a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.net-results li.is-added .net-results__text { color: var(--text-muted); }
+.net-results .chip { flex: none; margin-top: 1px; }
+.net-toask { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0 0; padding: 12px 14px; border-radius: 14px; background: var(--surface-mint); font-size: 14px; line-height: 1.4; color: var(--text-secondary); }
+.net-toask p { margin: 0; }
+.net-toask .btn { flex: none; }
+.net-toask strong { color: var(--text-primary); }
+.net-pick { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; max-height: 296px; overflow: auto; }
+.net-pick li { padding: 7px 0; border-bottom: 1px solid var(--line-default); }
+.net-pick__meta { font-size: 13px; color: var(--text-muted); }
+.net-new { margin: 0; padding: 14px 0 0; border: 0; border-top: 1px solid var(--line-default); }
+.net-new legend { padding: 0; margin-bottom: 10px; color: var(--text-muted); }
+.net-new__row { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto; gap: 10px; align-items: end; }
+.net-new__list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.net-new__list li { display: inline-flex; align-items: center; gap: 2px; }
+.net-link { padding: 0; border: 0; background: none; font: inherit; font-weight: 600; color: var(--brand-leaf); cursor: pointer; }
+.net-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.net-link:focus-visible { outline: 3px solid var(--brand-lime); outline-offset: 2px; border-radius: 4px; }
+.sys-modal__panel.intro-dialog--wide { width: min(640px, 100%); }
+.net-file { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.net-file input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.net-file:focus-within .btn { box-shadow: 0 0 0 3px var(--brand-lime); }
+.net-file__name { font-size: 14px; color: var(--text-muted); }
+.net-import__error { margin: 0; font-size: 14px; color: var(--text-orange-deep); }
+.net-import__sum { margin: 0 0 8px; font-size: 14px; color: var(--text-secondary); }
+.net-import__rows { list-style: none; margin: 0; padding: 0; max-height: 220px; overflow: auto; }
+.net-import__rows li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line-default); font-size: 14px; }
+.net-import__rows li span { color: var(--text-secondary); text-align: right; }
+.net-import__rows li.is-skipped strong, .net-import__rows li.is-skipped span { color: var(--text-muted); }
+.net-askpick { margin-top: 18px; }
+.net-askpick__h { margin: 0 0 8px; color: var(--text-muted); }
+.net-askpick .net-pick { max-height: 340px; margin-bottom: 18px; }
+.wpath__also { margin: 0 0 16px; font-size: 14px; font-weight: 600; }
+.wpath__also a { color: var(--brand-leaf); text-decoration: none; }
+.wpath__also a:hover { text-decoration: underline; text-underline-offset: 3px; }
+/* ---------- end PST-305 ---------- */
+
 @media (max-width: 1080px) {
   .intro-view { grid-template-columns: minmax(0, 1fr); }
 }
@@ -159,4 +226,15 @@ button.intro-panel__act.is-plain { color: var(--brand-leaf); font-weight: 600; c
   .wpath__who { flex-wrap: wrap; }
   .wpath__text { flex: 1 1 calc(100% - 52px); }
   .wpath__best { margin-left: 52px; }
+  /* PST-305 */
+  .net-filters { flex-wrap: nowrap; overflow-x: auto; margin-right: -16px; padding-right: 16px; scrollbar-width: none; }
+  .net-filters .draft-chip { flex: none; height: 44px; }
+  .intro-row .net-roles { margin-top: 6px; }
+  .net-toask { flex-direction: column; align-items: stretch; }
+  .net-new__row { grid-template-columns: minmax(0, 1fr); }
+  .inv-views__right { flex-wrap: wrap; }
+  .net-results .checkbox, .net-pick .checkbox { min-height: 44px; }
+  .net-link { position: relative; }
+  .net-link::after, .wpath__also a::after { content: ''; position: absolute; top: -14px; bottom: -14px; left: -4px; right: -4px; }
+  .wpath__also a { position: relative; display: inline-block; }
 }

@@ -20,6 +20,7 @@ import { investorLeadFields, raceTables, roundLeadField } from './raceSchema' //
 // PST-296: Find more and Jev fit scores (findSettings, findRuns, findCandidates, jevScores; see findMoreSchema.ts).
 import { findMoreTables } from './findMoreSchema'
 import { inboxTables } from './inboxSchema' // PST-297
+import { networkTables } from './networkSchema' // PST-305
 // PST-302: applications on investors, and from/by/correction on stage activities (see applicationsSchema.ts).
 import { investorApplicationField, stageActivityFields } from './applicationsSchema'
 import { roundFields, vGeo, vMeetingAnswer, vPipelineStage, vStage, vSyncSource, vTier, vTouch, vType, vWarmth, vWave } from './validators'
@@ -317,4 +318,7 @@ export default defineSchema({
   /* ---------- PST-297: the Today Inbox (inboxMarks, inboxCleared; see inboxSchema.ts) ---------- */
   ...inboxTables,
   /* ---------- end PST-297 ---------- */
+  /* ---------- PST-305: Network (founderLookups; introducers and drafts gain optional fields; see networkSchema.ts) ---------- */
+  ...networkTables,
+  /* ---------- end PST-305 ---------- */
 })

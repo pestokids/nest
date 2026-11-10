@@ -73,14 +73,18 @@ export function showUpdateUndone(store: OptimisticLocalStore, a: { id: string },
 
 /* ---------- introducers ---------- */
 
-type Fields = { name: string; email?: string; relation: Relation; notes: string }
-const tidy = (f: Fields) => ({ name: f.name.trim().replace(/\s+/g, ' '), email: normEmail(f.email) || undefined, relation: f.relation, notes: f.notes.trim() })
+type Fields = { name: string; email?: string; relation: Relation; notes: string; /** PST-305 */ company?: string; companyDomain?: string }
+const tidy = (f: Fields) => ({
+  name: f.name.trim().replace(/\s+/g, ' '), email: normEmail(f.email) || undefined, relation: f.relation, notes: f.notes.trim(),
+  // PST-305: only when the form sent them.
+  ...(f.company !== undefined ? { company: f.company.trim() || undefined } : {}), ...(f.companyDomain !== undefined ? { companyDomain: f.companyDomain.trim().toLowerCase() || undefined } : {}),
+})
 
 /** A new introducer shows in the list at once (someone already there by that name stays as they are). */
 export function showIntroducer(store: OptimisticLocalStore, f: Fields, now = Date.now()) {
   const cur = store.getQuery(api.introducers.list, {})
   if (!cur || !normName(f.name) || f.relation === 'committed' || cur.introducers.some((p) => normName(p.name) === normName(f.name))) return
-  store.setQuery(api.introducers.list, {}, { ...cur, introducers: [...cur.introducers, { _id: `optimistic-${crypto.randomUUID()}` as Id<'introducers'>, ...tidy(f), createdAt: now }] })
+  store.setQuery(api.introducers.list, {}, { ...cur, introducers: [...cur.introducers, { _id: `optimistic-${crypto.randomUUID()}` as Id<'introducers'>, company: undefined, companyDomain: undefined, roles: undefined, investorId: undefined, ...tidy(f), createdAt: now }] })
 }
 
 /** Edit details: the person's name, email, relation and notes change at once. */

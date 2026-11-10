@@ -30,6 +30,7 @@ import { backedChip, cleanCompanies, fallbackScore, findEstimate, findKey, found
 import { fitQuestions, fitScore, needsRescore, roundFacts } from '../src/lib/fitScore'
 import { DAY_MS } from '../src/lib/google'
 import { priorities } from '../src/lib/priority'
+import { relationOf } from '../src/lib/introducers' // PST-305
 
 /** A run still "running" after this long died with its action; a new one may start. */
 const STALE_MS = 15 * 60_000
@@ -128,7 +129,7 @@ export const input = internalQuery({
     for (const id of new Set([...meetings.map((m) => m.userId), ...threads.map((t) => t.userId)])) names[id] = firstName(await ctx.db.get(id))
     const taken = await ctx.db.query('suggestions').withIndex('by_key', (q) => q.gte('key', 'find:').lt('key', 'find;')).collect()
     const investors = await ctx.db.query('investors').collect()
-    const introducers = (await ctx.db.query('introducers').collect()).map((p) => ({ _id: p._id, name: p.name, email: p.email, relation: p.relation, notes: p.notes }))
+    const introducers = (await ctx.db.query('introducers').collect()).map((p) => ({ _id: p._id, name: p.name, email: p.email, relation: relationOf(p.relation), notes: p.notes })) // PST-305: 'portfolio' reads as founder
     return {
       companies: run.companies,
       investors: run.investors,
