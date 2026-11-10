@@ -77,7 +77,7 @@ export function useFeedbackToast() {
   return useCallback(
     (r: FeedbackResult) => {
       if (r.status === 'sent') {
-        play('pesto-chirp', { volume: 0.7 })
+        play('feedback-sent')
         toast({ message: `Sent as ${r.identifier}. Thanks!`, action: { label: 'Open', onClick: () => void window.open(r.url, '_blank', 'noopener') }, durationMs: 6000 })
         return
       }

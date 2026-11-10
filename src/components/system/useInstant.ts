@@ -27,7 +27,7 @@ export function useInstant() {
       onClick: () => {
         play('undo')
         saved.then(back).catch((e) => {
-          play('nope')
+          play('save-failed')
           toast({ tone: 'error', message: errorMessage(e) })
         })
       },
@@ -55,7 +55,7 @@ export function useInstant() {
       /** Ask for a number: Today's ask, with its follow-up. */
       ask: (inv: Investor) => {
         const next = askFollowUp(todayIST())
-        play('ask-logged')
+        play('ask')
         logTouch(inv, ASK_NOTE, { touch: 'ask', next }, `Ask logged for ${inv.name}. Follow-up set for ${formatDay(next.date)}.`)
       },
     }

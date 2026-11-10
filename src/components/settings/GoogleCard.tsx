@@ -75,7 +75,7 @@ export function GoogleCard() {
       failMessage: 'Couldn’t disconnect Google.',
       onDone: () => {
         setConfirm(false)
-        play('undo', { volume: 0.6 })
+        play('toggle-off')
       },
     })
 

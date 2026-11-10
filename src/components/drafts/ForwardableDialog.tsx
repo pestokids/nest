@@ -123,7 +123,7 @@ export function ForwardableDialog({ start, introId, investor, onClose }: { start
       await clip
       toast({ tone: 'success', icon: 'check', message: sent ? 'Copied both.' : 'Copied both. Tick “I sent it” once the ask is gone, and Nest marks it Asked.' })
     } catch {
-      play('nope')
+      play('failed')
       toast({ tone: 'error', message: 'Couldn’t copy here. Select the text and copy it yourself.' })
     }
   }
@@ -134,7 +134,7 @@ export function ForwardableDialog({ start, introId, investor, onClose }: { start
     try {
       const r = await x.markSent(draftId)
       if (!r.logged) return
-      play('ask-logged')
+      play('log')
       toast({ tone: 'success', icon: 'check', message: 'Asked ' + who + '. Nest nudges you in 3 days if there’s no reply.' })
     } catch (e) {
       setSent(false)
@@ -146,7 +146,7 @@ export function ForwardableDialog({ start, introId, investor, onClose }: { start
     setSending(true)
     try {
       const r = await x.send(input())
-      play('ask-logged')
+      play('log')
       toast({ tone: 'success', icon: 'check', message: 'Sent to ' + r.to + '. ' + who + ' is Asked; Nest nudges you in 3 days if there’s no reply.' })
       setSent(true)
       setDirty(false)

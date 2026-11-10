@@ -86,7 +86,7 @@ export function RecordDialog({ row, onClose, onSaved }: { row: CloseRow; onClose
         return true
       },
       onDone: () => {
-        play('card-drop')
+        play('save')
         toast({ tone: 'success', message: recording ? `Recorded the SAFE sent to ${investor.name}.` : `Saved ${investor.name}’s terms.` })
         onSaved()
       },

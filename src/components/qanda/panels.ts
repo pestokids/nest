@@ -51,7 +51,7 @@ export function playPrepOpen(meetingId: string) {
   } catch {
     /* private mode */
   }
-  if (seen.includes(meetingId)) return void play('drawer', { volume: 0.5 })
+  if (seen.includes(meetingId)) return
   play('prep-done')
   try {
     sessionStorage.setItem(PREP_KEY, JSON.stringify([...seen, meetingId].slice(-50)))

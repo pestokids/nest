@@ -4,7 +4,7 @@
 // Inbox's reply rows). Shown once anyone on the team has connected Google.
 import { useMemo, useState } from 'react'
 import { addDays } from '../lib/today'
-import { classifyMove, moveSounds, moveToast } from '../lib/board'
+import { classifyMove, moveSound, moveToast } from '../lib/board'
 import {
   calendarWeekLink, dayOf, domainOf, followUps, GENERIC_DOMAINS, meetingsOn, nameFromEmail, timeOf, whoIsThis,
   type MeetingAnswer, type Stranger, type SyncedMeeting,
@@ -70,7 +70,8 @@ function Meetings({ today, now }: { today: string; now: number }) {
         onDone: (rec) => {
           if (!rec) return
           const how = classifyMove(i.stage, to)
-          for (const c of moveSounds(how)) play(c.name, c.opts)
+          const sound = moveSound(how)
+          if (sound) play(sound)
           const msg = moveToast(i.name, to, how)
           if (msg) ui.toast({ message: msg, action: { label: 'Undo', onClick: () => void d.undoMove(rec).catch(ui.fail) } })
         },

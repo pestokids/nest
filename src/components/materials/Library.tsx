@@ -272,7 +272,7 @@ function RecentViews({ onShare }: { onShare: (materialId?: string, investorIds?:
     const i = byId.get(l.investorId!)
     if (!i) return
     setNudged((s) => new Set(s).add(l._id))
-    play('nudge')
+    play('log')
     requestAnimationFrame(() => pop(el.parentElement?.querySelector('.recent__nudged')))
     try {
       await d.logNote(i._id, `Sent a nudge about ${ix.mat.get(l.materialId)?.title ?? 'the deck'}.`, { touch: 'nudge' })

@@ -212,7 +212,7 @@ function ReadCard({ n, inv, read, toggle, full }: { n: Note; inv: Investor; read
     setFolding(true)
     try {
       const [r] = await Promise.all([act.applyRead(read._id, [...ticked]), sleep(open.length * 40 + 240)])
-      play('stage-up')
+      play('save')
       ui.toast({ message: `Applied ${plural(r.applied, 'update')} for ${inv.name}.`, action: { label: 'Undo', onClick: undo } })
     } catch (e) {
       setFolding(false)

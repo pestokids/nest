@@ -1,51 +1,50 @@
 import { describe, expect, it } from 'vitest'
 import {
-  applyMove, applyUndo, BOARD_KEYS, cardKeyAction, cardText, classifyMove, keyTarget, landingIndex, matchesFilter, moveSounds, moveToast,
+  applyMove, applyUndo, BOARD_KEYS, cardKeyAction, cardText, classifyMove, keyTarget, landingIndex, matchesFilter, moveSound, moveToast,
   quietDaysOf, swipeTarget, type MoveRecord,
 } from './board'
 import { NEW_INVESTOR, type Investor } from './pipeline'
 
 const T = '2030-03-10'
 const inv = (o: Partial<Investor>): Investor => ({ ...NEW_INVESTOR, _id: Math.random().toString(36), maxStage: 'todo', ...o }) as Investor
-const names = (cues: { name: string }[]) => cues.map((c) => c.name)
 
 describe('drop rules', () => {
-  it('the next stage moves up with card-drop + stage-up', () => {
+  it('the next stage moves up with stage-up', () => {
     const m = classifyMove('intro', 'booked')
     expect(m).toEqual({ kind: 'next', skipped: [], win: false })
-    expect(names(moveSounds(m))).toEqual(['card-drop', 'stage-up'])
+    expect(moveSound(m)).toBe('stage-up')
     expect(moveToast('Kite Angels', 'booked', m)).toBe('Moved Kite Angels to Booked')
   })
   it('skipping a stage warns that its rule needs checking', () => {
     const m = classifyMove('ask', 'm1')
     expect(m.kind).toBe('skip')
     expect(m.skipped).toEqual(['intro', 'booked'])
-    expect(names(moveSounds(m))).toEqual(['rule-check'])
+    expect(moveSound(m)).toBe('stage-up')
     expect(moveToast('Kite Angels', 'm1', m)).toBe('Moved Kite Angels to 1st meeting. Skipped 2 stages, so check its rule.')
     expect(moveToast('Kite Angels', 'booked', classifyMove('ask', 'booked'))).toContain('Skipped a stage, so check its rule')
   })
   it('a skip onto Signed is a win and still warns', () => {
     const m = classifyMove('m2', 'signed')
     expect(m).toMatchObject({ kind: 'skip', win: true })
-    expect(names(moveSounds(m))).toEqual(['signed', 'confetti', 'rule-check'])
+    expect(moveSound(m)).toBe('signed')
     expect(moveToast('X', 'signed', m)).toContain('check its rule')
   })
   it('the next stage onto Money in is a win', () => {
     const m = classifyMove('signed', 'wired')
     expect(m).toMatchObject({ kind: 'next', win: true })
-    expect(names(moveSounds(m))).toEqual(['signed', 'confetti'])
+    expect(moveSound(m)).toBe('signed')
   })
-  it('back a stage drops lower, no warning', () => {
+  it('back a stage goes down, no warning', () => {
     const m = classifyMove('m1', 'intro')
     expect(m).toEqual({ kind: 'back', skipped: [], win: false })
-    expect(moveSounds(m)).toEqual([{ name: 'card-drop', opts: { rate: 0.85 } }])
+    expect(moveSound(m)).toBe('stage-down')
     expect(moveToast('X', 'intro', m)).toBe('Moved X back to Intro')
   })
   it('to passed or parked', () => {
     expect(classifyMove('m1', 'passed').kind).toBe('passed')
     expect(classifyMove('ask', 'parked').kind).toBe('parked')
-    expect(names(moveSounds(classifyMove('ask', 'parked')))).toEqual(['park'])
-    expect(names(moveSounds(classifyMove('ask', 'passed')))).toEqual(['card-drop'])
+    expect(moveSound(classifyMove('ask', 'parked'))).toBe('park')
+    expect(moveSound(classifyMove('ask', 'passed'))).toBe('stage-down')
     expect(moveToast('X', 'parked', classifyMove('ask', 'parked'))).toBe('Parked X. Revisit later.')
     expect(moveToast('X', 'passed', classifyMove('ask', 'passed'))).toBe('X passed. Kept for next round.')
   })
@@ -54,6 +53,7 @@ describe('drop rules', () => {
     expect(classifyMove('passed', 'parked').kind).toBe('parked')
     const same = classifyMove('m1', 'm1')
     expect(same.kind).toBe('same')
+    expect(moveSound(same)).toBeNull()
     expect(moveToast('X', 'm1', same)).toBeNull()
   })
   it('the board has nine stages then passed and parked', () => {

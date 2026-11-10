@@ -25,7 +25,7 @@ export function useQandaActions() {
     return {
       /** "Same question": `drop` goes into `keep` with every ask. */
       merge: async (drop: Question, keep: Question) => {
-        play('card-drop')
+        play('save')
         const r = await save(() => act.merge(drop._id, keep._id), { failMessage: 'Couldn’t merge them.' })
         if (!r) return false
         ui.toast({ message: `Merged into “${short(keep.text)}”. All ${r.asked} asks kept.`, action: { label: 'Undo', onClick: undo(() => act.unmerge(drop._id)) } })
@@ -49,7 +49,7 @@ export function useQandaActions() {
         ui.toast({ tone: 'info', message: `${name} no longer counts as asking it.`, action: { label: 'Undo', onClick: undo(() => act.link(back)) } })
       },
       addToDeck: async (q: Question) => {
-        play('rule-check', { volume: 0.6 })
+        play('save')
         const deck = await save(() => act.addToDeck(q._id, next), { failMessage: 'Couldn’t add it to the deck list.' })
         if (deck === undefined) return
         ui.toast({ message: `On the list for deck v${deck}.`, action: { label: 'Undo', onClick: undo(() => act.removeFromDeck(q._id)) } })
@@ -61,7 +61,7 @@ export function useQandaActions() {
         ui.toast({ tone: 'info', message: `Off the list for deck v${deck}.`, action: { label: 'Undo', onClick: undo(() => act.addToDeck(q._id, deck)) } })
       },
       markLine: async (n: Note, line: number, name: string) => {
-        play('rule-check', { volume: 0.6 })
+        play('save')
         const r = await save(() => act.markLine(n._id, line), { failMessage: 'Couldn’t add it to the bank.' })
         if (!r) return false
         ui.toast({

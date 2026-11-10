@@ -56,7 +56,6 @@ function ConnectToast() {
     const q = new URLSearchParams(window.location.search)
     const m = wisprConnectMessage(q.get('wisprConnect'))
     if (!m) return
-    if (m.tone === 'error') play('save-failed')
     toast({ tone: m.tone, ...(m.tone === 'info' ? { icon: 'check' as const } : {}), message: m.message })
     q.delete('wisprConnect')
     window.history.replaceState(window.history.state, '', `${window.location.pathname}${q.size ? `?${q}` : ''}${window.location.hash}`)
@@ -117,7 +116,7 @@ export function WisprCardView({ data, connect, fetchPast, disconnect }: WisprSou
       failMessage: 'Couldn’t disconnect Wispr Flow.',
       onDone: () => {
         setConfirm(false)
-        play('undo', { volume: 0.6 })
+        play('toggle-off')
       },
     })
 

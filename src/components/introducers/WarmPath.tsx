@@ -43,7 +43,7 @@ export function WarmPath({ inv }: { inv: Investor }) {
   async function link(p: Person) {
     try {
       await x.link(inv._id, p)
-      play('card-drop', { volume: 0.6 })
+      play('save')
       setPick('')
     } catch (e) {
       fail(e)
@@ -90,7 +90,7 @@ export function WarmPath({ inv }: { inv: Investor }) {
                 variant="secondary"
                 className="wpath__act"
                 onClick={() => {
-                  play('nudge')
+                  play('log')
                   x.nudged(intro._id).catch(fail)
                 }}
               >

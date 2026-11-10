@@ -143,7 +143,7 @@ export function DraftDialog({ start, investor, onClose }: { start: DraftOpen; in
       await clip
       toast({ tone: 'success', icon: 'check', message: sent ? 'Copied.' : 'Copied. Tick “I sent it” once it’s gone, and Nest logs the touch.' })
     } catch {
-      play('nope')
+      play('failed')
       toast({ tone: 'error', message: 'Couldn’t copy here. Select the text and copy it yourself.' })
     }
   }
@@ -174,7 +174,7 @@ export function DraftDialog({ start, investor, onClose }: { start: DraftOpen; in
     try {
       const r = await x.markSent(draftId)
       if (!r.logged) return
-      play('ask-logged')
+      play('log')
       toast({ tone: 'success', icon: 'check', message: 'Logged. ' + firstName(investor.name) + '’s last touch is today.' })
     } catch (e) {
       setSent(false)
@@ -186,7 +186,7 @@ export function DraftDialog({ start, investor, onClose }: { start: DraftOpen; in
     setSending(true)
     try {
       const r = await x.send(input())
-      play('ask-logged')
+      play('log')
       toast({ tone: 'success', icon: 'check', message: 'Sent to ' + r.to + '. Logged as an email touch.' })
       setSent(true)
       setDirty(false)

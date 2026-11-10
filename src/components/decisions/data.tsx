@@ -86,15 +86,14 @@ export function useDecide() {
       onClick: () => {
         play('undo')
         saved.then((logId) => (logId ? x.undo(logId) : null)).catch((e) => {
-          play('nope')
+          play('save-failed')
           toast({ tone: 'error', message: errorMessage(e) })
         })
       },
     })
     return {
       status: (inv: { _id: string; name: string }, to: DecisionStatus | null, reason?: string) => {
-        if (to === 'no') play('not-on-list')
-        else play('card-drop', { volume: 0.6 })
+        play('select')
         const saved = x.setStatus(inv._id, to, reason)
         saved.catch(failed)
         toast({ message: to ? inv.name + ' is ' + STATUS_PHRASE[to] + ' now.' : 'Cleared ' + inv.name + '’s status.', action: undo(saved) })
@@ -104,13 +103,13 @@ export function useDecide() {
       },
       /** A Decide row answered. */
       resolve: (inv: { _id: string; name: string }, signalId: string, accept: boolean) => {
-        play(accept ? 'card-drop' : 'card-pickup', { volume: 0.6 })
+        play('save')
         const saved = x.resolve(signalId, accept)
         saved.catch(failed)
         if (accept) toast({ message: 'Done. ' + inv.name + '’s status changed.', action: undo(saved) })
       },
       doneAsk: (signalId: string) => {
-        play('card-pickup', { volume: 0.6 })
+        play('save')
         x.doneAsk(signalId).catch(failed)
       },
       failed,

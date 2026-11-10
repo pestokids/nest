@@ -140,7 +140,7 @@ function PersonPanel({ row, today, onOpen }: { row: PersonRow; today: string; on
         label: next.text,
         title: 'You nudged ' + who + ': the 3 days start again',
         onClick: () => {
-          play('nudge')
+          play('log')
           x.nudged(intro._id).catch(fail)
         },
       }

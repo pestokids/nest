@@ -90,7 +90,6 @@ function LinkCard({ link: l, onSendNew }: { link: ShareLink; onSendNew: () => vo
 
   async function copy(el: HTMLElement) {
     if (await copyText(shareUrl(l.token, location.origin))) {
-      play('card-pickup', { rate: 1.2, volume: 0.5 })
       pop(el)
       toast({ tone: 'info', icon: 'link', message: 'Link copied.' })
     }
@@ -99,7 +98,7 @@ function LinkCard({ link: l, onSendNew }: { link: ShareLink; onSendNew: () => vo
     await save(() => m.act.revoke(l._id), {
       failMessage: 'Couldn’t revoke the link.',
       onDone: () => {
-        play('park')
+        play('toggle-off')
         toast({ tone: 'info', icon: 'lock', message: 'Revoked. The link now says it has expired.' })
       },
     })

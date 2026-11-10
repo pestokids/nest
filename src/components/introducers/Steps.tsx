@@ -21,8 +21,7 @@ export function useToggleStep() {
   const { investors } = useRaise()
   const { fail, toast } = useUI()
   return (intro: Intro, step: Step, on: boolean) => {
-    if (on) play('rule-check', { volume: 0.7 })
-    else play('undo', { volume: 0.6 })
+    play(on ? 'toggle-on' : 'toggle-off')
     x.setStep(intro._id, step, on ? todayIST() : null).catch(fail)
     const who = allPeople(x.introducers, investors).find((p) => p.key === personKey(intro))
     const inv = investors.find((i) => i._id === intro.investorId)

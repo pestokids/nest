@@ -41,7 +41,7 @@ export function ApplicationSection({ inv }: { inv: Investor }) {
   }
   const pick = (status: ApplicationStatus) => {
     if (a?.status === status) return
-    play('card-drop', { volume: 0.6 })
+    play('select')
     write({ status }, inv.name + ': ' + applicationChip({ ...a, status }) + '.')
   }
   const field = (k: 'program' | 'submittedOn' | 'decisionBy', value: string) => {
@@ -49,7 +49,7 @@ export function ApplicationSection({ inv }: { inv: Investor }) {
     write({ [k]: value.trim() || null })
   }
   const clear = () => {
-    play('card-pickup', { volume: 0.6 })
+    play('remove')
     setEditing(false)
     write(null, inv.name + ': not applied.')
   }

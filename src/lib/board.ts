@@ -5,7 +5,7 @@ import { dayDiff, formatDay } from './dates'
 import { applySave, quietFor, type Investor, type InvestorFields } from './pipeline'
 import { applicationChip, awaitingLine, isApplicationPath, isDecisionPassed, type ApplicationFields } from './applications' // PST-302
 import { COMMIT, IDX, type PipelineStage, type Stage } from './stages'
-import type { PlayOptions, SoundName } from './sound'
+import type { Action } from './sound'
 
 /** Board columns in order ("Not contacted" lives in Investors, not on the board). */
 export const BOARD_STAGES = ['ask', 'intro', 'booked', 'm1', 'm2', 'dd', 'verbal', 'signed', 'wired'] as const satisfies readonly PipelineStage[]
@@ -50,16 +50,13 @@ export function classifyMove(from: Stage, to: Stage): Move {
   return { kind: 'back', skipped: [], win: false }
 }
 
-export type Cue = { name: SoundName; opts?: PlayOptions }
-/** The Sounds card in interactions.png, per drop. */
-export function moveSounds(m: Move): Cue[] {
-  if (m.kind === 'same') return [{ name: 'card-drop', opts: { volume: 0.7 } }]
-  if (m.win) return [{ name: 'signed' }, { name: 'confetti', opts: { delay: 0.1 } }, ...(m.kind === 'skip' ? [{ name: 'rule-check' as const, opts: { delay: 0.5, volume: 0.7 } }] : [])]
-  if (m.kind === 'skip') return [{ name: 'rule-check' }]
-  if (m.kind === 'next') return [{ name: 'card-drop' }, { name: 'stage-up', opts: { delay: 0.12, volume: 0.8 } }]
-  if (m.kind === 'parked') return [{ name: 'park' }]
-  if (m.kind === 'back' || m.kind === 'passed') return [{ name: 'card-drop', opts: { rate: 0.85 } }]
-  return [{ name: 'card-drop' }]
+/** PST-304: one sound per drop, or none for a drop back where it was (nothing changed). */
+export function moveSound(m: Move): Action | null {
+  if (m.kind === 'same') return null
+  if (m.win) return 'signed'
+  if (m.kind === 'parked') return 'park'
+  if (m.kind === 'back' || m.kind === 'passed') return 'stage-down'
+  return 'stage-up'
 }
 
 /** Toast copy after a move (none for a drop back where it was). */

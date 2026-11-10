@@ -61,7 +61,7 @@ export function Allocation() {
     const ids = await save(() => x.saveMany(list), { failMessage: 'Couldn’t write the allocation emails.' })
     setBusy(false)
     if (!ids) return
-    play('ask-logged')
+    play('save')
     setDrafted(placed.map((r, i) => ({ investorId: r.investorId, name: r.name, draftId: ids[i] })))
     toast({ tone: 'success', icon: 'check', message: `Drafted ${ids.length} allocation email${ids.length === 1 ? '' : 's'}. Open each one to add the SAFE link and send it.` })
   }

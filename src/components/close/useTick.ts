@@ -34,15 +34,9 @@ export function useTick() {
       if (!r) return false
       const forward = !!at && (r.to === 'signed' || r.to === 'wired')
       if (forward) {
-        play('signed')
-        play('stage-up', { delay: 0.12, volume: 0.8 })
-        if (r.firstMoney) {
-          play('confetti', { delay: 0.1 })
-          confetti(opts.from)
-        }
-      } else if (r.to) play('card-drop', { rate: 0.85 })
-      else if (at) play('card-pickup', { rate: 1.25, volume: 0.7 })
-      else play('undo')
+        play(r.to === 'wired' ? 'money-in' : 'signed')
+        if (r.firstMoney) confetti(opts.from)
+      } else play(at ? 'toggle-on' : 'toggle-off')
       pop(opts.from)
       toast({
         tone: r.to === 'wired' && at ? 'win' : 'success',

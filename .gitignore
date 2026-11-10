@@ -6,6 +6,9 @@ dist/
 .tanstack/
 .vinxi/
 *.log
+
+# PST-304: the SND01 sound kit, copied from snd-lib at build time (vite.config.ts); its terms forbid redistributing it raw
+public/sounds/snd01/
 .DS_Store
 coverage/
 

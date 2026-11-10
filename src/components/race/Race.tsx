@@ -337,7 +337,7 @@ function UpdateCard({ investors, today }: { investors: readonly Investor[]; toda
     try {
       await navigator.clipboard.writeText(emailList(emails))
     } catch {
-      play('nope')
+      play('failed')
       ui.toast({ tone: 'error', message: 'Couldn’t copy: the browser didn’t allow it. Try again.' })
       return
     }
@@ -346,7 +346,7 @@ function UpdateCard({ investors, today }: { investors: readonly Investor[]; toda
   }
 
   function markSent() {
-    play('rule-check')
+    play('log')
     const saved = race.markUpdateSent(all.length)
     saved.catch(ui.fail)
     ui.toast({
