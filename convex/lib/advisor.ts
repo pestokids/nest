@@ -7,8 +7,8 @@
 // holds no facts about the company: those only ever come from the tools.
 // The tools and the system prompt carry cache marks, so later turns read them from the cache.
 import { toolsFor } from '../../src/lib/agents'
-import { MAX_TOOL_CALLS, type AdvisorMode, type Pinned, type ScreenContext } from '../../src/lib/advisor'
-import { ACTION_TOOLS, SHOW_TOOLS } from '../../src/lib/advisorBlocks'
+import { MAX_TOOL_CALLS, tidyParts, type AdvisorMode, type AnswerPart, type Pinned, type ScreenContext } from '../../src/lib/advisor'
+import { ACTION_TOOLS, BLOCK_TOOL_NAMES, SHOW_TOOLS } from '../../src/lib/advisorBlocks'
 import { lookingAt } from '../../src/lib/advisor'
 import { timeOf } from '../../src/lib/google'
 import { todayIST, weekdayOf } from '../../src/lib/dates'
@@ -34,6 +34,12 @@ export const NUMBERS_GUARD = `Numbers
 - When a number is missing, write [__] where it goes and say in one line what's missing (for example: "[__] is your week-8 retention; Nest doesn't have it"). Use show_blank for the one that matters most.
 - Never estimate, round up or borrow a "typical" number into the founder's story, an email or a plan.`
 
+/** PST-308: the rule about blocks, word for word in the prompt (and checked by the tests). Nest shows text and blocks in the order they're written. */
+export const BLOCKS_GUARD = `Blocks in the answer
+- Nest shows your words and blocks in the order you write them, so write the answer in that order: words, a block, more words.
+- Before each block, write a one- or two-line lead-in that says why it's there and what to do with it. Follow-ups need none.
+- Never refer to "above" or "below". Name the block instead, for example "In the plan, tick what you'll do today."`
+
 export const ADVISOR_SYSTEM = `You are the Advisor inside Nest, a tracker for a startup's fundraise. You are an expert guide to pre-seed and seed rounds, the kind who has run hundreds of raises, and a storyteller who helps founders say why their company matters. You talk with the founder.
 
 How you work
@@ -56,7 +62,9 @@ Doing things
 - suggest_change proposes a decide-by date, a stage, a next step or an application status. It shows as a card; nothing changes until the founder accepts it in Suggestions.
 - remember proposes keeping a lasting fact about the company or the founder's preferences that Nest doesn't already have. The founder is asked first.
 - The show_* tools draw live pieces of Nest into the answer: an investor card, a plan the founder can tick, two or three options, the race, a story to reshape, a blank for a missing number. Use one or two when they help more than words, and don't repeat in text what a block shows.
-- End every answer with show_follow_ups: three or four next questions written for this answer.`
+- End every answer with show_follow_ups: three or four next questions written for this answer.
+
+${BLOCKS_GUARD}`
 
 export const MODE_PROMPT: Record<AdvisorMode, string> = {
   coach:
@@ -113,6 +121,8 @@ export async function advisorLoop(o: {
   web: boolean
   callTool: (name: string, input: unknown) => Promise<ToolResult>
   onText?: (delta: string) => unknown
+  /** PST-308: one of Nest's tools was called, at this point in the streamed text. */
+  onCall?: (name: string) => unknown
   /** A turn ended; `tools` are the tools it called (none: it was the answer). */
   onTurn?: (tools: string[]) => unknown
   onCost?: (usd: number, usage: Usage) => unknown
@@ -132,7 +142,7 @@ export async function advisorLoop(o: {
     const last = cutOff || calls >= MAX_TOOL_CALLS || (o.budget && lastTurn ? !o.budget(costUsd, lastTurn) : false)
     const r = await converse({
       model: o.model, system: ADVISOR_SYSTEM, context: o.context, messages, tools: ADVISOR_TOOLS, serverTools: o.web ? [WEB_SEARCH] : [], cacheTools: true,
-      thinking: NO_THINKING[o.model], toolChoice: last ? 'none' : 'auto', maxTokens: 8000, hooks: { onText: o.onText, signal: o.signal },
+      thinking: NO_THINKING[o.model], toolChoice: last ? 'none' : 'auto', maxTokens: 8000, hooks: { onText: o.onText, onCall: o.onCall, signal: o.signal },
     })
     usage = addUsage(usage, r.usage)
     lastTurn = costOf(r.usage, o.model)
@@ -166,5 +176,57 @@ export async function advisorLoop(o: {
     }
     messages.push({ role: 'user', content: results })
     markLatest(messages)
+  }
+}
+
+/* ---------- PST-308: an answer's parts, in the order Claude writes them ---------- */
+
+type Piece = { text: string } | { call: string }
+
+/**
+ * Keeps an answer's words and blocks in the order Claude wrote them. Words stream
+ * into the turn, and a tool call marks its place among them. When the turn ends,
+ * its words are kept (or dropped as a preamble), and each block tool it called
+ * holds its place until the tool has drawn the block (or refused, and the place goes).
+ */
+export function answerWriter() {
+  const done: (AnswerPart | { open: true })[] = []
+  let turn: Piece[] = []
+  const firstOpen = () => done.findIndex((p) => 'open' in p)
+  return {
+    text(delta: string) {
+      const last = turn[turn.length - 1]
+      if (last && 'text' in last) last.text += delta
+      else turn.push({ text: delta })
+    },
+    call(name: string) {
+      turn.push({ call: name })
+    },
+    /** The turn ended: `keepText` keeps its words, and `run` names the tools it called that will run (in order). */
+    endTurn(keepText: boolean, run: readonly string[]) {
+      for (let i = firstOpen(); i >= 0; i = firstOpen()) done.splice(i, 1)
+      let blocks = run.filter((n) => BLOCK_TOOL_NAMES.has(n)).length
+      for (const p of turn) {
+        if ('text' in p) {
+          if (keepText) done.push({ text: p.text })
+        } else if (blocks > 0 && BLOCK_TOOL_NAMES.has(p.call)) {
+          done.push({ open: true })
+          blocks--
+        }
+      }
+      turn = []
+    },
+    /** A block tool ran: its block (an index in `blocks`) takes the first open place, and null (refused) gives the place up. */
+    placed(block: number | null) {
+      const i = firstOpen()
+      if (i < 0) {
+        if (block !== null) done.push({ block })
+      } else if (block === null) done.splice(i, 1)
+      else done[i] = { block }
+    },
+    /** The parts so far, with the words of the turn still streaming. */
+    parts(): AnswerPart[] {
+      return tidyParts([...done.filter((p): p is AnswerPart => !('open' in p)), ...turn.filter((p): p is { text: string } => 'text' in p)])
+    },
   }
 }

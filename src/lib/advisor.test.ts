@@ -1,7 +1,8 @@
 // PST-307: the Advisor's pure pieces: the chat list's groups, the "From:" chips,
 // the cap and its line, the ⌘J panel's "Looking at", and filling a blank into a story.
+// PST-308: an answer's words and blocks in the order written.
 import { describe, expect, it } from 'vitest'
-import { capCheck, chatHeadMeta, groupChats, lookingAt, monthLine, sourceChips, titleFrom, weekStartIST } from './advisor'
+import { answerParts, capCheck, chatHeadMeta, groupChats, lookingAt, monthLine, partsText, sourceChips, tidyParts, titleFrom, weekStartIST, type AnswerPart } from './advisor'
 import { fillInto, planStep, type Block } from './advisorBlocks'
 import { SONNET } from './models'
 
@@ -88,5 +89,35 @@ describe('blanks and plan steps', () => {
       set: { nextStep: 'Book the partner slot', nextDate: '2026-11-13' },
       undo: { nextStep: 'Send deck', nextDate: '2026-11-12' },
     })
+  })
+})
+
+/* ---------- PST-308: an answer's parts, in the order written ---------- */
+
+describe('an answer’s parts', () => {
+  const plan: Block = { kind: 'plan', title: 'Today', items: [{ text: 'Ask Lantern what they’d need to lead', date: '2026-11-11' }], ticked: [] }
+  const options: Block = { kind: 'options', options: [{ label: 'Ask for a week', upside: 'Time', risk: 'Cools off' }, { label: 'Take it', upside: 'A lead', risk: 'Less room' }] }
+  const follow: Block = { kind: 'follow_ups', questions: ['Draft the ask', 'Who should I drop?', 'What if they say no?'] }
+
+  it('keeps words and blocks in the order written, and leaves the follow-ups for the end', () => {
+    const parts: AnswerPart[] = [{ text: 'In the plan, tick what you’ll do today.' }, { block: 0 }, { text: 'Do Lantern first.' }, { block: 1 }, { block: 2 }]
+    expect(answerParts({ text: '', blocks: [plan, options, follow], parts, status: 'done' })).toEqual([{ text: 'In the plan, tick what you’ll do today.' }, { block: 0 }, { text: 'Do Lantern first.' }, { block: 1 }])
+  })
+
+  it('reads an answer saved before parts as its text, then its blocks', () => {
+    expect(answerParts({ text: 'You can tick the steps in the plan.', blocks: [plan, follow], status: 'done' })).toEqual([{ text: 'You can tick the steps in the plan.' }, { block: 0 }])
+    expect(answerParts({ text: '', blocks: [plan], status: 'done' })).toEqual([{ block: 0 }])
+  })
+
+  it('hides a block not placed yet while streaming, and shows it at the end once the answer is over', () => {
+    const m = { text: 'Lead-in.', blocks: [plan], parts: [{ text: 'Lead-in.' }] }
+    expect(answerParts({ ...m, status: 'streaming' })).toEqual([{ text: 'Lead-in.' }])
+    expect(answerParts({ ...m, status: 'failed' })).toEqual([{ text: 'Lead-in.' }, { block: 0 }])
+  })
+
+  it('trims text, drops empty runs and joins runs that meet as paragraphs', () => {
+    expect(tidyParts([{ text: '  One. ' }, { text: '' }, { text: 'Two.' }, { block: 0 }, { text: ' ' }, { text: 'Three.' }])).toEqual([{ text: 'One.\n\nTwo.' }, { block: 0 }, { text: 'Three.' }])
+    expect(answerParts({ text: '', blocks: [follow], parts: [{ text: 'Before.' }, { block: 0 }, { text: 'After.' }], status: 'done' })).toEqual([{ text: 'Before.\n\nAfter.' }])
+    expect(partsText([{ text: 'Before.' }, { block: 0 }, { text: 'After.' }])).toBe('Before.\n\nAfter.')
   })
 })

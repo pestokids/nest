@@ -40,6 +40,9 @@ export const vBlock = v.union(
   v.object({ kind: v.literal('memory'), fact: v.string(), state: v.union(v.literal('asked'), v.literal('saved'), v.literal('dismissed')), memoryId: v.optional(v.string()) }),
 )
 
+/** PST-308: one piece of an answer, in the order written: a run of text, or a block by its index in `blocks`. */
+export const vPart = v.union(v.object({ text: v.string() }), v.object({ block: v.number() }))
+
 /** Added to the AI settings row (key "ai"). */
 export const advisorSettingsFields = {
   advisorModel: v.optional(vModel),
@@ -70,12 +73,14 @@ export const advisorTables = {
   })
     .index('by_user', ['userId', 'updatedAt']),
 
-  // A question or an answer. An answer streams into `text` (investors cited as [[investor:<id>|Name]]).
+  // A question or an answer. An answer streams into `text` (investors cited as [[investor:<id>|Name]]) and, with its blocks in place, `parts`.
   advisorMessages: defineTable({
     chatId: v.id('advisorChats'),
     role: v.union(v.literal('user'), v.literal('assistant')),
     text: v.string(),
     blocks: v.array(vBlock),
+    /** PST-308: the answer's text and blocks in the order written. Left out on answers saved before it: they show their text, then their blocks. */
+    parts: v.optional(v.array(vPart)),
     sources: v.array(vSource),
     model: v.optional(vModel),
     mode: v.optional(vAdvisorMode),

@@ -95,6 +95,8 @@ export type Hooks = {
   onText?: (delta: string) => unknown
   /** A server tool started (web_search, web_fetch). */
   onToolUse?: (name: string) => unknown
+  /** PST-308: one of Nest's own tools was called (tool_use), at this point in the text. */
+  onCall?: (name: string) => unknown
   signal?: AbortSignal
 }
 
@@ -239,6 +241,7 @@ async function readStream(body: ReadableStream<Uint8Array>, hooks: Hooks) {
       if (b.type === 'server_tool_use' || b.type === 'tool_use') b._json = ''
       blocks[e.index] = b
       if (b.type === 'server_tool_use') await hooks.onToolUse?.(String(b.name ?? ''))
+      if (b.type === 'tool_use') await hooks.onCall?.(String(b.name ?? '')) // PST-308
     } else if (e.type === 'content_block_delta' && e.index !== undefined && blocks[e.index]) {
       const b = blocks[e.index]
       const d = e.delta ?? {}

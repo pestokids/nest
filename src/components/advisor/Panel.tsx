@@ -8,7 +8,7 @@ import { createPortal } from 'react-dom'
 import { lookingAt, type ScreenContext } from '../../lib/advisor'
 import { KEYS, matches } from '../../lib/shortcuts'
 import { play } from '../../lib/sound'
-import { PREVIEW_ADVISOR_CHAT } from '../../preview/advisorFixture'
+import { PREVIEW_ADVISOR_CHAT, PREVIEW_ADVISOR_PANELS, type PreviewAdvisor } from '../../preview/advisorFixture'
 import { usePreviewState } from '../preview-state'
 import { Icon, IconButton } from '../ui'
 import { useAdvisor } from './data'
@@ -19,8 +19,9 @@ export function AdvisorPanel() {
   const preview = usePreviewState()
   const navigate = useNavigate()
   const location = useRouterState({ select: (s) => s.location })
-  const [open, setOpen] = useState(preview?.advisor === 'panel')
-  const [chatId, setChatId] = useState<string | null>(preview?.advisor === 'panel' ? (PREVIEW_ADVISOR_CHAT.panel ?? null) : null)
+  const previewPanel = PREVIEW_ADVISOR_PANELS.includes(preview?.advisor ?? '') ? (preview?.advisor as PreviewAdvisor) : null
+  const [open, setOpen] = useState(!!previewPanel)
+  const [chatId, setChatId] = useState<string | null>(previewPanel ? (PREVIEW_ADVISOR_CHAT[previewPanel] ?? null) : null)
   const [screen, setScreen] = useState<ScreenContext | null>(null)
   const before = useRef<HTMLElement | null>(null)
   const panel = useRef<HTMLElement>(null)
