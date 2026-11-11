@@ -217,6 +217,8 @@ export type AdvisorMessage = {
   role: 'user' | 'assistant'
   text: string
   blocks: Block[]
+  /** PST-308: the answer's text and blocks in the order written (left out on answers saved before it). */
+  parts?: AnswerPart[]
   sources: Source[]
   model?: Model
   mode?: AdvisorMode
@@ -226,6 +228,45 @@ export type AdvisorMessage = {
   /** The cap refused it: the answer says so, with the way to Settings. */
   capped?: boolean
   createdAt: number
+}
+
+/* ---------- PST-308: an answer's parts, in the order the model wrote them ---------- */
+
+/** One piece of an answer: a run of text, or a block by its index in `blocks` (so a block's own changes keep using that index). */
+export type AnswerPart = { text: string } | { block: number }
+
+/** Text runs trimmed, empty ones dropped, and runs next to each other joined as paragraphs. */
+export function tidyParts(parts: readonly AnswerPart[]): AnswerPart[] {
+  const out: AnswerPart[] = []
+  for (const p of parts) {
+    if (!('text' in p)) {
+      out.push(p)
+      continue
+    }
+    const t = p.text.trim()
+    if (!t) continue
+    const prev = out[out.length - 1]
+    if (prev && 'text' in prev) out[out.length - 1] = { text: prev.text + '\n\n' + t }
+    else out.push({ text: t })
+  }
+  return out
+}
+
+/** All of an answer's text, as one string (the history Claude reads, Copy, and the cost estimate). */
+export const partsText = (parts: readonly AnswerPart[]) => tidyParts(parts.filter((p) => 'text' in p)).map((p) => ('text' in p ? p.text : '')).join('')
+
+/**
+ * What an answer shows, in order. Follow-ups are left out: they show at the end.
+ * An answer saved before parts reads as its text, then its blocks. A block the
+ * parts don't name yet is left out while the answer streams (it's placed a moment
+ * later) and added at the end once it's over.
+ */
+export function answerParts(m: Pick<AdvisorMessage, 'text' | 'blocks' | 'parts' | 'status'>): AnswerPart[] {
+  const shown = (i: number) => !!m.blocks[i] && m.blocks[i].kind !== 'follow_ups'
+  if (!m.parts) return tidyParts([{ text: m.text }, ...m.blocks.map((_, i) => ({ block: i })).filter((p) => shown(p.block))])
+  const named = new Set(m.parts.flatMap((p) => ('block' in p ? [p.block] : [])))
+  const rest = m.status === 'streaming' ? [] : m.blocks.map((_, i) => ({ block: i })).filter((p) => !named.has(p.block))
+  return tidyParts([...m.parts, ...rest].filter((p) => !('block' in p) || shown(p.block)))
 }
 
 /** The answer's eyebrow: "ADVISOR · SONNET 5.5", "· STORYTELLER" in that mode, "· WRITING…" while it streams. */

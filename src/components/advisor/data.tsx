@@ -10,8 +10,8 @@ import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, ty
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
 import {
-  ADVISOR_CAP, capCheck, estimateAnswer, HISTORY_MESSAGES, titleFrom,
-  type AdvisorMessage, type AdvisorMode, type AdvisorModel, type AdvisorSettings, type ChatRow, type Pinned, type ScreenContext,
+  ADVISOR_CAP, capCheck, estimateAnswer, HISTORY_MESSAGES, partsText, titleFrom,
+  type AdvisorMessage, type AnswerPart, type AdvisorMode, type AdvisorModel, type AdvisorSettings, type ChatRow, type Pinned, type ScreenContext,
 } from '../../lib/advisor'
 import { fillBlank, type Block } from '../../lib/advisorBlocks'
 import { OPUS, SONNET, type RealUsage } from '../../lib/models'
@@ -206,17 +206,28 @@ const findMessage = (id: string) => Object.values(read()?.messages ?? {}).flat()
 const setBlock = (id: string, index: number, b: Block) => patchMessage(id, (m) => ({ ...m, blocks: m.blocks.map((x, i) => (i === index ? b : x)) }))
 const patchChat = (id: string, p: Partial<AdvisorChat>) => write((s) => ({ ...s, chats: s.chats.map((c) => (c._id === id ? { ...c, ...p } : c)) }))
 
-/** The canned reply streams in a few words at a time, then its blocks land. Stop ends it where it is. */
+/** The canned reply streams in a few words at a time, each block landing in its place (PST-308), then the follow-ups. Stop ends it where it is. */
 function streamReply(id: string, mode: AdvisorMode, question: string) {
   const reply = previewReply(mode, question, read()?.chats ?? [])
-  const words = reply.text.split(/(?<=\s)/)
+  // One step per three words, one per block.
+  const steps: AnswerPart[][] = []
+  const shown: AnswerPart[] = []
+  for (const p of reply.parts) {
+    if ('text' in p) {
+      const words = p.text.split(/(?<=\s)/)
+      for (let at = 3; at < words.length + 3; at += 3) steps.push([...shown, { text: words.slice(0, at).join('') }])
+    } else steps.push([...shown, p])
+    shown.push(p)
+  }
   let at = 0
   const t = setInterval(() => {
     const m = findMessage(id)
     if (!m || m.status !== 'streaming') return clearInterval(t)
-    at = Math.min(words.length, at + 3)
-    const done = at >= words.length
-    patchMessage(id, (x) => ({ ...x, text: words.slice(0, at).join(''), ...(done ? { status: 'done', blocks: reply.blocks, sources: reply.sources, costUsd: reply.costUsd } : {}) }))
+    const parts = steps[Math.min(at++, steps.length - 1)] ?? []
+    const done = at >= steps.length
+    // Blocks land as they're reached (the reply lists them in order), the follow-ups at the end.
+    const blocks = done ? reply.blocks : reply.blocks.slice(0, Math.max(-1, ...parts.flatMap((p) => ('block' in p ? [p.block] : []))) + 1)
+    patchMessage(id, (x) => ({ ...x, parts, blocks, text: partsText(parts), ...(done ? { status: 'done', sources: reply.sources, costUsd: reply.costUsd } : {}) }))
     if (done) {
       clearInterval(t)
       write((s) => ({ ...s, overview: { ...s.overview, monthUsd: s.overview.monthUsd + reply.costUsd, monthAnswers: s.overview.monthAnswers + 1 } }))
@@ -247,7 +258,7 @@ function PreviewAdvisorProvider({ state, children }: { state: PreviewAdvisor | n
       const err = capError(s.overview, model ?? (m.model === OPUS ? OPUS : SONNET), m.mode ?? 'coach', history)
       if (err) return Promise.reject(err)
       const q = [...history].reverse().find((x) => x.role === 'user' && x.createdAt <= m.createdAt)
-      patchMessage(id, (x) => ({ ...x, text: '', blocks: [], sources: [], status: 'streaming', error: undefined, ...(model ? { model } : {}) }))
+      patchMessage(id, (x) => ({ ...x, text: '', blocks: [], parts: [], sources: [], status: 'streaming', error: undefined, ...(model ? { model } : {}) }))
       streamReply(id, m.mode ?? 'coach', q?.text ?? '')
       return later(id, 0)
     }
@@ -268,7 +279,7 @@ function PreviewAdvisorProvider({ state, children }: { state: PreviewAdvisor | n
         const id = existing?._id ?? newId('pc')
         const answerId = newId('pm')
         const user: AdvisorMessage = { _id: newId('pm'), chatId: id, role: 'user', text: a.text.trim(), blocks: [], sources: [], mode: a.mode, costUsd: 0, status: 'done', createdAt: now }
-        const answer: AdvisorMessage = { _id: answerId, chatId: id, role: 'assistant', text: '', blocks: [], sources: [], model, mode: a.mode, costUsd: 0, status: 'streaming', createdAt: now + 1 }
+        const answer: AdvisorMessage = { _id: answerId, chatId: id, role: 'assistant', text: '', blocks: [], parts: [], sources: [], model, mode: a.mode, costUsd: 0, status: 'streaming', createdAt: now + 1 }
         write((x) => ({
           ...x,
           chats: existing

@@ -13,15 +13,15 @@ import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
 import { requireUser } from './lib/access'
 import { AIError, complete, errorTag, hasAIKey, NoAIKey, NO_THINKING, usageRow, type Message, type RunUsage } from './lib/anthropic'
-import { advisorContext, advisorLoop, READ_TOOL_NAMES, type ToolResult } from './lib/advisor'
+import { advisorContext, advisorLoop, answerWriter, READ_TOOL_NAMES, type ToolResult } from './lib/advisor'
 import { ADVISOR_READ_NAMES } from './advisorReads'
 import { suggestAsAdvisor, suggestPlanNumber } from './mcp'
 import { newQuestion, sameQuestion } from './qanda'
-import { vAdvisorMode, vBlock, vPinned, vScreen } from './advisorSchema'
+import { vAdvisorMode, vBlock, vPart, vPinned, vScreen } from './advisorSchema'
 import { vModel } from './validators'
 import { checkArgs, toolNamed } from '../src/lib/agents'
 import {
-  addSources, ADVISOR_CAP, ADVISOR_DEFAULTS, capCheck, estimateAnswer, FACT_MAX, HISTORY_MESSAGES, isAdvisorModel, MAX_CAP_USD, MAX_PINNED, MESSAGE_MAX, monthStartIST, TITLE_MAX, titleFrom,
+  addSources, ADVISOR_CAP, ADVISOR_DEFAULTS, capCheck, estimateAnswer, FACT_MAX, HISTORY_MESSAGES, isAdvisorModel, MAX_CAP_USD, MAX_PINNED, MESSAGE_MAX, monthStartIST, partsText, TITLE_MAX, titleFrom,
   type AdvisorMode, type AdvisorSettings, type Source,
 } from '../src/lib/advisor'
 import { BLOCK_TOOL_NAMES, blockInvestorIds, parseBlock, type Block } from '../src/lib/advisorBlocks'
@@ -166,7 +166,7 @@ async function mayRun(ctx: QueryCtx, history: readonly Doc<'advisorMessages'>[],
 /** Start an answer: a streaming row after `after`, and the action that writes it. */
 async function startAnswer(ctx: MutationCtx, chat: Doc<'advisorChats'>, model: Model, mode: AdvisorMode) {
   const now = Date.now()
-  const id = await ctx.db.insert('advisorMessages', { chatId: chat._id, role: 'assistant', text: '', blocks: [], sources: [], model, mode, costUsd: 0, status: 'streaming', createdAt: now })
+  const id = await ctx.db.insert('advisorMessages', { chatId: chat._id, role: 'assistant', text: '', blocks: [], parts: [], sources: [], model, mode, costUsd: 0, status: 'streaming', createdAt: now })
   await ctx.scheduler.runAfter(0, internal.advisor.execute, { messageId: id })
   return id
 }
@@ -237,7 +237,7 @@ export const regenerate = mutation({
     const use = model ?? m.model ?? chat.model
     const before = (await messagesOf(ctx, chat._id)).filter((x) => x._creationTime < m._creationTime)
     await mayRun(ctx, before, use, m.mode ?? chat.mode)
-    await ctx.db.patch(m._id, { text: '', blocks: [], sources: [], status: 'streaming', error: undefined, model: use, finishedAt: Date.now() })
+    await ctx.db.patch(m._id, { text: '', blocks: [], parts: [], sources: [], status: 'streaming', error: undefined, model: use, finishedAt: Date.now() })
     await ctx.scheduler.runAfter(0, internal.advisor.execute, { messageId: m._id })
     return m._id
   },
@@ -261,7 +261,7 @@ export const editLast = mutation({
     await mayRun(ctx, [...before, { ...lastUser, text }], model, mode)
     await ctx.db.patch(lastUser._id, { text })
     if (answer) {
-      await ctx.db.patch(answer._id, { text: '', blocks: [], sources: [], status: 'streaming', error: undefined, finishedAt: Date.now() })
+      await ctx.db.patch(answer._id, { text: '', blocks: [], parts: [], sources: [], status: 'streaming', error: undefined, finishedAt: Date.now() })
       await ctx.scheduler.runAfter(0, internal.advisor.execute, { messageId: answer._id })
       return answer._id
     }
@@ -531,13 +531,13 @@ export const input = internalQuery({
   },
 })
 
-/** Streamed text so far; false when the answer is no longer streaming (Stop), so the run stops. */
+/** Streamed text and parts so far; false when the answer is no longer streaming (Stop), so the run stops. */
 export const progress = internalMutation({
-  args: { messageId: v.id('advisorMessages'), text: v.string(), costUsd: v.number() },
-  handler: async (ctx, { messageId, text, costUsd }) => {
+  args: { messageId: v.id('advisorMessages'), parts: v.array(vPart), costUsd: v.number() },
+  handler: async (ctx, { messageId, parts, costUsd }) => {
     const m = await ctx.db.get(messageId)
     if (!m || m.status !== 'streaming') return false
-    await ctx.db.patch(messageId, { text, costUsd })
+    await ctx.db.patch(messageId, { text: partsText(parts), parts, costUsd })
     return true
   },
 })
@@ -545,11 +545,12 @@ export const progress = internalMutation({
 /**
  * One block tool call: check its input, check the investors it names, write the
  * draft (an email lands in Drafts as a draft; nothing is sent), and add the block
- * to the answer. Resolves with what Claude is told.
+ * to the answer. Resolves with what Claude is told, and the new block's index
+ * (PST-308: the run puts it in its place among the answer's parts).
  */
 export const act = internalMutation({
   args: { messageId: v.id('advisorMessages'), tool: v.string(), input: v.any() },
-  handler: async (ctx, { messageId, tool, input }): Promise<ToolResult> => {
+  handler: async (ctx, { messageId, tool, input }): Promise<ToolResult & { block?: number }> => {
     const m = await ctx.db.get(messageId)
     if (!m || m.status !== 'streaming') return { isError: true, content: 'The answer was stopped.' }
     const parsed = parseBlock(tool, input)
@@ -574,13 +575,13 @@ export const act = internalMutation({
     else if (b.kind === 'suggestion') said = 'Shown as a card. Nothing changes unless Dev sends it to Suggestions and accepts it there.'
     else if (b.kind === 'memory') said = 'Dev is asked “Remember this?”. It is kept only if Dev says yes.'
     await ctx.db.patch(m._id, { blocks: [...m.blocks, b] as Doc<'advisorMessages'>['blocks'] })
-    return { content: said }
+    return { content: said, block: m.blocks.length }
   },
 })
 
 export const finish = internalMutation({
   args: {
-    messageId: v.id('advisorMessages'), status: v.union(v.literal('done'), v.literal('failed'), v.literal('stopped')), text: v.string(),
+    messageId: v.id('advisorMessages'), status: v.union(v.literal('done'), v.literal('failed'), v.literal('stopped')), parts: v.array(vPart),
     sources: v.array(v.object({ kind: v.string(), label: v.string(), investorId: v.optional(v.string()), url: v.optional(v.string()) })),
     costUsd: v.number(), runCostUsd: v.number(), error: v.optional(v.string()), usage: v.optional(v.object({ input: v.number(), output: v.number(), thinking: v.optional(v.number()), cacheRead: v.number(), cacheWrite: v.number(), webSearches: v.number() })),
   },
@@ -589,7 +590,7 @@ export const finish = internalMutation({
     if (!m) return
     const stopped = m.status === 'stopped'
     await ctx.db.patch(m._id, {
-      status: stopped ? 'stopped' : a.status, text: a.text, sources: a.sources as Doc<'advisorMessages'>['sources'], costUsd: a.costUsd, finishedAt: Date.now(),
+      status: stopped ? 'stopped' : a.status, text: partsText(a.parts), parts: a.parts, sources: a.sources as Doc<'advisorMessages'>['sources'], costUsd: a.costUsd, finishedAt: Date.now(),
       ...(a.usage ? { usage: a.usage } : {}), ...(a.error && !stopped ? { error: a.error } : {}),
     })
     const chat = await ctx.db.get(m.chatId)
@@ -607,8 +608,7 @@ export const execute = internalAction({
     const abort = new AbortController()
     const sources: Source[] = []
     const calls: string[] = []
-    let kept = ''
-    let turn = ''
+    const answer = answerWriter()
     let cost = 0
     let usage: RunUsage | undefined
     let saved = 0
@@ -616,7 +616,7 @@ export const execute = internalAction({
     const save = async (force = false) => {
       if (stopped || (!force && Date.now() - saved < FLUSH_MS)) return
       saved = Date.now()
-      const live = await ctx.runMutation(internal.advisor.progress, { messageId, text: (kept + turn).trim(), costUsd: job.baseCost + cost })
+      const live = await ctx.runMutation(internal.advisor.progress, { messageId, parts: answer.parts(), costUsd: job.baseCost + cost })
       if (!live) {
         stopped = true
         abort.abort()
@@ -624,7 +624,12 @@ export const execute = internalAction({
     }
     const callTool = async (name: string, raw: unknown): Promise<ToolResult> => {
       calls.push(name)
-      if (BLOCK_TOOL_NAMES.has(name)) return await ctx.runMutation(internal.advisor.act, { messageId, tool: name, input: raw ?? {} })
+      if (BLOCK_TOOL_NAMES.has(name)) {
+        const { block, ...said } = await ctx.runMutation(internal.advisor.act, { messageId, tool: name, input: raw ?? {} })
+        answer.placed(block ?? null)
+        await save(true)
+        return said
+      }
       if (ADVISOR_READ_NAMES.has(name)) {
         const out = await ctx.runQuery(internal.advisorReads.read, { tool: name, args: raw ?? {} })
         if (!out.ok) return { isError: true, content: out.error }
@@ -652,19 +657,19 @@ export const execute = internalAction({
         callTool,
         signal: abort.signal,
         onText: (d) => {
-          turn += d
+          answer.text(d)
           return save()
         },
+        onCall: (name) => answer.call(name),
         onTurn: async (used) => {
           // Stopped while this turn streamed: what it wrote after Stop isn't kept.
           await save(true)
           if (stopped) {
-            turn = ''
+            answer.endTurn(false, [])
             return
           }
-          // A turn that read something was only a preamble; one that drafted or showed blocks keeps its words.
-          if (!used.some((n) => READ_TOOL_NAMES.has(n) || n === '(retry)') && turn.trim()) kept = (kept ? kept.trimEnd() + '\n\n' : '') + turn.trim()
-          turn = ''
+          // A turn that read something was only a preamble; one that drafted or showed blocks keeps its words. Its blocks keep their places among them.
+          answer.endTurn(!used.some((n) => READ_TOOL_NAMES.has(n) || n === '(retry)'), used)
           await save(true)
         },
         onCost: (usd, u) => {
@@ -685,8 +690,7 @@ export const execute = internalAction({
         error = e instanceof NoAIKey ? 'AI isn’t set up here.' : e instanceof AIError ? e.message.slice(0, 200) : 'Something went wrong while answering. Try again.'
       }
     }
-    const text = (kept + (status === 'done' ? '' : turn)).trim()
-    await ctx.runMutation(internal.advisor.finish, { messageId, status, text, sources, costUsd: job.baseCost + cost, runCostUsd: cost, error, usage })
+    await ctx.runMutation(internal.advisor.finish, { messageId, status, parts: answer.parts(), sources, costUsd: job.baseCost + cost, runCostUsd: cost, error, usage })
     console.log('advisor msg=' + messageId + ' status=' + status + ' tools=' + (calls.join(',') || '-') + ' cost=$' + cost.toFixed(4) + ' model=' + job.model + ' secs=' + Math.round((Date.now() - t0) / 1000) + failure)
   },
 })

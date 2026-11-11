@@ -3,13 +3,14 @@
 // the API): the tool loop and streaming, Stop, the cap, each block tool's checks,
 // drafts that are never sent, suggestions deduped, memory kept only on Yes, the
 // decide-by suggestion and its Undo, and the chat list. Every investor is made up.
+// PST-308: an answer's words and blocks kept in the order Claude wrote them.
 import { convexTest } from 'convex-test'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
 import schema from './schema'
 import { costOf, OPUS, SONNET } from './lib/anthropic'
-import { ADVISOR_SYSTEM, NUMBERS_GUARD, WEB_SEARCH } from './lib/advisor'
+import { ADVISOR_SYSTEM, BLOCKS_GUARD, NUMBERS_GUARD, WEB_SEARCH } from './lib/advisor'
 import { ADVISOR_CAP } from './advisor'
 import { MAX_TOOL_CALLS } from '../src/lib/advisor'
 import { todayIST } from '../src/lib/dates'
@@ -481,6 +482,13 @@ describe('the prompt', () => {
     expect(ADVISOR_SYSTEM).not.toMatch(/pesto|kids|bedtime|\$\d/i)
   })
 
+  it('PST-308: asks for a lead-in before each block, and for naming the block instead of "above" or "below"', () => {
+    expect(ADVISOR_SYSTEM).toContain(BLOCKS_GUARD)
+    expect(BLOCKS_GUARD).toMatch(/Before each block, write a one- or two-line lead-in that says why it's there/)
+    expect(BLOCKS_GUARD).toContain('Never refer to "above" or "below". Name the block instead')
+    expect(BLOCKS_GUARD).toContain('in the order you write them')
+  })
+
   it('tells Claude the date and what the ⌘J panel was looking at', async () => {
     const s = await setup()
     await s.as.mutation(api.advisor.send, { text: 'Should I slow Juniper down?', mode: 'coach', screen: { path: '/raise/pipeline', view: 'race' } })
@@ -491,3 +499,60 @@ describe('the prompt', () => {
   })
 })
 
+
+/* ---------- PST-308: words and blocks in the order written ---------- */
+
+describe('parts: words and blocks in the order Claude wrote them', () => {
+  const plan = (s: S) => ({ tool: 'show_plan', input: { title: 'Today', items: [{ text: 'Ask Lantern what they’d need to lead', date: '2026-11-19', investorId: s.lantern }] } })
+  const follow = { tool: 'show_follow_ups', input: { questions: ['Draft the ask', 'Who should I drop?', 'What if Juniper offers first?'] } }
+  const options = { tool: 'show_options', input: { options: [{ label: 'Ask for a week', upside: 'Lantern catches up', risk: 'Juniper cools off' }, { label: 'Take it', upside: 'A lead in hand', risk: 'Less room' }] } }
+  const partsNow = (s: S) => s.t.run(async (ctx) => (await ctx.db.query('advisorMessages').collect()).find((m) => m.role === 'assistant')?.parts)
+
+  it('keeps a block between the words before it and the words after it, across turns, and streams the later words below it', async () => {
+    const s = await setup()
+    let midway: unknown
+    claude.reply = async (_b, k) => {
+      if (k === 2) midway = await partsNow(s)
+      return k === 1 ? turn([{ text: 'In the plan, tick what you’ll do today.' }, plan(s)]) : k === 2 ? turn([{ text: 'Do Lantern first.' }, follow]) : turn([{ text: 'Good luck.' }])
+    }
+    const { answer } = await send(s, 'What should I do first today?')
+    // While the second turn ran, the plan already sat after its lead-in.
+    expect(midway).toEqual([{ text: 'In the plan, tick what you’ll do today.' }, { block: 0 }])
+    expect(answer.blocks.map((b) => b.kind)).toEqual(['plan', 'follow_ups'])
+    expect(answer.parts).toEqual([{ text: 'In the plan, tick what you’ll do today.' }, { block: 0 }, { text: 'Do Lantern first.' }, { block: 1 }, { text: 'Good luck.' }])
+    expect(answer.text).toBe('In the plan, tick what you’ll do today.\n\nDo Lantern first.\n\nGood luck.')
+  })
+
+  it('keeps words and blocks written in one turn in their order', async () => {
+    const s = await setup()
+    claude.reply = (_b, k) => (k === 1 ? turn([{ text: 'In the plan, start with Lantern.' }, plan(s), { text: 'Then one call to make.' }, options, follow]) : turn([{ text: 'Pick one.' }]))
+    const { answer } = await send(s, 'What should I do first today?')
+    expect(answer.blocks.map((b) => b.kind)).toEqual(['plan', 'options', 'follow_ups'])
+    expect(answer.parts).toEqual([{ text: 'In the plan, start with Lantern.' }, { block: 0 }, { text: 'Then one call to make.' }, { block: 1 }, { block: 2 }, { text: 'Pick one.' }])
+  })
+
+  it('a refused block gives up its place; a turn that read keeps its blocks but not its preamble', async () => {
+    const s = await setup()
+    claude.reply = (_b, k) =>
+      k === 1
+        ? turn([{ text: 'Let me look.' }, { tool: 'get_investor', input: { id: s.lantern } }, plan(s)])
+        : k === 2
+          ? turn([{ text: 'Lantern can lead.' }, { tool: 'show_investor_card', input: { investorId: 'nobody' } }, { text: 'Ask today.' }])
+          : turn([{ text: 'That’s the order.' }])
+    const { answer } = await send(s, 'What should I do first today?')
+    expect(answer.blocks.map((b) => b.kind)).toEqual(['plan'])
+    expect(answer.parts).toEqual([{ block: 0 }, { text: 'Lantern can lead.\n\nAsk today.\n\nThat’s the order.' }])
+    expect(answer.text).not.toContain('Let me look')
+  })
+
+  it('Regenerate starts the parts again', async () => {
+    const s = await setup()
+    claude.reply = () => turn([{ text: 'In the plan, start with Lantern.' }, plan(s)])
+    const { answer } = await send(s, 'What should I do first today?')
+    claude.reply = () => turn([{ text: 'Lantern first.' }])
+    await s.as.mutation(api.advisor.regenerate, { messageId: answer._id })
+    expect((await partsNow(s))).toEqual([])
+    await drain(s.t)
+    expect(await partsNow(s)).toEqual([{ text: 'Lantern first.' }])
+  })
+})

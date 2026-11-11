@@ -47,6 +47,9 @@ Network (PST-305): `&investors=network` (Investors › Network; `&investors=intr
 <!-- PST-307 -->
 Advisor (PST-307): `/raise/advisor?preview&advisor=empty|chat|story|blocks|streaming|cap` (the new-chat starters, a Coach chat, a Storyteller chat on Opus, one answer with every block, an answer still writing, the monthly cap reached), and `/raise/pipeline?preview&pipeline=race&advisor=panel` (the ⌘J panel over Race). Answers sent in the preview are canned; Claude is never called.
 <!-- end PST-307 -->
+<!-- PST-308 -->
+Advisor order (PST-308): `/raise/advisor?preview&advisor=order|order-streaming` (an answer with its words and blocks in the order written, after one saved before that; the same answer still writing below its plan), and `/raise/pipeline?preview&advisor=order-panel` (that answer in the ⌘J panel).
+<!-- end PST-308 -->
 
 Screenshots of every preview screen at 1440 × 900, 440 × 956 and 412 × 915: run `pnpm dev:web`, then `node scripts/screenshots.mjs http://localhost:3000` (writes to `.context/screens/`). They use the fixture, never real data. The script also reports any screen that scrolls sideways and, on phones, any control under 44 × 44 (`checks.json`).
 
@@ -339,6 +342,9 @@ Raise › Advisor is a fundraising coach (what to do next) and storyteller (how 
 - The composer shows an answer's estimated cost before you send, and each answer shows what it really cost. A run that would pass this month's cap is refused, with a notice and a link to Settings, and a long run checks the cap again between its turns. Advisor spend shows in Settings › AI's spend view.
 - The prompt is in `convex/lib/advisor.ts` and holds no company facts; memory (Settings › AI › Advisor › Memory) is where those live, each one added by you.
 <!-- ---------- end PST-307 ---------- -->
+<!-- ---------- PST-308 ---------- -->
+- An answer shows its words and blocks in the order the model wrote them (`parts` on the message: runs of text and blocks by index). The prompt asks for a short lead-in before each block that names it, never "above" or "below". Answers saved before this show their words, then their blocks.
+<!-- ---------- end PST-308 ---------- -->
 
 ## Seed
 

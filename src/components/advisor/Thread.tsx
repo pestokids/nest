@@ -5,7 +5,7 @@
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
-  advisorModelName, capCheck, estimateLine, eyebrow, MAX_PINNED, MESSAGE_MAX, plainText, SOURCE_ROUTE,
+  advisorModelName, answerParts, capCheck, estimateLine, eyebrow, MAX_PINNED, MESSAGE_MAX, plainText, SOURCE_ROUTE,
   type AdvisorMessage, type AdvisorMode, type AdvisorModel, type Pinned, type ScreenContext, type Source,
 } from '../../lib/advisor'
 import { fillInto, planStep, type Block } from '../../lib/advisorBlocks'
@@ -318,11 +318,38 @@ export function AnswerText({ text, streaming, investor, onInvestor }: { text: st
   )
 }
 
+/**
+ * PST-308: an answer's words and blocks in the order the model wrote them (an
+ * answer saved before that shows its words, then its blocks). Blocks next to each
+ * other share one column. Inside the answer's BlockEnvContext.
+ */
+export function AnswerBody({ m, investor, onInvestor }: { m: Pick<AdvisorMessage, 'text' | 'blocks' | 'parts' | 'status'>; investor: (id: string) => Investor | undefined; onInvestor: (i: Investor) => void }) {
+  const streaming = m.status === 'streaming'
+  const runs = answerParts(m).reduce<({ text: string } | { blocks: number[] })[]>((out, p) => {
+    const prev = out[out.length - 1]
+    if ('text' in p) out.push(p)
+    else if (prev && 'blocks' in prev) prev.blocks.push(p.block)
+    else out.push({ blocks: [p.block] })
+    return out
+  }, [])
+  if (!runs.length) return streaming ? <p className="adv-reading">Reading Nest…</p> : null
+  return runs.map((r, k) =>
+    'text' in r ? (
+      <AnswerText key={k} text={r.text} streaming={streaming && k === runs.length - 1} investor={investor} onInvestor={onInvestor} />
+    ) : (
+      <div key={k} className="adv-blocks">
+        {r.blocks.map((i) => (
+          <BlockView key={i} block={m.blocks[i]} index={i} />
+        ))}
+      </div>
+    ),
+  )
+}
+
 function Answer({ m, chat, last, compact, onAsk, onFail, onLeave }: { m: AdvisorMessage; chat: AdvisorChat | null; last: boolean; compact?: boolean; onAsk: (q: string) => void; onFail: (e: unknown) => void; onLeave?: () => void }) {
   const a = useAdvisor()
   const env = useBlockEnv(m, onAsk, onFail, onLeave, compact)
   const streaming = m.status === 'streaming'
-  const shown = m.blocks.map((b, i) => ({ b, i })).filter((x) => x.b.kind !== 'follow_ups')
   const follow = last && !streaming ? m.blocks.findIndex((b) => b.kind === 'follow_ups') : -1
   const model = m.model ?? chat?.model ?? SONNET
   return (
@@ -332,14 +359,7 @@ function Answer({ m, chat, last, compact, onAsk, onFail, onLeave }: { m: Advisor
         {eyebrow({ ...m, model })}
       </div>
       <BlockEnvContext.Provider value={env}>
-        {m.text ? <AnswerText text={m.text} streaming={streaming} investor={env.investor} onInvestor={env.openInvestor} /> : streaming ? <p className="adv-reading">Reading Nest…</p> : null}
-        {shown.length ? (
-          <div className="adv-blocks">
-            {shown.map(({ b, i }) => (
-              <BlockView key={i} block={b} index={i} />
-            ))}
-          </div>
-        ) : null}
+        <AnswerBody m={m} investor={env.investor} onInvestor={env.openInvestor} />
         {m.status === 'failed' ? (
           <div className="adv-failed" role="alert">
             <span>{m.error ?? 'It didn’t finish.'}</span>

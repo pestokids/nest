@@ -6,7 +6,7 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 import { chatHeadMeta, chatListMeta, groupChats, monthLine, STARTERS, TITLE_MAX, type AdvisorMode } from '../../../lib/advisor'
 import { play } from '../../../lib/sound'
-import { PREVIEW_ADVISOR_CHAT, type PreviewAdvisor } from '../../../preview/advisorFixture'
+import { PREVIEW_ADVISOR_CHAT, PREVIEW_ADVISOR_PANELS, type PreviewAdvisor } from '../../../preview/advisorFixture'
 import { useAdvisor, type AdvisorChat } from '../../../components/advisor/data'
 import { Thread } from '../../../components/advisor/Thread'
 import { errorMessage } from '../../../components/data'
@@ -40,7 +40,7 @@ function Advisor() {
   const opened = useRef(false)
   useEffect(() => {
     const id = preview?.advisor ? PREVIEW_ADVISOR_CHAT[preview.advisor as PreviewAdvisor] : undefined
-    if (opened.current || !id || chatId || !a.chats || preview?.advisor === 'panel') return
+    if (opened.current || !id || chatId || !a.chats || PREVIEW_ADVISOR_PANELS.includes(preview?.advisor ?? '')) return
     opened.current = true
     void navigate({ to: '/raise/advisor', search: { chat: id }, replace: true })
   }, [preview?.advisor, chatId, a.chats, navigate])
