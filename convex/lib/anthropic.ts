@@ -157,9 +157,32 @@ export type Message = { role: 'user' | 'assistant'; content: unknown }
  * Claude answer with what it has. Claude may think first, which counts toward
  * max_tokens: the cap leaves room for that on top of a short answer.
  */
-export async function converse(o: { model: Model; system: string; messages: Message[]; tools: ToolDef[]; toolChoice?: 'auto' | 'none'; maxTokens?: number; hooks?: Hooks }) {
+export async function converse(o: {
+  model: Model
+  system: string
+  messages: Message[]
+  tools: ToolDef[]
+  toolChoice?: 'auto' | 'none'
+  maxTokens?: number
+  hooks?: Hooks
+  /* ---------- PST-307: the Advisor ---------- */
+  /** A second system block after the cached one, for what changes per question (the date, memory, context). */
+  context?: string
+  /** Server tools after Nest's own (web search). */
+  serverTools?: unknown[]
+  /** How the model thinks (NO_THINKING: Sonnet between tools; Opus always thinks, so it's left unset). */
+  thinking?: Thinking
+  /** Put the cache mark on the last tool too, so the tools stay cached when the system prompt after them changes. */
+  cacheTools?: boolean
+  /* ---------- end PST-307 ---------- */
+}) {
+  const tools: Record<string, unknown>[] = [...o.tools, ...((o.serverTools ?? []) as Record<string, unknown>[])]
+  if (o.cacheTools && tools.length) tools[tools.length - 1] = { ...tools[tools.length - 1], cache_control: { type: 'ephemeral' } }
   return await streamed(
-    { model: o.model, max_tokens: o.maxTokens ?? 4000, system: cachedSystem(o.system), messages: o.messages, tools: o.tools, tool_choice: { type: o.toolChoice ?? 'auto' } },
+    {
+      model: o.model, max_tokens: o.maxTokens ?? 4000, ...(o.thinking ? { thinking: o.thinking } : {}),
+      system: [...cachedSystem(o.system), ...(o.context ? [{ type: 'text', text: o.context }] : [])], messages: o.messages, tools, tool_choice: { type: o.toolChoice ?? 'auto' },
+    },
     o.hooks ?? {},
   )
 }

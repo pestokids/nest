@@ -261,6 +261,8 @@ export function PreviewData({
       if (p.op === 'questions') return () => {}
       // PST-305: the preview's Network is its own store (PreviewIntroducers), so an agent's Network suggestion changes nothing here.
       if (p.op === 'network_person' || p.op === 'network_target') return () => {}
+      // PST-307: the decide-by date lives in the preview's decisions store, and a plan number in the Advisor's memory, so nothing changes here.
+      if (p.op === 'decide_by' || p.op === 'plan_number') return () => {}
       // PST-302: agents' notes, outreach and application fixes (nothing when the record already has it).
       if (p.op === 'notes' || p.op === 'outreach' || p.op === 'application') {
         if (noOpReason(i, p) || (p.op === 'notes' && p.mode === 'replace' && i.notes.trim() !== p.before.trim())) return null

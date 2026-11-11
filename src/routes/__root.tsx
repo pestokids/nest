@@ -25,6 +25,7 @@ import agents from '../styles/agents.css?url'
 import drafts from '../styles/drafts.css?url'
 import ask from '../styles/ask.css?url'
 import wispr from '../styles/wispr.css?url'
+import advisor from '../styles/advisor.css?url' // PST-307
 import feedback from '../styles/feedback.css?url' // PST-289
 import decisions from '../styles/decisions.css?url' // PST-293
 import introducers from '../styles/introducers.css?url' // PST-294
@@ -69,7 +70,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: 'stylesheet',
         href: 'https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap',
       },
-      ...[tokens, base, motion, ui, shell, signin, home, raise, pipeline, today, drawer, system, investors, plan, settings, suggestions, enrich, qanda, materials, close, agents, drafts, ask, wispr].map((href) => ({ rel: 'stylesheet', href })),
+      ...[tokens, base, motion, ui, shell, signin, home, raise, pipeline, today, drawer, system, investors, plan, settings, suggestions, enrich, qanda, materials, close, agents, drafts, ask, wispr, /* PST-307 */ advisor].map((href) => ({ rel: 'stylesheet', href })),
       { rel: 'stylesheet', href: feedback }, // PST-289
       { rel: 'stylesheet', href: decisions }, // PST-293
       { rel: 'stylesheet', href: introducers }, // PST-294

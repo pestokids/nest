@@ -14,7 +14,7 @@ import { addDays } from './today'
 // PST-276 adds new_investor (an agent's add_investor; accepting creates the investor).
 // PST-277 adds question and warm_path (from meeting notes).
 // PST-302 adds notes, outreach and application (agents, through suggest_change).
-export const SUGGESTION_KINDS = ['stage', 'expected', 'missing_info', 'duplicate', 'next_step', 'question', 'warm_path', 'enrichment', 'touch', 'new_investor', 'notes', 'outreach', 'application', /* PST-305 */ 'network_person', 'network_target'] as const
+export const SUGGESTION_KINDS = ['stage', 'expected', 'missing_info', 'duplicate', 'next_step', 'question', 'warm_path', 'enrichment', 'touch', 'new_investor', 'notes', 'outreach', 'application', /* PST-305 */ 'network_person', 'network_target', /* PST-307 */ 'decide_by', 'plan_number'] as const
 export type SuggestionKind = (typeof SUGGESTION_KINDS)[number]
 // PST-292 adds jev (Duplicate firms checked by Jev).
 export const SUGGESTION_SOURCES = [
@@ -47,6 +47,9 @@ export type SuggestionPatch =
   // PST-305: an agent's new person for the Network, and an investor (in Nest, or a new firm) for a person's list.
   | { op: 'network_person'; name: string; email?: string; relation: Exclude<Relation, 'committed'>; company?: string; note?: string }
   | { op: 'network_target'; introducerId: string; investorId?: string; firm?: string; partner?: string }
+  // PST-307: the Advisor's decide-by date (PST-293's decision), and a number Dev filled in for a story, kept for the Advisor.
+  | { op: 'decide_by'; date: string }
+  | { op: 'plan_number'; label: string; value: string }
 
 export type SuggestionDraft = {
   kind: SuggestionKind
@@ -76,6 +79,7 @@ export const KIND_LABEL: Record<SuggestionKind, string> = {
   stage: 'Stage', expected: 'Expected', missing_info: 'Missing info', duplicate: 'Duplicate', next_step: 'Next step', question: 'Q&A', warm_path: 'Warm path', enrichment: 'Enrichment', touch: 'Touch',
   new_investor: 'New investor', notes: 'Notes', outreach: 'Outreach', application: 'Application',
   network_person: 'Network', network_target: 'Network list', // PST-305
+  decide_by: 'Decide by', plan_number: 'Plan number', // PST-307
 }
 const SOURCE_LABEL: Record<Exclude<SuggestionSource, 'agent'>, string> = { rule: 'Nest', calendar: 'Calendar', gmail: 'Gmail', notes: 'Meeting notes', enrich: 'Enrich', jev: 'Jev', find_more: 'Find more' }
 /** "Calendar", "Grok Bot": shown as "From …". */
@@ -87,6 +91,7 @@ const FILTER_LABEL: Record<Exclude<SuggestionFilter, 'all'>, string> = {
   stage: 'Stage', expected: 'Expected', missing_info: 'Missing info', duplicate: 'Duplicates', next_step: 'Next steps', question: 'Q&A', warm_path: 'Warm paths', enrichment: 'Enrichment', touch: 'Touches', new_investor: 'New investors',
   notes: 'Notes', outreach: 'Outreach', application: 'Applications',
   network_person: 'Network', network_target: 'Network lists', // PST-305
+  decide_by: 'Decide by', plan_number: 'Plan numbers', // PST-307
   agents: 'From agents',
 }
 export const filterOf = (s: Pick<Suggestion, 'kind' | 'source'>): Exclude<SuggestionFilter, 'all'> => (s.source === 'agent' ? 'agents' : s.kind)

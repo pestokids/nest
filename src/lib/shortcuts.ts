@@ -39,6 +39,8 @@ export const KEYS = {
   cardOn: ']',
   cardBack: '[',
   density: 'shift+d',
+  /** PST-307: the Advisor's panel, on any screen. */
+  advisor: 'mod+j',
 } as const satisfies Record<string, Combo>
 export type KeyName = keyof typeof KEYS
 
@@ -64,6 +66,7 @@ export const SHORTCUTS: ShortcutGroup[] = [
     rows: [
       { keys: [KEYS.palette], label: 'Search and run any action' },
       { keys: [KEYS.feedback], label: 'Send feedback' },
+      { keys: [KEYS.advisor], label: 'Ask the Advisor about this screen' }, // PST-307
       { keys: [KEYS.sheet], label: 'This sheet' },
       { keys: [KEYS.goTo, 't'], label: 'Today (' + Object.keys(GO_TO).filter((k) => k !== 't').map((k) => k.toUpperCase()).join(', ') + ')' },
       { keys: [KEYS.addInvestor], label: 'Add an investor' },

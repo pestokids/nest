@@ -174,15 +174,15 @@ export const AGENT_TOOLS: readonly AgentTool[] = [
     title: 'Suggest a change',
     scope: 'suggest',
     description:
-      'Suggest a fix to one investor. Nothing changes until Dev accepts it in Suggestions, and Dev can undo it after. stage: value is a stage key, and the stage rules must hold. next_step: value is a step Dev takes, with an optional date (waiting for a decision is never a next step). expected: value is the amount in US dollars the investor actually said, e.g. 50000. notes: text is the whole new notes (mode replace) or a correction to add at the end (mode append, the default). outreach: any of warmPath (who can introduce Dev, in words), warmth and source. application: value is the application status, with optional program, submittedOn and decisionBy. Nothing is added when the investor already has that value, when the same suggestion is already open, or when Dev dismissed it before; the reply says which.',
+      'Suggest a fix to one investor. Nothing changes until Dev accepts it in Suggestions, and Dev can undo it after. stage: value is a stage key, and the stage rules must hold. next_step: value is a step Dev takes, with an optional date (waiting for a decision is never a next step). expected: value is the amount in US dollars the investor actually said, e.g. 50000. notes: text is the whole new notes (mode replace) or a correction to add at the end (mode append, the default). outreach: any of warmPath (who can introduce Dev, in words), warmth and source. application: value is the application status, with optional program, submittedOn and decisionBy. decide_by: date is the day Dev wants their decision by. Nothing is added when the investor already has that value, when the same suggestion is already open, or when Dev dismissed it before; the reply says which.',
     inputSchema: {
       type: 'object',
       properties: {
         investorId: ID,
-        kind: { type: 'string', enum: ['stage', 'next_step', 'expected', 'notes', 'outreach', 'application'], description: 'What to change.' },
+        kind: { type: 'string', enum: ['stage', 'next_step', 'expected', 'notes', 'outreach', 'application', /* PST-307 */ 'decide_by'], description: 'What to change.' },
         value: { type: ['string', 'number'], maxLength: 200, description: 'For stage, next_step, expected and application. For a stage, one of: ' + STAGE_LIST + '. For an application, one of: ' + APPLICATION_STATUSES.join(', ') + '.' },
         why: { type: 'string', minLength: 1, maxLength: 300, description: 'One plain sentence on why, e.g. “Kite Angels said around fifty on today’s call.”' },
-        date: { type: 'string', format: 'date', description: 'For next_step only: when it’s due, YYYY-MM-DD.' },
+        date: { type: 'string', format: 'date', description: 'For next_step: when it’s due; for decide_by: the decide-by day. YYYY-MM-DD.' },
         text: { type: 'string', minLength: 1, maxLength: 2000, description: 'For notes only: the new notes, or the correction to add.' },
         mode: { type: 'string', enum: ['append', 'replace'], description: 'For notes only: append a correction (the default) or replace the notes.' },
         warmPath: { type: 'string', maxLength: 200, description: 'For outreach only: the warm path text, e.g. “Ankur (ex-colleague)”. Not “applied”: an application is kind application.' },

@@ -361,6 +361,8 @@ export type AIData = {
   spend: { byModel: Record<Model, number>; byFeature: Record<Feature, number> }
   /** PST-292: Jev (TYPESAFE_API_KEY): on or off, the monthly cap and this month's spend (also in month.usd). */
   jev: JevStatus
+  /** PST-307: the Advisor's answers this month (also in month.usd and spend.byModel). */
+  advisor?: { usd: number; answers: number }
   /** PST-292: Who's this? people Jev's pre-check said probably aren't investors (not looked up), with the probability it gave. */
   prechecked: { email: string; likely: number }[]
 }

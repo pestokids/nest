@@ -14,6 +14,7 @@ import { SignalToasts } from '../../components/decisions/SignalToasts' // PST-29
 import { PendingDeletes } from '../../lib/pendingDelete'
 import type { Investor } from '../../lib/pipeline'
 import { play } from '../../lib/sound'
+import { setScreenInvestor } from '../../components/advisor/open' // PST-307
 
 const TABS: TabItem[] = [
   { to: '/raise/today', label: 'Today' },
@@ -23,6 +24,7 @@ const TABS: TabItem[] = [
   { to: '/raise/qanda', label: 'Q&A' },
   { to: '/raise/close', label: 'Close' },
   { to: '/raise/plan', label: 'Plan' },
+  { to: '/raise/advisor', label: 'Advisor' }, // PST-307
   { to: '/raise/settings', label: 'Settings' },
 ]
 /** How long Undo is offered before a delete is sent. */
@@ -61,6 +63,13 @@ function RaiseLayout() {
     opener.current = null
     if (el?.isConnected) requestAnimationFrame(() => el.focus({ preventScroll: true }))
   }, [])
+
+  // PST-307: the ⌘J panel's "Looking at" names the investor whose drawer is open.
+  const drawerName = drawer?.id ? raw.investors.find((i) => i._id === drawer.id)?.name : undefined
+  useEffect(() => {
+    setScreenInvestor(drawer?.id && drawerName ? { id: drawer.id, name: drawerName } : null)
+    return () => setScreenInvestor(null)
+  }, [drawer?.id, drawerName])
 
   // A drawer asked for from outside the Raise views (the ⌘K palette): open it with the same opener, then drop the request.
   const navigate = useNavigate()

@@ -264,6 +264,7 @@
 .set-ai-sees__note { margin: 18px 0 0; font: 400 13px/1.35 var(--font-ui); color: var(--text-secondary); }
 /* PST-296 */
 .set-ai__seg--find { background: var(--brand-forest-2); }
+.set-ai__seg--advisor { background: var(--brand-orange-deep); } /* PST-307 */
 
 /* PST-298: under reduced motion, movement here becomes a fade (these win over the keyframes above). */
 @media (prefers-reduced-motion: reduce) {

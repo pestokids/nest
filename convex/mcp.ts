@@ -338,7 +338,8 @@ export const read = internalQuery({
 
 /* ---------- write: always a suggestion ---------- */
 
-type Agent = { keyId: Id<'agentKeys'>; name: string }
+/** An MCP key, or (PST-307) the Advisor, which has no key. */
+type Agent = { keyId?: Id<'agentKeys'>; name: string }
 
 /** The agent's sentence, with the investor's name in front when it doesn't say who. */
 function about(i: { name: string; firm: string }, text: string) {
@@ -499,6 +500,14 @@ async function suggestChange(ctx: MutationCtx, agent: Agent, a: Args): Promise<O
     if (patch.path === undefined && patch.warmth === undefined && patch.source === undefined) return nope('Give at least one of warmPath, warmth (' + WARMTHS.join(', ') + ') and source.')
     return await suggest(ctx, agent, { kind: 'outreach', ...base, fix: fixLine(patch), patch }, i)
   }
+  // PST-307: the decide-by date (PST-293's decision), set as Dev's own date when accepted.
+  if (a.kind === 'decide_by') {
+    const date = a.date as string | undefined
+    if (!date) return nope('date must be the decide-by day, YYYY-MM-DD.')
+    const row = await ctx.db.query('decisions').withIndex('by_investor', (q) => q.eq('investorId', i._id)).unique()
+    if (row?.decideBy === date && row.decideByManual) return nope(i.name + '’s decide-by date is already ' + date + '. Nothing new was added.')
+    return await suggest(ctx, agent, { kind: 'decide_by', ...base, fix: 'Decide by ' + dayLabel(date, todayIST()), patch: { op: 'decide_by', date } })
+  }
   const status = text.toLowerCase().replace(/[\s-]+/g, '_')
   if (!isApplicationStatus(status)) return nope('value must be the application status: ' + APPLICATION_STATUSES.join(', ') + '.')
   const asked = {
@@ -563,6 +572,16 @@ async function addNotes(ctx: MutationCtx, a: Args): Promise<Out> {
   const read = r.readId ? 'Nest is reading them; anything it proposes waits in Suggestions for Dev.' : 'Nest won’t read them automatically here, so nothing else changes.'
   return done({ saved: true, matched: true, investorId: r.investorId, noteId: r.noteId, message: `Saved on ${i?.name ?? 'the investor'}. ${read}` })
 }
+
+/* ---------- PST-307: the Advisor's suggestions ---------- */
+
+/** The Advisor's suggest_change, once Dev sends its card to Suggestions: the same checks and dedupe as an agent's, from "Advisor". */
+export const suggestAsAdvisor = (ctx: MutationCtx, a: Args) => suggestChange(ctx, { name: 'Advisor' }, a)
+
+/** A number Dev filled in on a story, saved to Plan: a Suggestion that keeps it for the Advisor once accepted. */
+export const suggestPlanNumber = (ctx: MutationCtx, label: string, value: string) =>
+  suggest(ctx, { name: 'Advisor' }, { kind: 'plan_number', title: 'Dev filled in “' + label + '” for a story.', fix: 'Keep ' + label + ': ' + value, patch: { op: 'plan_number', label, value } })
+/* ---------- end PST-307 ---------- */
 
 export const write = internalMutation({
   args: { tool: v.string(), args: v.any(), agent: v.object({ keyId: v.id('agentKeys'), name: v.string(), scope: vAgentScope }) },
