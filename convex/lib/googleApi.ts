@@ -3,7 +3,8 @@
 // email touches, and PST-293's one read of a new investor email's text for Jev, never stored).
 // Nothing here logs a token, and errors never include one.
 import { CALENDAR_AHEAD_DAYS, CALENDAR_BACK_DAYS, DAY_MS, gmailThreadLink, isOurs, normEmail, parseAddresses } from '../../src/lib/google'
-import { isAutomated, type GPart } from '../../src/lib/signals'
+import type { GPart } from '../../src/lib/signals'
+import { calendarOnly, skipsReply, type MimePart } from '../../src/lib/mail' // PST-306
 
 // PST-293: gmail.readonly instead of gmail.metadata, so signals can read a new email's text.
 // A connection made before keeps working on headers; its signals read the subject alone.
@@ -213,16 +214,20 @@ export function listThreads(token: string, pageToken?: string) {
 export type GMessage = { id: string; threadId: string; internalDate?: string; labelIds?: string[]; payload?: GPart & { headers?: { name: string; value: string }[] } }
 export type GThread = { id: string; messages?: GMessage[] }
 
-/** A thread's headers only (From, To, Cc, Subject; PST-293: and the ones that mark an auto-reply). Never bodies or snippets. */
+const headerOf = (m: GMessage, n: string) => m.payload?.headers?.find((h) => h.name.toLowerCase() === n.toLowerCase())?.value ?? ''
+
+/** A thread's headers only (From, To, Cc, Subject; PST-293: and the ones that mark an auto-reply; PST-306: calendar and mailing-list mail). Never bodies or snippets. */
 export function getThread(token: string, id: string, hooks?: Hooks) {
   const q = new URLSearchParams({ format: 'metadata' })
-  for (const h of ['From', 'To', 'Cc', 'Subject', ...AUTO_HEADERS]) q.append('metadataHeaders', h)
+  for (const h of ['From', 'To', 'Cc', 'Subject', ...AUTO_HEADERS, ...SKIP_HEADERS]) q.append('metadataHeaders', h)
   return get<GThread>(`${GMAIL}/threads/${encodeURIComponent(id)}?${q}`, token, 'gmail thread', hooks)
 }
 
 /* ---------- PST-293: new investor emails, for signals ---------- */
 
 const AUTO_HEADERS = ['Auto-Submitted', 'Precedence', 'X-Autoreply', 'X-Autorespond']
+/** PST-306: a mailing list, Calendar sending for someone, and the message's type (a calendar, or parts to look into). */
+const SKIP_HEADERS = ['List-Unsubscribe', 'Sender', 'Content-Type']
 
 /** One message with its text (gmail.readonly; a 403 under the older gmail.metadata grant). Read once for Jev, never stored. */
 export function getMessage(token: string, id: string, hooks?: Hooks) {
@@ -237,10 +242,10 @@ export function inboundMessages(t: GThread, self: string, added: ReadonlySet<str
   const out: Inbound[] = []
   for (const m of t.messages ?? []) {
     if (!added.has(m.id) || m.labelIds?.some((l) => [...SKIP_LABELS, 'SENT'].includes(l)) || !(Number(m.internalDate) > 0)) continue
-    const header = (n: string) => m.payload?.headers?.find((h) => h.name.toLowerCase() === n.toLowerCase())?.value ?? ''
+    const header = (n: string) => headerOf(m, n)
     const from = parseAddresses(header('From'))[0] ?? ''
     const subject = header('Subject').replace(/\s+/g, ' ').trim().slice(0, 300)
-    if (!from || isOurs(from, self) || isAutomated(from, subject, header)) continue
+    if (!from || isOurs(from, self) || skipsReply({ from, subject, header })) continue
     out.push({ messageId: m.id, threadId: t.id, from, subject, at: Number(m.internalDate) })
   }
   return out
@@ -257,21 +262,69 @@ export function listHistory(token: string, startHistoryId: string, pageToken?: s
   )
 }
 
-export type ParsedThread = { threadId: string; subject: string; participants: string[]; lastAt: number; lastFrom: 'us' | 'them'; lastFromEmail: string; count: number; link: string }
+export type ParsedThread = {
+  threadId: string; subject: string; participants: string[]; lastAt: number; lastFrom: 'us' | 'them'; lastFromEmail: string; count: number; link: string
+  /** PST-306: the investor message Dev owes a reply to, or null. */
+  owed: { at: number; messageId: string } | null
+}
 
 const SKIP_LABELS = ['DRAFT', 'SPAM', 'TRASH']
 
-/** A thread as an email touch, from headers alone: subject, everyone's address, the last sent message's date and sender. */
-export function parseThread(t: GThread, self: string): ParsedThread | null {
-  const msgs = (t.messages ?? []).filter((m) => !m.labelIds?.some((l) => SKIP_LABELS.includes(l)) && Number(m.internalDate) > 0)
+/** The messages that count (no drafts, spam or trash), oldest first. */
+const sentMessages = (t: GThread) =>
+  (t.messages ?? []).filter((m) => !m.labelIds?.some((l) => SKIP_LABELS.includes(l)) && Number(m.internalDate) > 0).sort((a, b) => Number(a.internalDate) - Number(b.internalDate))
+
+/* ---------- PST-306: what waits on Dev ---------- */
+
+/**
+ * The newest message from them that Dev hasn't answered: newest first, calendar
+ * and automated mail (and `invites`, known from their parts) skipped. Anything
+ * Dev or the team sent after it ends the wait.
+ */
+export function owedMessage(t: GThread, self: string, invites: ReadonlySet<string> = new Set()): GMessage | null {
+  for (const m of sentMessages(t).reverse()) {
+    const from = parseAddresses(headerOf(m, 'From'))[0] ?? ''
+    if (!from || isOurs(from, self)) return null
+    if (invites.has(m.id) || skipsReply({ from, subject: headerOf(m, 'Subject'), header: (n) => headerOf(m, n) })) continue
+    return m
+  }
+  return null
+}
+
+/** PST-306: a message's parts, their types and file names only (no headers, no text). Needs gmail.readonly. */
+export function getParts(token: string, id: string, hooks?: Hooks) {
+  const part = (depth: number): string => 'mimeType,filename' + (depth ? `,parts(${part(depth - 1)})` : '')
+  const q = new URLSearchParams({ format: 'full', fields: `payload(${part(4)})` })
+  return get<{ payload?: MimePart }>(`${GMAIL}/messages/${encodeURIComponent(id)}?${q}`, token, 'gmail message parts', hooks)
+}
+
+/**
+ * The messages whose only attachment is an invite, which headers alone don't
+ * show: the parts of the message that would wait on Dev are read (when it has
+ * parts), and while that's an invite, the one before it. `parts` resolves
+ * undefined when it can't look.
+ */
+export async function findInvites(t: GThread, self: string, parts: (messageId: string) => Promise<MimePart | undefined>): Promise<Set<string>> {
+  const invites = new Set<string>()
+  for (let m = owedMessage(t, self); m && /^multipart\//i.test(headerOf(m, 'Content-Type').trim()); m = owedMessage(t, self, invites)) {
+    if (!calendarOnly(await parts(m.id))) break
+    invites.add(m.id)
+  }
+  return invites
+}
+
+/* ---------- end PST-306 ---------- */
+
+/** A thread as an email touch, from headers alone: subject, everyone's address, the last sent message's date and sender, and (PST-306) the message Dev owes a reply to. */
+export function parseThread(t: GThread, self: string, invites?: ReadonlySet<string>): ParsedThread | null {
+  const msgs = sentMessages(t)
   if (!msgs.length) return null
-  msgs.sort((a, b) => Number(a.internalDate) - Number(b.internalDate))
-  const header = (m: GMessage, n: string) => m.payload?.headers?.find((h) => h.name.toLowerCase() === n.toLowerCase())?.value ?? ''
+  const owed = owedMessage(t, self, invites)
   const participants: string[] = []
-  for (const m of msgs) for (const h of ['From', 'To', 'Cc']) for (const a of parseAddresses(header(m, h))) if (!participants.includes(a)) participants.push(a)
+  for (const m of msgs) for (const h of ['From', 'To', 'Cc']) for (const a of parseAddresses(headerOf(m, h))) if (!participants.includes(a)) participants.push(a)
   const last = msgs[msgs.length - 1]
-  const lastFromEmail = parseAddresses(header(last, 'From'))[0] ?? ''
-  const subject = (header(msgs[0], 'Subject') || header(last, 'Subject')).replace(/\s+/g, ' ').trim().slice(0, 200) || '(No subject)'
+  const lastFromEmail = parseAddresses(headerOf(last, 'From'))[0] ?? ''
+  const subject = (headerOf(msgs[0], 'Subject') || headerOf(last, 'Subject')).replace(/\s+/g, ' ').trim().slice(0, 200) || '(No subject)'
   return {
     threadId: t.id,
     subject,
@@ -281,5 +334,6 @@ export function parseThread(t: GThread, self: string): ParsedThread | null {
     lastFromEmail,
     count: msgs.length,
     link: gmailThreadLink(self, t.id),
+    owed: owed ? { at: Number(owed.internalDate), messageId: owed.id } : null,
   }
 }

@@ -3,13 +3,14 @@
 // once-a-day clear confetti and the keys. Made-up investors and addresses only.
 import { describe, expect, it } from 'vitest'
 import {
-  buildInbox, firstClearToday, followUpBy, groupInbox, inboxChips, inboxKey, isMarked, replyBy, snoozeUntil, visibleInbox,
+  buildInbox, firstClearToday, followUpBy, groupInbox, inboxChips, inboxKey, isMarked, replyDue, snoozeUntil, visibleInbox,
   type InboxMark, type InboxRow, type InboxSources,
 } from './inbox'
 import type { SyncedMeeting, SyncedThread } from './google'
 import { NEW_INVESTOR, type Investor } from './pipeline'
 import { DEFAULT_ROUND } from './round'
 import { SHORTCUTS, KEYS } from './shortcuts'
+import { todayIST } from './dates'
 import type { SignalView } from './signals'
 import type { Suggestion } from './suggestions'
 
@@ -67,7 +68,7 @@ describe('the Inbox: groups and ranking', () => {
   it('shows each deadline, late ones as days over', () => {
     const by = (t: string) => rows.find((r) => r.type === t)!
     expect(by('followup')).toMatchObject({ when: 'Send by 18:00', late: false, label: 'Draft follow-up', action: { kind: 'draft', type: 'followup' } })
-    expect(by('reply')).toMatchObject({ when: 'Reply today', detail: 'Re: Pesto intro · they wrote 5h ago · asked for the deck', label: 'Open in Gmail' })
+    expect(by('reply')).toMatchObject({ when: 'Waiting since 07:00', detail: 'Re: Pesto intro · they wrote 5h ago · asked for the deck', label: 'Open in Gmail' })
     expect(by('decide')).toMatchObject({ when: '1 day over', late: true, label: 'Ask for a yes or no' })
     expect(by('due')).toMatchObject({ when: 'Today', detail: 'Send the clip', label: 'Mark done' })
   })
@@ -90,8 +91,7 @@ describe('the Inbox: groups and ranking', () => {
   it('works out the end of the day', () => {
     expect(followUpBy(Date.parse('2030-01-10T10:00:00+05:30'))).toBe(Date.parse('2030-01-10T18:00:00+05:30'))
     expect(followUpBy(Date.parse('2030-01-10T17:30:00+05:30'))).toBe(Date.parse('2030-01-10T23:59:00+05:30'))
-    expect(replyBy(Date.parse('2030-01-10T09:00:00+05:30'))).toBe(Date.parse('2030-01-10T23:59:00+05:30'))
-    expect(replyBy(Date.parse('2030-01-10T21:00:00+05:30'))).toBe(Date.parse('2030-01-11T23:59:00+05:30'))
+    expect(replyDue(Date.parse('2030-01-08T09:00:00+05:30'))).toBe(Date.parse('2030-01-10T23:59:00+05:30'))
   })
 })
 
@@ -106,10 +106,11 @@ describe('the Inbox: one row per investor per type', () => {
         threads: [thread({ investorIds: [orchard._id], subject: 'Old', lastAt: NOW - 30 * H }), thread({ investorIds: [orchard._id], subject: 'New', lastAt: NOW - H })],
       }),
     )
-    expect(only(rows).map((r) => r.key)).toEqual(['reply:' + orchard._id, 'followup:' + orchard._id])
+    expect(only(rows).map((r) => r.key)).toEqual(['followup:' + orchard._id, 'reply:' + orchard._id])
     const reply = rows.find((r) => r.type === 'reply')!
     expect(reply.detail).toMatch(/^New · they wrote 1h ago/)
-    expect(reply.late).toBe(true)
+    // Due 2 working days after the older email (Wed → Fri), so not late yet.
+    expect(reply).toMatchObject({ late: false, when: 'Waiting 1 day' })
   })
 
   it('makes one Decide row from a passed decide-by, the 3rd call and a Decide signal', () => {
@@ -210,5 +211,51 @@ describe('the Inbox keys', () => {
   it('lists them on the ? sheet', () => {
     const lists = SHORTCUTS.find((g) => g.id === 'lists')!.rows.flatMap((r) => r.keys)
     for (const k of [KEYS.down, KEYS.up, KEYS.done, KEYS.snooze, KEYS.draft, KEYS.open]) expect(lists).toContain(k)
+  })
+})
+
+/* ---------- PST-306: Reply rows only for mail that waits on Dev ---------- */
+
+describe('the Inbox: replies (PST-306)', () => {
+  const lark = inv({ name: 'Larkspur Ventures', stage: 'm1', lastTouch: '2030-01-09' })
+  const replies = (o: Partial<InboxSources>) => only(buildInbox(src({ investors: [lark], ...o }))).filter((r) => r.type === 'reply')
+
+  it('skips a thread the sync found nothing owed on (calendar or automated mail)', () => {
+    expect(replies({ threads: [thread({ investorIds: [lark._id], subject: 'Invitation: Larkspur x Pesto @ Thu', owed: null })] })).toEqual([])
+  })
+
+  it('skips calendar and automated mail on rows synced before, from their sender and subject', () => {
+    for (const t of [
+      { subject: 'Updated invitation: Pesto <> Larkspur', lastFromEmail: 'kai@larkspur.example.com' },
+      { subject: 'Re: Accepted: Catchup with Kai', lastFromEmail: 'kai@larkspur.example.com' },
+      { subject: 'Application received', lastFromEmail: 'applications@larkspur.example.com' },
+      { subject: 'Weekly portfolio digest', lastFromEmail: 'no-reply@larkspur.example.com' },
+    ])
+      expect(replies({ threads: [thread({ investorIds: [lark._id], ...t })] })).toEqual([])
+  })
+
+  it('still shows a real question, counted from when they asked', () => {
+    const t = thread({ investorIds: [lark._id], subject: 'Re: Pesto deck', lastAt: NOW - H, owed: { at: NOW - 5 * H, messageId: 'q1' } })
+    expect(replies({ threads: [t] })).toEqual([expect.objectContaining({ key: 'reply:' + lark._id, detail: 'Re: Pesto deck · they wrote 5h ago', when: 'Waiting since 07:00', late: false })])
+  })
+
+  it('makes no row when Jev is sure their newest email asks for nothing', () => {
+    const t = thread({ investorIds: [lark._id], owed: { at: NOW - 5 * H, messageId: 'q1' } })
+    const read = (nothing: number, messageId = 'q1'): SignalView => ({ _id: 's' + n++, investorId: lark._id, source: 'email', day: TODAY, at: NOW - 4 * H, outcome: 'none', p: 0, messageId, nothing })
+    expect(replies({ threads: [t], signals: [read(0.8)] })).toEqual([])
+    expect(replies({ threads: [t], signals: [read(0.6)] })).toHaveLength(1)
+    // Jev read an older email: the newest one still waits.
+    expect(replies({ threads: [t], signals: [read(0.95, 'older')] })).toHaveLength(1)
+  })
+
+  it('is due 2 working days after they wrote, skipping the weekend, and counts days over from then', () => {
+    const friday = Date.parse('2030-01-11T16:00:00+05:30')
+    expect(replyDue(friday)).toBe(Date.parse('2030-01-15T23:59:00+05:30'))
+    expect(replyDue(Date.parse('2030-01-12T11:00:00+05:30'))).toBe(Date.parse('2030-01-15T23:59:00+05:30'))
+    const on = (now: number) => replies({ now, today: todayIST(now), threads: [thread({ investorIds: [lark._id], lastAt: friday, owed: { at: friday, messageId: 'q1' } })] })[0]
+    expect(on(Date.parse('2030-01-14T10:00:00+05:30'))).toMatchObject({ when: 'Waiting 3 days', late: false, group: 'today' })
+    expect(on(Date.parse('2030-01-15T22:00:00+05:30'))).toMatchObject({ when: 'Waiting 4 days', late: false })
+    expect(on(Date.parse('2030-01-16T09:00:00+05:30'))).toMatchObject({ when: '1 day over', late: true, group: 'now' })
+    expect(on(Date.parse('2030-01-20T09:00:00+05:30'))).toMatchObject({ when: '5 days over', late: true })
   })
 })

@@ -13,7 +13,9 @@ import { allPeople, firstName, hasDecided, NUDGE_AFTER, personKey, rolesOf, said
 import { askable } from './network' // PST-305
 import { addDays, nextMoves, type MoveAction } from './today' // PST-294, PST-297
 // PST-297
-import { closeDue, endOfDayIST, KIT_LABEL } from './closeKit'
+import { addBusinessDays, closeDue, endOfDayIST, KIT_LABEL } from './closeKit'
+import { THRESHOLDS } from './jev' // PST-306
+import { owedReply } from './mail' // PST-306
 import type { Closing } from './close'
 import type { DraftType } from './drafts'
 import { money } from './money'
@@ -331,10 +333,14 @@ export function followUpBy(end: number): number {
   return end <= six - HOUR ? six : endOfDayIST(day)
 }
 
-/** A reply is owed by the end of the day they wrote, or of the next day when they wrote after 18:00 IST. */
-export function replyBy(at: number): number {
-  const day = dayOf(at)
-  return at < Date.parse(day + 'T18:00:00+05:30') ? endOfDayIST(day) : endOfDayIST(addDays(day, 1))
+/** PST-306: a reply is due by the end of the 2nd working day after they wrote (IST; Saturdays and Sundays skipped). Home, the top bar and Today all count from it. */
+export const REPLY_WORKING_DAYS = 2
+export const replyDue = (at: number) => endOfDayIST(addBusinessDays(dayOf(at), REPLY_WORKING_DAYS))
+
+/** PST-306: a reply before it's due: "Waiting 3 days", or "Waiting since 10:30" on the day they wrote. */
+export function waitingText(at: number, now: number): string {
+  const n = dayDiff(todayIST(now), dayOf(at))
+  return n >= 1 ? 'Waiting ' + days(n) : 'Waiting since ' + timeOf(at)
 }
 
 /** "2 days over", or "Overdue" earlier the same day. */
@@ -382,23 +388,34 @@ function followUpRows(src: InboxSources, byId: Map<string, Investor>): Raw[] {
   return out
 }
 
+/**
+ * PST-306: threads where an investor's message waits on Dev (calendar and
+ * automated mail skipped by the sync), unless Jev read that message and is sure
+ * it asks for nothing; plus Jev's sure asks. Due 2 working days after the
+ * oldest of them.
+ */
 function replyRows(src: InboxSources, byId: Map<string, Investor>): Raw[] {
-  const threads = groupBy(src.threads.filter((t) => t.lastFrom === 'them' && byId.has(t.investorIds[0] ?? '')), (t) => t.investorIds[0])
+  const nothing = new Set(src.signals.filter((s) => s.messageId && (s.nothing ?? 0) >= THRESHOLDS.replyNothing).map((s) => s.messageId))
+  const owed = src.threads.flatMap((t) => {
+    const o = owedReply(t)
+    return o && !(o.messageId && nothing.has(o.messageId)) && byId.has(t.investorIds[0] ?? '') ? [{ t, at: o.at }] : []
+  })
+  const threads = groupBy(owed, (x) => x.t.investorIds[0])
   const asks = groupBy(newAskRows({ investors: src.investors, decisions: src.decisions, signals: src.signals, today: src.today }), (r) => r.investorId)
   const signalAt = new Map(src.signals.map((s) => [s._id, s.at]))
-  const endOfToday = endOfDayIST(src.today)
   const out: Raw[] = []
   for (const id of new Set([...threads.keys(), ...asks.keys()])) {
-    const ts = [...(threads.get(id) ?? [])].sort((a, b) => b.lastAt - a.lastAt)
+    const ts = [...(threads.get(id) ?? [])].sort((a, b) => b.at - a.at)
     const as = asks.get(id) ?? []
-    const t = ts[0]
-    const due = replyBy(Math.min(...ts.map((x) => x.lastAt), ...as.map((a) => signalAt.get(a.signalId!) ?? src.now)))
+    const t = ts[0]?.t
+    const since = Math.min(...ts.map((x) => x.at), ...as.map((a) => signalAt.get(a.signalId!) ?? src.now))
+    const due = replyDue(since)
     const asked = as[0]?.detail ?? ''
     out.push({
       key: 'reply:' + id, type: 'reply', group: as.length || due < src.now ? 'now' : 'today', name: byId.get(id)!.name, investorId: id,
-      detail: t ? [t.subject, 'they wrote ' + agoShort(t.lastAt, src.now), asked.replace(/^Asked/, 'asked')].filter(Boolean).join(' · ') : asked,
-      due, when: due <= endOfToday ? 'Reply today' : 'Reply tomorrow',
-      version: [...ts.map((x) => x._id + '@' + x.lastAt), ...as.map((a) => a.signalId!)].join(','),
+      detail: t ? [t.subject, 'they wrote ' + agoShort(ts[0].at, src.now), asked.replace(/^Asked/, 'asked')].filter(Boolean).join(' · ') : asked,
+      due, when: waitingText(since, src.now),
+      version: [...ts.map((x) => x.t._id + '@' + x.at), ...as.map((a) => a.signalId!)].join(','),
       ...(t?.mine ? { label: 'Open in Gmail', action: { kind: 'gmail', url: t.link } as const } : { label: 'Draft a reply', action: { kind: 'draft', type: 'followup' } as const }),
       draft: 'followup',
     })

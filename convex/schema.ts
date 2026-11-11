@@ -135,6 +135,8 @@ export default defineSchema({
     rescan: v.optional(v.boolean()),
     // PST-293 (optional, additive): the grant has gmail.readonly, so the sync can read email text for Jev. False: metadata only, reconnect.
     gmailBodies: v.optional(v.boolean()),
+    // PST-306 (optional, additive): the version of thread reading the stored threads come from; an older one reads the last 30 days again.
+    gmailThreads: v.optional(v.number()),
   }).index('by_user', ['userId']),
 
   // Calendar events with at least one outside attendee. Title, times, attendees' emails (and display names), the event link.
@@ -171,6 +173,8 @@ export default defineSchema({
     count: v.number(),
     link: v.string(),
     investorIds: v.array(v.id('investors')),
+    // PST-306 (optional, additive): the investor message Dev owes a reply to (calendar and automated mail skipped); null when none, absent on rows synced before.
+    owed: v.optional(v.union(v.object({ at: v.number(), messageId: v.string() }), v.null())),
   })
     .index('by_user_thread', ['userId', 'threadId'])
     .index('by_user', ['userId'])

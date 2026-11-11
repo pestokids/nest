@@ -3,7 +3,7 @@ import type { PreviewRace } from '../preview/raceFixture'
 
 // DEV/preview only: which state `?preview` should show (Today, the drawer, and the
 // Investors / Plan / Settings / system states). Null outside preview.
-export const PREVIEW_TODAY = ['default', 'nothingdue', 'win', /* PST-297 */ 'inbox', 'phone', 'clear'] as const
+export const PREVIEW_TODAY = ['default', 'nothingdue', 'win', /* PST-297 */ 'inbox', 'phone', 'clear', /* PST-306 */ 'replies'] as const
 export const PREVIEW_DRAWER = ['view', 'edit', 'new', 'advance', 'touch', 'history', 'emails', 'materials', 'notes', 'delete', /* PST-293 */ 'decision', /* PST-303 */ 'edit-vc', 'edit-accelerator', 'edit-angel', /* PST-302 */ 'application'] as const
 export type PreviewToday = (typeof PREVIEW_TODAY)[number]
 export type PreviewDrawer = (typeof PREVIEW_DRAWER)[number]
