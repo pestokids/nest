@@ -50,11 +50,12 @@ function required(s: string, max: number, what: string) {
   return t.slice(0, max)
 }
 
-async function sameQuestion(ctx: QueryCtx, text: string) {
+/** PST-307: the Advisor's Save uses these too. */
+export async function sameQuestion(ctx: QueryCtx, text: string) {
   return (await ctx.db.query('questions').collect()).find((q) => isLive(q) && sameText(q.text, text)) ?? null
 }
 
-async function newQuestion(ctx: MutationCtx, text: string, theme?: string) {
+export async function newQuestion(ctx: MutationCtx, text: string, theme?: string) {
   const now = Date.now()
   return await ctx.db.insert('questions', {
     text, theme: cleanTheme(theme ?? '') || guessTheme(text), bestAnswer: '', answerVersions: [], onDeck: false, askedCount: 0, createdAt: now, updatedAt: now,

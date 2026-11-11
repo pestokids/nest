@@ -15,6 +15,7 @@ import { Route as AppSplatRouteImport } from './routes/_app/$'
 import { Route as AppRaiseRouteImport } from './routes/_app/raise'
 import { Route as DTokenRouteImport } from './routes/d.$token'
 import { Route as AppRaiseIndexRouteImport } from './routes/_app/raise/index'
+import { Route as AppRaiseAdvisorRouteImport } from './routes/_app/raise/advisor'
 import { Route as AppRaiseCloseRouteImport } from './routes/_app/raise/close'
 import { Route as AppRaiseInvestorsRouteImport } from './routes/_app/raise/investors'
 import { Route as AppRaiseMaterialsRouteImport } from './routes/_app/raise/materials'
@@ -51,6 +52,11 @@ const DTokenRoute = DTokenRouteImport.update({
 const AppRaiseIndexRoute = AppRaiseIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AppRaiseRoute,
+} as any)
+const AppRaiseAdvisorRoute = AppRaiseAdvisorRouteImport.update({
+  id: '/advisor',
+  path: '/advisor',
   getParentRoute: () => AppRaiseRoute,
 } as any)
 const AppRaiseCloseRoute = AppRaiseCloseRouteImport.update({
@@ -99,6 +105,7 @@ export interface FileRoutesByFullPath {
   '/$': typeof AppSplatRoute
   '/raise': typeof AppRaiseRouteWithChildren
   '/d/$token': typeof DTokenRoute
+  '/raise/advisor': typeof AppRaiseAdvisorRoute
   '/raise/close': typeof AppRaiseCloseRoute
   '/raise/investors': typeof AppRaiseInvestorsRoute
   '/raise/materials': typeof AppRaiseMaterialsRoute
@@ -113,6 +120,7 @@ export interface FileRoutesByTo {
   '/$': typeof AppSplatRoute
   '/d/$token': typeof DTokenRoute
   '/': typeof AppIndexRoute
+  '/raise/advisor': typeof AppRaiseAdvisorRoute
   '/raise/close': typeof AppRaiseCloseRoute
   '/raise/investors': typeof AppRaiseInvestorsRoute
   '/raise/materials': typeof AppRaiseMaterialsRoute
@@ -130,6 +138,7 @@ export interface FileRoutesById {
   '/_app/raise': typeof AppRaiseRouteWithChildren
   '/d/$token': typeof DTokenRoute
   '/_app/': typeof AppIndexRoute
+  '/_app/raise/advisor': typeof AppRaiseAdvisorRoute
   '/_app/raise/close': typeof AppRaiseCloseRoute
   '/_app/raise/investors': typeof AppRaiseInvestorsRoute
   '/_app/raise/materials': typeof AppRaiseMaterialsRoute
@@ -147,6 +156,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/raise'
     | '/d/$token'
+    | '/raise/advisor'
     | '/raise/close'
     | '/raise/investors'
     | '/raise/materials'
@@ -161,6 +171,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/d/$token'
     | '/'
+    | '/raise/advisor'
     | '/raise/close'
     | '/raise/investors'
     | '/raise/materials'
@@ -177,6 +188,7 @@ export interface FileRouteTypes {
     | '/_app/raise'
     | '/d/$token'
     | '/_app/'
+    | '/_app/raise/advisor'
     | '/_app/raise/close'
     | '/_app/raise/investors'
     | '/_app/raise/materials'
@@ -235,6 +247,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/raise/'
       preLoaderRoute: typeof AppRaiseIndexRouteImport
+      parentRoute: typeof AppRaiseRoute
+    }
+    '/_app/raise/advisor': {
+      id: '/_app/raise/advisor'
+      path: '/advisor'
+      fullPath: '/raise/advisor'
+      preLoaderRoute: typeof AppRaiseAdvisorRouteImport
       parentRoute: typeof AppRaiseRoute
     }
     '/_app/raise/close': {
@@ -297,6 +316,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRaiseRouteChildren {
+  AppRaiseAdvisorRoute: typeof AppRaiseAdvisorRoute
   AppRaiseCloseRoute: typeof AppRaiseCloseRoute
   AppRaiseInvestorsRoute: typeof AppRaiseInvestorsRoute
   AppRaiseMaterialsRoute: typeof AppRaiseMaterialsRoute
@@ -309,6 +329,7 @@ interface AppRaiseRouteChildren {
 }
 
 const AppRaiseRouteChildren: AppRaiseRouteChildren = {
+  AppRaiseAdvisorRoute: AppRaiseAdvisorRoute,
   AppRaiseCloseRoute: AppRaiseCloseRoute,
   AppRaiseInvestorsRoute: AppRaiseInvestorsRoute,
   AppRaiseMaterialsRoute: AppRaiseMaterialsRoute,

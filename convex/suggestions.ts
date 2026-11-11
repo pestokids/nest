@@ -28,6 +28,7 @@ import { logStageMove } from './lib/stageLog' // PST-302
 import { addTargetsFor } from './network' // PST-305
 import { normName } from '../src/lib/introducers' // PST-305
 import { normEmail } from '../src/lib/google' // PST-305
+import { decisionRow } from './decisions' // PST-307
 
 type Row = Doc<'suggestions'>
 type Inv = Doc<'investors'>
@@ -222,6 +223,8 @@ async function apply(ctx: MutationCtx, s: Row, userId: Id<'users'>): Promise<Und
   if (p.op === 'new_investor') return await addInvestor(ctx, s, p, userId)
   if (p.op === 'network_person') return await addNetworkPerson(ctx, p, userId) // PST-305
   if (p.op === 'network_target') return await addNetworkTarget(ctx, p, userId) // PST-305
+  // PST-307: a number Dev filled in for a story becomes a fact the Advisor keeps (Settings › AI › Advisor › Memory).
+  if (p.op === 'plan_number') return { op: 'plan_number', memoryId: await ctx.db.insert('advisorMemory', { fact: p.label.trim() + ': ' + p.value.trim(), createdAt: Date.now(), createdBy: userId }) }
   const i = s.investorId ? await ctx.db.get(s.investorId) : null
   if (!i) return null
   const today = todayIST()
@@ -278,6 +281,18 @@ async function apply(ctx: MutationCtx, s: Row, userId: Id<'users'>): Promise<Und
     case 'application':
       if (noOpReason(i, p)) return null
       return await setFields(ctx, i, { application: applicationAfter(i.application, p) }, stamp)
+    // PST-307: the Advisor's decide-by date, set the way the drawer sets it (Dev's own date from then on).
+    case 'decide_by': {
+      if (!isISODate(p.date)) return null
+      const row = await decisionRow(ctx, i._id)
+      if (row?.decideBy === p.date && row.decideByManual) return null
+      const fields = { decideBy: p.date, decideByManual: true, updatedAt: Date.now() }
+      if (row) {
+        await ctx.db.patch(row._id, fields)
+        return { op: 'decide_by', decisionId: row._id, created: false, decideBy: row.decideBy, decideByManual: row.decideByManual }
+      }
+      return { op: 'decide_by', decisionId: await ctx.db.insert('decisions', { investorId: i._id, ...fields }), created: true }
+    }
   }
 }
 
@@ -346,6 +361,18 @@ async function revert(ctx: MutationCtx, s: Row, u: Undo, userId: Id<'users'>): P
       await ctx.db.delete(id)
       await forgetInvestor(ctx, id)
     }
+    return
+  }
+  // PST-307: the fact a plan number added, and the decide-by date as it was.
+  if (u.op === 'plan_number') {
+    if (await ctx.db.get(u.memoryId)) await ctx.db.delete(u.memoryId)
+    return
+  }
+  if (u.op === 'decide_by') {
+    const row = await ctx.db.get(u.decisionId)
+    if (!row) return
+    if (u.created && row.status === undefined) await ctx.db.delete(row._id)
+    else await ctx.db.patch(row._id, { decideBy: u.decideBy, decideByManual: u.decideByManual, updatedAt: Date.now() })
     return
   }
   const i = s.investorId ? await ctx.db.get(s.investorId) : null

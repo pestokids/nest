@@ -44,6 +44,9 @@ Introducers (PST-294): `&investors=introducers` (Investors › Introducers), `&i
 <!-- PST-305 -->
 Network (PST-305): `&investors=network` (Investors › Network; `&investors=introducers` and `?view=introducers` still open it), `&network=founder|friend|advisor` (a founder's, a friend's or an advisor-who-invests' panel), `&network=lookup` (a founder's Find their investors with results to tick), `&network=import` (the CSV import with its preview), `&draft=intro-ask` (Ask Ankur for intros), and `&drawer=view&network=advisor` (an investor's drawer with "Also your advisor").
 <!-- end PST-305 -->
+<!-- PST-307 -->
+Advisor (PST-307): `/raise/advisor?preview&advisor=empty|chat|story|blocks|streaming|cap` (the new-chat starters, a Coach chat, a Storyteller chat on Opus, one answer with every block, an answer still writing, the monthly cap reached), and `/raise/pipeline?preview&pipeline=race&advisor=panel` (the ⌘J panel over Race). Answers sent in the preview are canned; Claude is never called.
+<!-- end PST-307 -->
 
 Screenshots of every preview screen at 1440 × 900, 440 × 956 and 412 × 915: run `pnpm dev:web`, then `node scripts/screenshots.mjs http://localhost:3000` (writes to `.context/screens/`). They use the fixture, never real data. The script also reports any screen that scrolls sideways and, on phones, any control under 44 × 44 (`checks.json`).
 
@@ -323,6 +326,19 @@ Nest's UI sounds are one designed kit: **SND01 “sine” by Yasuhiro Tsuchiya**
 - **Fewer sounds.** Only for something you changed, or a refused action you just tried. Nothing for navigation, ⌘K, the ? sheet, focus moves, hover or page load. `src/lib/soundCalls.test.ts` checks every `play()` call in `src` against the table.
 - **Settings › Sounds** has the on/off switch, a Preview button per kind of sound, and the kit's credit (`?preview&settings=sounds`).
 <!-- ---------- end PST-304 ---------- -->
+
+<!-- ---------- PST-307: the Advisor ---------- -->
+## The Advisor
+
+Raise › Advisor is a fundraising coach (what to do next) and storyteller (how to say it) that chats with you about the raise. ⌘J opens it as a panel on any screen, and it starts from what you're looking at (the route, the Pipeline view, the open investor); "Open full chat" moves the chat to the tab.
+
+- It runs on Sonnet by default; pick Opus for a chat with the model chip, or for one answer with "Ask Opus instead". Settings › AI › Advisor sets the default, the monthly cap and web search.
+- It reads all of Nest, read-only (the Nest MCP read tools plus its own reads), and the web for public facts about firms and the market. "From:" chips under an answer show what it read.
+- It never sends or changes anything. An email draft lands in Drafts; a Q&A answer or story waits for Save; a change (decide-by, stage, next step, application) waits for "Send to Suggestions" and your OK there; a fact is remembered only after you say yes to "Remember this?". Ticking a plan step sets that investor's next step through the normal save, with Undo, and picking an option sends it back as your next message.
+- It never invents a number: anything Nest doesn't have is a [__] blank you fill in.
+- The composer shows an answer's estimated cost before you send, and each answer shows what it really cost. A run that would pass this month's cap is refused, with a notice and a link to Settings, and a long run checks the cap again between its turns. Advisor spend shows in Settings › AI's spend view.
+- The prompt is in `convex/lib/advisor.ts` and holds no company facts; memory (Settings › AI › Advisor › Memory) is where those live, each one added by you.
+<!-- ---------- end PST-307 ---------- -->
 
 ## Seed
 

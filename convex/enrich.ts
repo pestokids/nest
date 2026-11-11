@@ -111,19 +111,24 @@ export const data = query({
     }
     // PST-292: Jev's month (its own model in the spend), and the people its pre-check said probably aren't investors.
     const jev = await jevStatus(ctx, now)
+    // PST-307: the Advisor's answers this month count in their model's spend and as their own line.
+    const advisorAnswers = (await ctx.db.query('advisorMessages').withIndex('by_created', (q) => q.gte('createdAt', monthStart)).collect()).filter((m) => m.role === 'assistant')
+    for (const m of advisorAnswers) if (m.model) byModel[m.model] += m.costUsd
+    const advisor = { usd: advisorAnswers.reduce((x, m) => x + m.costUsd, 0), answers: advisorAnswers.length }
     const prechecked = []
     for (const m of await ctx.db.query('jevMarks').withIndex('by_subject', (q) => q.eq('kind', 'who')).collect())
       if (m.at >= now - CACHE_DAYS * DAY_MS) prechecked.push({ email: m.subject, likely: m.p })
     return {
       connected: hasAIKey(),
       jev,
+      /* PST-307 */ advisor,
       prechecked,
       settings: await aiSettings(ctx),
       models: await modelChoice(ctx),
       features,
       spend: { byModel, byFeature },
       month: {
-        usd: [...month, ...reads, ...asks, ...briefs, ...drafts, ...finds, /* PST-305 */ ...lookups].reduce((s, r) => s + r.costUsd, 0) + jev.monthUsd,
+        usd: [...month, ...reads, ...asks, ...briefs, ...drafts, ...finds, /* PST-305 */ ...lookups].reduce((s, r) => s + r.costUsd, 0) + jev.monthUsd + /* PST-307 */ advisor.usd,
         asks: asks.length,
         noteReads: reads.filter((r) => r.status !== 'reading').length,
         lookups: month.filter((r) => !r.investorId && !r.cached).length,

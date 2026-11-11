@@ -113,6 +113,9 @@ export const vSuggestionPatch = v.union(
   // PST-305: an agent's new person for the Network, and an investor for a person's list.
   v.object({ op: v.literal('network_person'), name: v.string(), email: v.optional(v.string()), relation: lit(PICK_RELATIONS), company: v.optional(v.string()), note: v.optional(v.string()) }),
   v.object({ op: v.literal('network_target'), introducerId: v.id('introducers'), investorId: v.optional(v.id('investors')), firm: v.optional(v.string()), partner: v.optional(v.string()) }),
+  // PST-307: the Advisor's decide-by date, and a number kept for the Advisor (Save to Plan).
+  v.object({ op: v.literal('decide_by'), date: v.string() }),
+  v.object({ op: v.literal('plan_number'), label: v.string(), value: v.string() }),
 )
 
 /* ---------- PST-302: applications ---------- */
@@ -162,6 +165,9 @@ export const vSuggestionUndo = v.union(
   // PST-305: the person an accepted network_person added; the intros (and new investors) a network_target made.
   v.object({ op: v.literal('network_person'), introducerId: v.id('introducers') }),
   v.object({ op: v.literal('network_target'), introIds: v.array(v.id('intros')), investorIds: v.array(v.id('investors')) }),
+  // PST-307: the decision row's decide-by before (absent: there was no row), and the memory a plan number made.
+  v.object({ op: v.literal('decide_by'), decisionId: v.id('decisions'), created: v.boolean(), decideBy: v.optional(v.string()), decideByManual: v.optional(v.boolean()) }),
+  v.object({ op: v.literal('plan_number'), memoryId: v.id('advisorMemory') }),
 )
 
 /* ---------- PST-281: Q&A bank ---------- */

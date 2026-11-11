@@ -12,6 +12,7 @@ import { AgentsCard, ConnectAgentCard } from '../../../components/settings/Agent
 import { WisprCard } from '../../../components/settings/WisprCard'
 import { FeedbackCard } from '../../../components/system/Feedback' // PST-289
 import { SoundsCard } from '../../../components/settings/SoundsCard' // PST-304
+import { AdvisorCard, AdvisorCosts } from '../../../components/advisor/Settings' // PST-307
 import { usePreviewState } from '../../../components/preview-state'
 import { useSaveAction } from '../../../components/system/useSaveAction'
 import { Button, Icon } from '../../../components/ui'
@@ -236,6 +237,8 @@ function Settings() {
         </div>
         <CapTableCard />
         <AICard />
+        {/* PST-307: Settings › AI › Advisor */}
+        <AdvisorCard />
         <AgentsCard />
         <ChangeLog rows={log} />
       </div>
@@ -247,6 +250,8 @@ function Settings() {
         {/* PST-304 */}
         <SoundsCard />
         <ClaudeSees />
+        {/* PST-307 */}
+        <AdvisorCosts />
         <ConnectAgentCard />
         <MembersCard members={members} />
       </aside>

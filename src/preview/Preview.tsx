@@ -149,6 +149,8 @@ import { DecisionsProvider } from '../components/decisions/data' // PST-293
 import { RaceProvider } from '../components/race/data' // PST-295
 import { PREVIEW_RACE, type PreviewRace } from './raceFixture' // PST-295
 import { InboxProvider } from '../components/inbox/data' // PST-297
+import { AdvisorProvider } from '../components/advisor/data' // PST-307
+import { PREVIEW_ADVISOR } from './advisorFixture' // PST-307
 import { isInboxPreview } from './inboxFixture' // PST-297
 import { Moments, PREVIEW_MOMENTS, type PreviewMoment } from './momentsFixture' // PST-298 interactions
 
@@ -208,10 +210,13 @@ export function Preview() {
   /* ---------- PST-305: &network=founder|friend|advisor|lookup|import ---------- */
   const networkState = { network: q.get('network') }
   /* ---------- end PST-305 ---------- */
+  /* ---------- PST-307: &advisor=empty|chat|story|blocks|streaming|cap|panel ---------- */
+  const advisorState = { advisor: (PREVIEW_ADVISOR as readonly string[]).includes(q.get('advisor') ?? '') ? q.get('advisor') : null }
+  /* ---------- end PST-307 ---------- */
   return (
     <LocalSounds>
       <SessionContext.Provider value={session}>
-        <PreviewStateContext.Provider value={{ ...state, ...decisionState, /* PST-302 */ ...applicationState, /* PST-305 */ ...networkState }}>
+        <PreviewStateContext.Provider value={{ ...state, ...decisionState, /* PST-302 */ ...applicationState, /* PST-305 */ ...networkState, /* PST-307 */ ...advisorState }}>
           <PreviewData
             source={sessionStorage.getItem('nest_preview_data') === 'seed' ? 'seed' : 'fixture'}
             home={home}
@@ -236,6 +241,8 @@ export function Preview() {
                 <RaceProvider>
                 {/* PST-297 */}
                 <InboxProvider>
+                {/* PST-307 */}
+                <AdvisorProvider>
                 <PreviewWispr state={wispr} fail={extra.fail}>
                   {/* PST-289 */}
                   <PreviewFeedback state={feedback} fail={extra.fail}>
@@ -248,6 +255,7 @@ export function Preview() {
                     </AppShell>
                   </PreviewFeedback>
                 </PreviewWispr>
+                </AdvisorProvider>
                 </InboxProvider>
                 </RaceProvider>
                 </DecisionsProvider>

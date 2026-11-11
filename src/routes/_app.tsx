@@ -9,6 +9,7 @@ import { DecisionsProvider } from '../components/decisions/data' // PST-293
 import { IntroducersProvider } from '../components/introducers/data' // PST-294
 import { RaceProvider } from '../components/race/data' // PST-295
 import { InboxProvider } from '../components/inbox/data' // PST-297
+import { AdvisorProvider } from '../components/advisor/data' // PST-307
 import { OpenToasts } from '../components/materials/Opens'
 import { ConvexSounds } from '../components/session'
 import { installSound } from '../lib/sound'
@@ -51,9 +52,12 @@ function AppLayout() {
                   <RaceProvider>
                     {/* PST-297 */}
                     <InboxProvider>
-                      <AppShell>
-                        <OpenToasts />
-                      </AppShell>
+                      {/* PST-307 */}
+                      <AdvisorProvider>
+                        <AppShell>
+                          <OpenToasts />
+                        </AppShell>
+                      </AdvisorProvider>
                     </InboxProvider>
                   </RaceProvider>
                 </DecisionsProvider>

@@ -10,6 +10,9 @@
 
 import type * as access from "../access.js";
 import type * as activities from "../activities.js";
+import type * as advisor from "../advisor.js";
+import type * as advisorReads from "../advisorReads.js";
+import type * as advisorSchema from "../advisorSchema.js";
 import type * as agents from "../agents.js";
 import type * as agentsSchema from "../agentsSchema.js";
 import type * as applications from "../applications.js";
@@ -44,6 +47,7 @@ import type * as jev from "../jev.js";
 import type * as jevHousekeeping from "../jevHousekeeping.js";
 import type * as jevSchema from "../jevSchema.js";
 import type * as lib_access from "../lib/access.js";
+import type * as lib_advisor from "../lib/advisor.js";
 import type * as lib_agentKey from "../lib/agentKey.js";
 import type * as lib_anthropic from "../lib/anthropic.js";
 import type * as lib_ask from "../lib/ask.js";
@@ -105,6 +109,9 @@ import type {
 declare const fullApi: ApiFromModules<{
   access: typeof access;
   activities: typeof activities;
+  advisor: typeof advisor;
+  advisorReads: typeof advisorReads;
+  advisorSchema: typeof advisorSchema;
   agents: typeof agents;
   agentsSchema: typeof agentsSchema;
   applications: typeof applications;
@@ -139,6 +146,7 @@ declare const fullApi: ApiFromModules<{
   jevHousekeeping: typeof jevHousekeeping;
   jevSchema: typeof jevSchema;
   "lib/access": typeof lib_access;
+  "lib/advisor": typeof lib_advisor;
   "lib/agentKey": typeof lib_agentKey;
   "lib/anthropic": typeof lib_anthropic;
   "lib/ask": typeof lib_ask;

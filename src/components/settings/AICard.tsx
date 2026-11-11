@@ -118,7 +118,8 @@ export function AICard() {
             {plural(ai.month.lookups, 'lookup')} · {plural(ai.month.enrichments, 'enrichment')}
             {ai.month.noteReads ? ' · ' + plural(ai.month.noteReads, 'note') + ' read' : ''}
             {ai.month.asks ? ' · ' + plural(ai.month.asks, 'question') : ''}
-            {ai.jev.calls ? ' · ' + plural(ai.jev.calls, 'Jev check') : ''} · {ai.capLeft} automatic left today
+            {ai.jev.calls ? ' · ' + plural(ai.jev.calls, 'Jev check') : ''}
+            {/* PST-307 */ ai.advisor?.answers ? ' · ' + plural(ai.advisor.answers, 'Advisor answer') : ''} · {ai.capLeft} automatic left today
           </span>
           {ai.month.usd > 0 ? <SpendSplit ai={ai} /> : null}
         </div>
@@ -345,7 +346,7 @@ function SpendSplit({ ai }: { ai: AIData }) {
   return (
     <div className="set-ai__splits">
       {bar('By model', [...MODELS.map((m) => ({ key: MODEL_INFO[m].name.toLowerCase(), label: MODEL_INFO[m].name, usd: ai.spend.byModel[m] })), { key: 'jev', label: 'Jev', usd: ai.jev.monthUsd }])}
-      {bar('By feature', [...FEATURES.map((f) => ({ key: f, label: FEATURE_LABEL[f], usd: ai.spend.byFeature[f] })), { key: 'jev', label: 'Jev checks', usd: ai.jev.monthUsd }])}
+      {bar('By feature', [...FEATURES.map((f) => ({ key: f, label: FEATURE_LABEL[f], usd: ai.spend.byFeature[f] })), { key: 'jev', label: 'Jev checks', usd: ai.jev.monthUsd }, /* PST-307 */ { key: 'advisor', label: 'Advisor', usd: ai.advisor?.usd ?? 0 }])}
     </div>
   )
 }

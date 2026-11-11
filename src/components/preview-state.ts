@@ -61,6 +61,8 @@ export type PreviewState = {
   /* ---------- end PST-302 ---------- */
   /** PST-305 `&network=founder|friend|advisor|lookup|import` (see src/preview/networkFixture.ts) */
   network?: string | null
+  /** PST-307 `&advisor=empty|chat|story|blocks|streaming|cap|panel` (see src/preview/advisorFixture.ts) */
+  advisor?: string | null
 }
 
 /** PST-279 `&ask=…`: the question ⌘K asks as it opens in Ask mode (empty: just Ask mode). See src/preview/askFixture.ts. */

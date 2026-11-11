@@ -23,6 +23,8 @@ import { inboxTables } from './inboxSchema' // PST-297
 import { networkTables } from './networkSchema' // PST-305
 // PST-302: applications on investors, and from/by/correction on stage activities (see applicationsSchema.ts).
 import { investorApplicationField, stageActivityFields } from './applicationsSchema'
+// PST-307: the Advisor (advisorChats, advisorMessages, advisorMemory; its settings on the AI row; see advisorSchema.ts).
+import { advisorSettingsFields, advisorTables } from './advisorSchema'
 import { roundFields, vGeo, vMeetingAnswer, vPipelineStage, vStage, vSyncSource, vTier, vTouch, vType, vWarmth, vWave } from './validators'
 import { vSuggestionKind, vSuggestionPatch, vSuggestionSource, vSuggestionStatus, vSuggestionUndo } from './validators'
 import { vAnswerVersion, vAskSource, vQuestionMerge } from './validators'
@@ -87,7 +89,7 @@ export default defineSchema({
   // The round row (key "round"), and PST-274's AI toggles (key "ai"; PST-279 adds morningBrief, see askSchema.ts).
   // PST-283: the round row also holds the cap table inputs (`capTable`, optional; see closeSchema.ts).
   // PST-295: and the investor leading the round (`leadId`, optional; see raceSchema.ts).
-  settings: defineTable(v.union(v.object({ key: v.literal('round'), ...roundFields, ...roundCapTableField, ...roundLeadField }), v.object({ ...aiSettingsFields, ...askSettingsFields }))).index('by_key', ['key']),
+  settings: defineTable(v.union(v.object({ key: v.literal('round'), ...roundFields, ...roundCapTableField, ...roundLeadField }), v.object({ ...aiSettingsFields, ...askSettingsFields, /* PST-307 */ ...advisorSettingsFields }))).index('by_key', ['key']),
 
   settingsLog: defineTable({
     userId: v.id('users'),
@@ -325,4 +327,7 @@ export default defineSchema({
   /* ---------- PST-305: Network (founderLookups; introducers and drafts gain optional fields; see networkSchema.ts) ---------- */
   ...networkTables,
   /* ---------- end PST-305 ---------- */
+  /* ---------- PST-307: the Advisor (advisorChats, advisorMessages, advisorMemory; see advisorSchema.ts) ---------- */
+  ...advisorTables,
+  /* ---------- end PST-307 ---------- */
 })
