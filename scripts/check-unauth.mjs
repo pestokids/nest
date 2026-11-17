@@ -43,6 +43,10 @@ const calls = [
   ['mutation', 'google:disconnect', api.google.disconnect, {}],
   ['mutation', 'google:answerMeeting', api.google.answerMeeting, { eventId: 'x', answer: 'm1' }],
   ['mutation', 'google:dismissPerson', api.google.dismissPerson, { email: 'someone@example.com' }],
+  // Rolodex (rolodex:person needs a rolodexPeople id, so it's covered by convex/rolodex.test.ts instead)
+  ['query', 'rolodex:people', api.rolodex.people, { paginationOpts: { numItems: 1, cursor: null } }],
+  ['query', 'rolodex:firms', api.rolodex.firms, {}],
+  ['query', 'rolodex:meta', api.rolodex.meta, {}],
 ]
 
 let failed = 0

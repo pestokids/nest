@@ -63,6 +63,8 @@ export type PreviewState = {
   network?: string | null
   /** PST-307 `&advisor=empty|chat|story|blocks|streaming|cap|panel` (see src/preview/advisorFixture.ts) */
   advisor?: string | null
+  /** Rolodex `&rolodex=firms|person|firm|filtered|empty|loading|leftout` (see src/preview/rolodexFixture.ts) */
+  rolodex?: string | null
 }
 
 /** PST-279 `&ask=…`: the question ⌘K asks as it opens in Ask mode (empty: just Ask mode). See src/preview/askFixture.ts. */

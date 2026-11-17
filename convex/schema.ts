@@ -25,6 +25,8 @@ import { networkTables } from './networkSchema' // PST-305
 import { investorApplicationField, stageActivityFields } from './applicationsSchema'
 // PST-307: the Advisor (advisorChats, advisorMessages, advisorMemory; its settings on the AI row; see advisorSchema.ts).
 import { advisorSettingsFields, advisorTables } from './advisorSchema'
+// Rolodex: people and investor firms from the fundraising research (rolodexPeople, rolodexFirms, rolodexMeta; see rolodexSchema.ts).
+import { rolodexTables } from './rolodexSchema'
 import { roundFields, vGeo, vMeetingAnswer, vPipelineStage, vStage, vSyncSource, vTier, vTouch, vType, vWarmth, vWave } from './validators'
 import { vSuggestionKind, vSuggestionPatch, vSuggestionSource, vSuggestionStatus, vSuggestionUndo } from './validators'
 import { vAnswerVersion, vAskSource, vQuestionMerge } from './validators'
@@ -330,4 +332,7 @@ export default defineSchema({
   /* ---------- PST-307: the Advisor (advisorChats, advisorMessages, advisorMemory; see advisorSchema.ts) ---------- */
   ...advisorTables,
   /* ---------- end PST-307 ---------- */
+  /* ---------- Rolodex: people and investor firms (rolodexPeople, rolodexFirms, rolodexMeta; see rolodexSchema.ts) ---------- */
+  ...rolodexTables,
+  /* ---------- end Rolodex ---------- */
 })

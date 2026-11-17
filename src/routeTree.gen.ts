@@ -22,6 +22,7 @@ import { Route as AppRaiseMaterialsRouteImport } from './routes/_app/raise/mater
 import { Route as AppRaisePipelineRouteImport } from './routes/_app/raise/pipeline'
 import { Route as AppRaisePlanRouteImport } from './routes/_app/raise/plan'
 import { Route as AppRaiseQandaRouteImport } from './routes/_app/raise/qanda'
+import { Route as AppRaiseRolodexRouteImport } from './routes/_app/raise/rolodex'
 import { Route as AppRaiseSettingsRouteImport } from './routes/_app/raise/settings'
 import { Route as AppRaiseTodayRouteImport } from './routes/_app/raise/today'
 
@@ -89,6 +90,11 @@ const AppRaiseQandaRoute = AppRaiseQandaRouteImport.update({
   path: '/qanda',
   getParentRoute: () => AppRaiseRoute,
 } as any)
+const AppRaiseRolodexRoute = AppRaiseRolodexRouteImport.update({
+  id: '/rolodex',
+  path: '/rolodex',
+  getParentRoute: () => AppRaiseRoute,
+} as any)
 const AppRaiseSettingsRoute = AppRaiseSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -112,6 +118,7 @@ export interface FileRoutesByFullPath {
   '/raise/pipeline': typeof AppRaisePipelineRoute
   '/raise/plan': typeof AppRaisePlanRoute
   '/raise/qanda': typeof AppRaiseQandaRoute
+  '/raise/rolodex': typeof AppRaiseRolodexRoute
   '/raise/settings': typeof AppRaiseSettingsRoute
   '/raise/today': typeof AppRaiseTodayRoute
   '/raise/': typeof AppRaiseIndexRoute
@@ -127,6 +134,7 @@ export interface FileRoutesByTo {
   '/raise/pipeline': typeof AppRaisePipelineRoute
   '/raise/plan': typeof AppRaisePlanRoute
   '/raise/qanda': typeof AppRaiseQandaRoute
+  '/raise/rolodex': typeof AppRaiseRolodexRoute
   '/raise/settings': typeof AppRaiseSettingsRoute
   '/raise/today': typeof AppRaiseTodayRoute
   '/raise': typeof AppRaiseIndexRoute
@@ -145,6 +153,7 @@ export interface FileRoutesById {
   '/_app/raise/pipeline': typeof AppRaisePipelineRoute
   '/_app/raise/plan': typeof AppRaisePlanRoute
   '/_app/raise/qanda': typeof AppRaiseQandaRoute
+  '/_app/raise/rolodex': typeof AppRaiseRolodexRoute
   '/_app/raise/settings': typeof AppRaiseSettingsRoute
   '/_app/raise/today': typeof AppRaiseTodayRoute
   '/_app/raise/': typeof AppRaiseIndexRoute
@@ -163,6 +172,7 @@ export interface FileRouteTypes {
     | '/raise/pipeline'
     | '/raise/plan'
     | '/raise/qanda'
+    | '/raise/rolodex'
     | '/raise/settings'
     | '/raise/today'
     | '/raise/'
@@ -178,6 +188,7 @@ export interface FileRouteTypes {
     | '/raise/pipeline'
     | '/raise/plan'
     | '/raise/qanda'
+    | '/raise/rolodex'
     | '/raise/settings'
     | '/raise/today'
     | '/raise'
@@ -195,6 +206,7 @@ export interface FileRouteTypes {
     | '/_app/raise/pipeline'
     | '/_app/raise/plan'
     | '/_app/raise/qanda'
+    | '/_app/raise/rolodex'
     | '/_app/raise/settings'
     | '/_app/raise/today'
     | '/_app/raise/'
@@ -298,6 +310,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRaiseQandaRouteImport
       parentRoute: typeof AppRaiseRoute
     }
+    '/_app/raise/rolodex': {
+      id: '/_app/raise/rolodex'
+      path: '/rolodex'
+      fullPath: '/raise/rolodex'
+      preLoaderRoute: typeof AppRaiseRolodexRouteImport
+      parentRoute: typeof AppRaiseRoute
+    }
     '/_app/raise/settings': {
       id: '/_app/raise/settings'
       path: '/settings'
@@ -323,6 +342,7 @@ interface AppRaiseRouteChildren {
   AppRaisePipelineRoute: typeof AppRaisePipelineRoute
   AppRaisePlanRoute: typeof AppRaisePlanRoute
   AppRaiseQandaRoute: typeof AppRaiseQandaRoute
+  AppRaiseRolodexRoute: typeof AppRaiseRolodexRoute
   AppRaiseSettingsRoute: typeof AppRaiseSettingsRoute
   AppRaiseTodayRoute: typeof AppRaiseTodayRoute
   AppRaiseIndexRoute: typeof AppRaiseIndexRoute
@@ -336,6 +356,7 @@ const AppRaiseRouteChildren: AppRaiseRouteChildren = {
   AppRaisePipelineRoute: AppRaisePipelineRoute,
   AppRaisePlanRoute: AppRaisePlanRoute,
   AppRaiseQandaRoute: AppRaiseQandaRoute,
+  AppRaiseRolodexRoute: AppRaiseRolodexRoute,
   AppRaiseSettingsRoute: AppRaiseSettingsRoute,
   AppRaiseTodayRoute: AppRaiseTodayRoute,
   AppRaiseIndexRoute: AppRaiseIndexRoute,

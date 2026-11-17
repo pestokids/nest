@@ -12,10 +12,10 @@ export function InvestorViews({ view, right }: { view: 'list' | 'network'; right
   return (
     <div className="inv-views">
       <nav className="inv-views__chips" aria-label="Investors views">
-        <Link to="/raise/investors" search={(s) => ({ ...s, view: undefined, person: undefined, rel: undefined })} className={'draft-chip' + (view === 'list' ? ' is-on' : '')} aria-current={view === 'list' ? 'page' : undefined}>
+        <Link from="/raise/investors" to="/raise/investors" search={(s) => ({ ...s, view: undefined, person: undefined, rel: undefined })} className={'draft-chip' + (view === 'list' ? ' is-on' : '')} aria-current={view === 'list' ? 'page' : undefined}>
           Investors {d.investors.length}
         </Link>
-        <Link to="/raise/investors" search={(s) => ({ ...s, view: 'network' as const })} className={'draft-chip' + (view === 'network' ? ' is-on' : '')} aria-current={view === 'network' ? 'page' : undefined}>
+        <Link from="/raise/investors" to="/raise/investors" search={(s) => ({ ...s, view: 'network' as const })} className={'draft-chip' + (view === 'network' ? ' is-on' : '')} aria-current={view === 'network' ? 'page' : undefined}>
           Network{people === null ? '' : ' ' + people}
         </Link>
       </nav>
