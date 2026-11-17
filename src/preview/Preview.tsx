@@ -153,6 +153,7 @@ import { AdvisorProvider } from '../components/advisor/data' // PST-307
 import { PREVIEW_ADVISOR } from './advisorFixture' // PST-307
 import { isInboxPreview } from './inboxFixture' // PST-297
 import { Moments, PREVIEW_MOMENTS, type PreviewMoment } from './momentsFixture' // PST-298 interactions
+import { PREVIEW_ROLODEX } from './rolodexFixture' // Rolodex
 
 const session = { me: { firstName: 'Dev', name: 'Dev Preview', email: 'dev@example.com' }, signOut: () => {} }
 
@@ -213,10 +214,13 @@ export function Preview() {
   /* ---------- PST-307: &advisor=empty|chat|story|blocks|streaming|cap|panel ---------- */
   const advisorState = { advisor: (PREVIEW_ADVISOR as readonly string[]).includes(q.get('advisor') ?? '') ? q.get('advisor') : null }
   /* ---------- end PST-307 ---------- */
+  /* ---------- Rolodex: &rolodex=firms|person|firm|filtered|empty|loading|leftout ---------- */
+  const rolodexState = { rolodex: (PREVIEW_ROLODEX as readonly string[]).includes(q.get('rolodex') ?? '') ? q.get('rolodex') : null }
+  /* ---------- end Rolodex ---------- */
   return (
     <LocalSounds>
       <SessionContext.Provider value={session}>
-        <PreviewStateContext.Provider value={{ ...state, ...decisionState, /* PST-302 */ ...applicationState, /* PST-305 */ ...networkState, /* PST-307 */ ...advisorState }}>
+        <PreviewStateContext.Provider value={{ ...state, ...decisionState, /* PST-302 */ ...applicationState, /* PST-305 */ ...networkState, /* PST-307 */ ...advisorState, /* Rolodex */ ...rolodexState }}>
           <PreviewData
             source={sessionStorage.getItem('nest_preview_data') === 'seed' ? 'seed' : 'fixture'}
             home={home}

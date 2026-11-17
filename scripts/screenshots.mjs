@@ -152,6 +152,9 @@ const SCREENS = [
   ...['race-move', 'race-ahead', 'race-offer', 'race-lead', 'maybe-no'].map((m) => [`moment-${m}`, `/raise/pipeline?preview&pipeline=race&moment=${m}`]),
   ...['intro-step', 'intro-thanked'].map((m) => [`moment-${m}`, `/raise/investors?preview&introducer=panel&moment=${m}`]),
   // ---------- end PST-298 interactions ----------
+  // Rolodex: People and Firms
+  ['rolodex-people', '/raise/rolodex?preview'],
+  ...['person', 'filtered', 'leftout', 'firms', 'firm', 'empty', 'loading'].map((s) => [`rolodex-${s}`, `/raise/rolodex?preview&rolodex=${s}`]),
 ]
 
 /** Sideways scroll, and (phones) visible controls smaller than 44 × 44. */

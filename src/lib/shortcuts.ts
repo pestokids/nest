@@ -51,6 +51,7 @@ export const GO_TO: Record<string, string> = {
   i: '/raise/investors',
   q: '/raise/qanda',
   l: '/raise/plan',
+  r: '/raise/rolodex', // Rolodex
   s: '/raise/settings',
   h: '/',
 }

@@ -20,6 +20,7 @@ const TABS: TabItem[] = [
   { to: '/raise/today', label: 'Today' },
   { to: '/raise/pipeline', label: 'Pipeline' },
   { to: '/raise/investors', label: 'Investors' },
+  { to: '/raise/rolodex', label: 'Rolodex' }, // Rolodex: people and firms from the fundraising research
   { to: '/raise/materials', label: 'Materials' },
   { to: '/raise/qanda', label: 'Q&A' },
   { to: '/raise/close', label: 'Close' },

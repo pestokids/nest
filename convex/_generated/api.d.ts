@@ -89,6 +89,8 @@ import type * as priority from "../priority.js";
 import type * as qanda from "../qanda.js";
 import type * as race from "../race.js";
 import type * as raceSchema from "../raceSchema.js";
+import type * as rolodex from "../rolodex.js";
+import type * as rolodexSchema from "../rolodexSchema.js";
 import type * as seed from "../seed.js";
 import type * as settings from "../settings.js";
 import type * as signals from "../signals.js";
@@ -188,6 +190,8 @@ declare const fullApi: ApiFromModules<{
   qanda: typeof qanda;
   race: typeof race;
   raceSchema: typeof raceSchema;
+  rolodex: typeof rolodex;
+  rolodexSchema: typeof rolodexSchema;
   seed: typeof seed;
   settings: typeof settings;
   signals: typeof signals;

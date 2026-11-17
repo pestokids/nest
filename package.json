@@ -12,7 +12,9 @@
     "lint": "eslint .",
     "test": "vitest run",
     "seed": "convex run seed:importSeed \"$(cat internal/seed.json)\"",
-    "seed:prod": "convex run --prod seed:importSeed \"$(cat internal/seed.json)\""
+    "seed:prod": "convex run --prod seed:importSeed \"$(cat internal/seed.json)\"",
+    "rolodex": "node scripts/rolodex-import.mjs",
+    "rolodex:prod": "node scripts/rolodex-import.mjs --prod"
   },
   "dependencies": {
     "@auth/core": "^0.41.3",
