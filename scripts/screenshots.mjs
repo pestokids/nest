@@ -154,7 +154,7 @@ const SCREENS = [
   // ---------- end PST-298 interactions ----------
   // Rolodex: People and Firms
   ['rolodex-people', '/raise/rolodex?preview'],
-  ...['person', 'filtered', 'leftout', 'firms', 'firm', 'empty', 'loading'].map((s) => [`rolodex-${s}`, `/raise/rolodex?preview&rolodex=${s}`]),
+  ...['person', 'filtered', 'firms', 'firm', 'empty', 'loading'].map((s) => [`rolodex-${s}`, `/raise/rolodex?preview&rolodex=${s}`]),
 ]
 
 /** Sideways scroll, and (phones) visible controls smaller than 44 × 44. */

@@ -1,10 +1,10 @@
-// Rolodex › People: everyone from the fundraising research. Chips for who (Shortlist,
-// Investors, Founders, Execs, Left out, Everyone) with counts, then search and selects
+// Rolodex › People: the shortlist from the fundraising research. Chips for who (All,
+// Investors, Founders, Execs) with counts, then search and selects
 // that each say how many they'd leave. Rows open the person's panel beside the list
 // (a bottom sheet on phones), the same shape as Investors › Network.
 import { useMemo, useRef } from 'react'
 import {
-  BATCHES, batchText, CAMPUSES, countryOptions, flag, FUNDING, FUNDING_FILTER_LABEL, initials, matchesPeople, optionCounts, PEOPLE_CSV_HEADERS, PEOPLE_SORT_LABEL,
+  BATCHES, batchText, CAMPUSES, countryOptions, flag, initials, matchesPeople, optionCounts, PEOPLE_CSV_HEADERS, PEOPLE_SORT_LABEL,
   PEOPLE_SORTS, peopleCsvRows, peopleFiltered, personSub, roleText, sortPeople, TIERS, WHEN, WHO, WHO_LABEL, whoCounts, companyList,
   type PeopleSort, type RolodexFirm, type RolodexPerson, type RolodexSearch, type Who,
 } from '../../lib/rolodex'
@@ -21,7 +21,7 @@ import { PersonPanel } from './PersonPanel'
 type Set = (patch: Partial<RolodexSearch>) => void
 
 const WHEN_LABEL = { now: 'Now', before: 'Before, not now' } as const
-const WHEN_HINT: Record<Who, string> = { shortlist: 'Role', investors: 'Investing', founders: 'Founder', execs: 'Exec', leftout: 'Role', everyone: 'Role' }
+const WHEN_HINT: Record<Who, string> = { shortlist: 'Role', investors: 'Investing', founders: 'Founder', execs: 'Exec' }
 
 export function PeopleView({ s, set, firmCount }: { s: RolodexSearch; set: Set; firmCount: number | null }) {
   const x = useRolodex()
@@ -40,7 +40,6 @@ export function PeopleView({ s, set, firmCount }: { s: RolodexSearch; set: Set; 
       tier: optionCounts(x.people, f, 'tier', TIERS),
       campus: optionCounts(x.people, f, 'campus', CAMPUSES),
       batch: optionCounts(x.people, f, 'batch', BATCHES),
-      funding: optionCounts(x.people, f, 'funding', FUNDING),
     }),
     [x.people, f],
   )
@@ -61,13 +60,12 @@ export function PeopleView({ s, set, firmCount }: { s: RolodexSearch; set: Set; 
   if (s.tier) chips.push({ k: 'tier', label: `Firm: ${s.tier}`, clear: () => set({ tier: undefined }) })
   if (s.campus) chips.push({ k: 'campus', label: `Campus: ${s.campus}`, clear: () => set({ campus: undefined }) })
   if (s.batch) chips.push({ k: 'batch', label: `Batch: ${s.batch === 'earlier' ? 'before 1990' : s.batch}`, clear: () => set({ batch: undefined }) })
-  if (s.funding) chips.push({ k: 'funding', label: FUNDING_FILTER_LABEL[s.funding], clear: () => set({ funding: undefined }) })
-  const clearAll = () => set({ q: undefined, when: undefined, country: undefined, tier: undefined, campus: undefined, batch: undefined, funding: undefined, firm: undefined })
+  const clearAll = () => set({ q: undefined, when: undefined, country: undefined, tier: undefined, campus: undefined, batch: undefined, firm: undefined })
 
   const total = x.meta?.people ?? x.people.length
   const loading = !x.peopleDone
   const count = loading ? `Loading ${fmt(x.people.length)} of ${fmt(total)}…` : peopleFiltered(f) ? `${fmt(rows.length)} of ${fmt(counts[who])}` : `${fmt(rows.length)} ${rows.length === 1 ? 'person' : 'people'}`
-  const active = [s.when, s.country, s.tier, s.campus, s.batch, s.funding, s.firm].filter(Boolean).length
+  const active = [s.when, s.country, s.tier, s.campus, s.batch, s.firm].filter(Boolean).length
 
   const selects = (
     <>
@@ -77,9 +75,6 @@ export function PeopleView({ s, set, firmCount }: { s: RolodexSearch; set: Set; 
       <Sel label="Firm tier" value={s.tier} options={TIERS.map((t) => ({ value: t, label: t, n: opt.tier.get(t) }))} onChange={(v) => set({ tier: v as RolodexSearch['tier'] })} />
       <Sel label="Campus" value={s.campus} options={CAMPUSES.map((c) => ({ value: c, label: c, n: opt.campus.get(c) }))} onChange={(v) => set({ campus: v as RolodexSearch['campus'] })} />
       <Sel label="Batch" value={s.batch} options={BATCHES.map((b) => ({ value: b, label: b === 'earlier' ? 'Before 1990' : b, n: opt.batch.get(b) }))} onChange={(v) => set({ batch: v as RolodexSearch['batch'] })} />
-      {who === 'leftout' || who === 'everyone' || s.funding ? (
-        <Sel label="Funding" value={s.funding} options={FUNDING.map((v) => ({ value: v, label: FUNDING_FILTER_LABEL[v], n: opt.funding.get(v) }))} onChange={(v) => set({ funding: v as RolodexSearch['funding'] })} />
-      ) : null}
     </>
   )
 
@@ -94,13 +89,13 @@ export function PeopleView({ s, set, firmCount }: { s: RolodexSearch; set: Set; 
           firms={firmCount}
           right={
             <Button variant="secondary" icon="download" onClick={() => exportRows('people', PEOPLE_CSV_HEADERS, peopleCsvRows(rows), toast)} disabled={!rows.length}>
-              {peopleFiltered(f) || who !== 'everyone' ? 'Export these' : 'Export CSV'}
+              {peopleFiltered(f) || who !== 'shortlist' ? 'Export these' : 'Export CSV'}
             </Button>
           }
         />
         <div className="net-filters rdx-who" role="group" aria-label="Show">
           {WHO.map((w) => (
-            <button key={w} type="button" className={'draft-chip' + (who === w ? ' is-on' : '')} aria-pressed={who === w} onClick={() => set({ who: w === 'shortlist' ? undefined : w, person: undefined, funding: w === 'leftout' || w === 'everyone' ? s.funding : undefined })}>
+            <button key={w} type="button" className={'draft-chip' + (who === w ? ' is-on' : '')} aria-pressed={who === w} onClick={() => set({ who: w === 'shortlist' ? undefined : w, person: undefined })}>
               {WHO_LABEL[w]} <span className="num">{fmt(counts[w])}</span>
             </button>
           ))}
@@ -133,7 +128,7 @@ export function PeopleView({ s, set, firmCount }: { s: RolodexSearch; set: Set; 
               ))}
             </div>
           ) : (
-            <Empty filtered={peopleFiltered(f)} q={s.q} who={who} onClear={clearAll} onEveryone={() => set({ who: 'everyone' })} />
+            <Empty filtered={peopleFiltered(f)} q={s.q} who={who} onClear={clearAll} onAll={() => set({ who: undefined })} />
           )}
           {sentinel}
           {rows.length ? <p className="inv-foot">{shown.length < rows.length ? `Showing ${fmt(shown.length)} of ${fmt(rows.length)} · scroll for more` : `Showing all ${fmt(rows.length)}`}</p> : null}
@@ -167,7 +162,7 @@ function PersonRow({ p, on, firmsByKey, onOpen }: { p: RolodexPerson; on: boolea
   const place = placeOf(p, firmsByKey)
   const tone = p.roleStatus === 'current' ? 'selected' : 'outline'
   return (
-    <div role="row" tabIndex={0} data-nav-id={p._id} className={'intro-row rdx-prow' + (on ? ' is-selected' : '') + (p.shortlist ? '' : ' is-out')} aria-selected={on} onClick={onOpen} onKeyDown={openOnKey(onOpen)}>
+    <div role="row" tabIndex={0} data-nav-id={p._id} className={'intro-row rdx-prow' + (on ? ' is-selected' : '')} aria-selected={on} onClick={onOpen} onKeyDown={openOnKey(onOpen)}>
       <span role="cell" className="intro-row__who">
         <span className={'enrich-avatar' + (on ? ' enrich-avatar--main' : '')} aria-hidden="true">
           {initials(p.name)}
@@ -202,7 +197,7 @@ function PersonRow({ p, on, firmsByKey, onOpen }: { p: RolodexPerson; on: boolea
   )
 }
 
-function Empty({ filtered, q, who, onClear, onEveryone }: { filtered: boolean; q?: string; who: Who; onClear: () => void; onEveryone: () => void }) {
+function Empty({ filtered, q, who, onClear, onAll }: { filtered: boolean; q?: string; who: Who; onClear: () => void; onAll: () => void }) {
   const x = useRolodex()
   if (!x.meta && !x.people.length)
     return (
@@ -220,9 +215,9 @@ function Empty({ filtered, q, who, onClear, onEveryone }: { filtered: boolean; q
             Clear filters
           </Button>
         ) : null}
-        {who !== 'everyone' ? (
-          <Button variant="ghost" onClick={onEveryone}>
-            Look in Everyone
+        {who !== 'shortlist' ? (
+          <Button variant="ghost" onClick={onAll}>
+            Look in All
           </Button>
         ) : null}
       </div>

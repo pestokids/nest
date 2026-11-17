@@ -1,10 +1,10 @@
 // Rolodex under ?preview: made-up people and firms (every name, firm, company and
 // link here is invented). Covers each filter: investors at each tier and location,
-// founders of funded and unfunded companies, execs, people left out, every campus
-// and batch. `&rolodex=firms|person|firm|filtered|empty|loading|leftout` picks a state.
+// founders and execs of funded companies, every campus and batch, and a firm we
+// couldn't identify. `&rolodex=firms|person|firm|filtered|empty|loading` picks a state.
 import type { RolodexFirm, RolodexMeta, RolodexPerson, RolodexPersonFull, Timing } from '../lib/rolodex'
 
-export const PREVIEW_ROLODEX = ['firms', 'person', 'firm', 'filtered', 'empty', 'loading', 'leftout'] as const
+export const PREVIEW_ROLODEX = ['firms', 'person', 'firm', 'filtered', 'empty', 'loading'] as const
 
 type F = Omit<RolodexFirm, '_id' | 'personIds' | 'people' | 'vcPeople' | 'angelPeople' | 'peopleThereNow'>
 const FIRMS: F[] = [
@@ -18,7 +18,6 @@ const FIRMS: F[] = [
   { key: 'id:9008', name: 'Ferncrest Growth', type: 'PE / growth', tier: 'Tier 1', confidence: 'high', geo: 'India', hq: 'Bengaluru, Karnataka, India', hqCountryCode: 'IN', indiaPresence: 'yes', geoSource: 'knowledge', headcount: 120 },
   { key: 'id:9009', name: 'Tidewater Ventures', type: 'Corporate VC', tier: 'Tier 2', confidence: 'high', geo: 'Germany firm, India office', hq: 'Munich, Bavaria, Germany', hqCountryCode: 'DE', officeCountries: ['IN', 'US'], indiaPresence: 'yes', geoSource: 'crustdata', headcount: 110 },
   { key: 'id:9010', name: 'Quarry Labs', type: 'Unknown', geo: 'US', hqCountryCode: 'US', indiaPresence: 'no', geoSource: 'job_record', headcount: 3 },
-  { key: 'id:9011', name: 'Glasswing Asset Management', type: 'Asset manager / bank', geo: 'United Kingdom', hqCountryCode: 'GB', indiaPresence: 'no', geoSource: 'crustdata', headcount: 900 },
   { key: 'id:9012', name: 'Harbour Dubai Holdings', type: 'Family office / holding', geo: 'United Arab Emirates', hq: 'Dubai, United Arab Emirates', hqCountryCode: 'AE', indiaPresence: 'no', geoSource: 'crustdata', headcount: 300 },
 ]
 
@@ -51,12 +50,6 @@ const SEED: P[] = [
   { name: 'Ayesha Khan', role: 'exec', roleStatus: before, exec: before, currentRole: 'employee', currentTitle: 'Head of Growth', currentCompany: 'Bramble Pay', countryCode: 'GB', country: 'United Kingdom', city: 'London', campus: 'Hyderabad', gradYear: 2015, fundedCompanies: 'Saffron Rails (acquired)' },
   { name: 'Gaurav Malhotra', role: 'exec', roleStatus: now, exec: now, currentRole: 'exec', currentTitle: 'CTO', currentCompany: 'Ferrytale Games', countryCode: 'IN', country: 'India', city: 'Pune', campus: 'Pilani', gradYear: 2005, fundedCompanies: 'Ferrytale Games (funded)' },
   { name: 'Lakshmi Narayan', role: 'exec', roleStatus: now, exec: now, currentRole: 'exec', currentTitle: 'Chief Operating Officer', currentCompany: 'Copperleaf Health', countryCode: 'US', country: 'United States', city: 'Seattle', campus: 'Pilani', gradYear: 1988, fundedCompanies: 'Copperleaf Health (funded)' },
-  // left out
-  { name: 'Rahul Dutta', role: 'founder', roleStatus: now, founder: now, currentRole: 'founder', currentTitle: 'Founder', currentCompany: 'Tinroof Studio', countryCode: 'IN', country: 'India', city: 'Kolkata', campus: 'Pilani', gradYear: 2020, shortlist: false, fundingCheck: 'unfunded', unfundedCompanies: 'Tinroof Studio (not_funded)' },
-  { name: 'Pooja Shetty', role: 'founder', roleStatus: now, founder: now, currentRole: 'founder', currentTitle: 'Founder', currentCompany: 'Stealth Startup', countryCode: 'US', country: 'United States', city: 'San Jose', campus: 'Goa', gradYear: 2014, shortlist: false, fundingCheck: 'unverifiable', unverifiableCompanies: 'Stealth Startup (unknown)' },
-  { name: 'Varun Chopra', role: 'exec', roleStatus: before, exec: before, currentRole: 'employee', currentTitle: 'Senior Manager', currentCompany: 'Mapleworks', countryCode: 'IN', country: 'India', city: 'Noida', campus: 'Pilani', gradYear: 2002, shortlist: false, fundingCheck: 'unfunded', unfundedCompanies: 'Brightrail Infotech (not_funded)' },
-  { name: 'Zoya Mirza', role: 'founder', roleStatus: before, founder: before, currentRole: 'employee', currentTitle: 'Designer', currentCompany: 'Self-employed', countryCode: 'IN', country: 'India', city: 'Hyderabad', campus: 'Hyderabad', gradYear: 2019, shortlist: false, fundingCheck: 'unverifiable', unverifiableCompanies: 'Self-employed (unknown)' },
-  { name: 'Kabir Anand', role: 'none', currentRole: 'employee', currentTitle: 'Advisor to CEO', currentCompany: 'Brightrail Infotech', countryCode: 'IN', country: 'India', city: 'Mumbai', campus: 'Pilani', gradYear: 2011, shortlist: false, fundingCheck: 'not_qualified' },
 ]
 
 let idn = 0

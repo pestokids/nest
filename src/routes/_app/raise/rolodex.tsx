@@ -7,7 +7,7 @@ import { usePreviewState } from '../../../components/preview-state'
 import { Card } from '../../../components/ui'
 import { matchesFirm, validateRolodexSearch, type RolodexSearch } from '../../../lib/rolodex'
 
-// Rolodex: everyone from the fundraising research, and the investor firms they work at.
+// Rolodex: the shortlist from the fundraising research, and the investor firms they work at.
 // Filters live in the URL (src/lib/rolodex.ts validateRolodexSearch), so a filtered view is a link.
 export const Route = createFileRoute('/_app/raise/rolodex')({
   validateSearch: validateRolodexSearch,
@@ -37,7 +37,7 @@ function Rolodex() {
   return s.view === 'firms' ? <FirmsView s={s} set={set} peopleCount={x.meta?.people ?? x.people.length} /> : <PeopleView s={s} set={set} firmCount={investing} />
 }
 
-/** ?preview&rolodex=firms|person|firm|filtered|leftout: open that state once the fixture is in. */
+/** ?preview&rolodex=firms|person|firm|filtered: open that state once the fixture is in. */
 function usePreviewStates(set: (patch: Partial<RolodexSearch>) => void) {
   const flag = usePreviewState()?.rolodex
   const x = useRolodex()
@@ -49,6 +49,5 @@ function usePreviewStates(set: (patch: Partial<RolodexSearch>) => void) {
     else if (flag === 'firm') set({ view: 'firms', open: x.firms.find((f) => f.name === 'Orchard Capital')?.key })
     else if (flag === 'person') set({ person: x.people.find((p) => p.name === 'Nikhil Arora')?._id })
     else if (flag === 'filtered') set({ who: 'investors', country: 'IN', when: 'now' })
-    else if (flag === 'leftout') set({ who: 'leftout' })
   }, [flag, x.people, x.firms, set])
 }

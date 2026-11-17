@@ -214,7 +214,7 @@ export function Preview() {
   /* ---------- PST-307: &advisor=empty|chat|story|blocks|streaming|cap|panel ---------- */
   const advisorState = { advisor: (PREVIEW_ADVISOR as readonly string[]).includes(q.get('advisor') ?? '') ? q.get('advisor') : null }
   /* ---------- end PST-307 ---------- */
-  /* ---------- Rolodex: &rolodex=firms|person|firm|filtered|empty|loading|leftout ---------- */
+  /* ---------- Rolodex: &rolodex=firms|person|firm|filtered|empty|loading ---------- */
   const rolodexState = { rolodex: (PREVIEW_ROLODEX as readonly string[]).includes(q.get('rolodex') ?? '') ? q.get('rolodex') : null }
   /* ---------- end Rolodex ---------- */
   return (
