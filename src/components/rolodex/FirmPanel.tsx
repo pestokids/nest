@@ -29,7 +29,7 @@ export function FirmPanel({ firm: f }: { firm: RolodexFirm }) {
   const inPipeline = d.investors.filter((i) => normName(i.firm || i.name) === normName(f.name))
   const offices = (f.officeCountries ?? []).filter((c) => c !== f.hqCountryCode)
 
-  const openPerson = (id: string) => navigate({ from: '/raise/rolodex', to: '/raise/rolodex', search: (s) => ({ ...s, view: undefined, who: 'everyone' as const, firm: f.key, person: id }) })
+  const openPerson = (id: string) => navigate({ from: '/raise/rolodex', to: '/raise/rolodex', search: (s) => ({ ...s, view: undefined, who: undefined, firm: f.key, person: id }) })
 
   return (
     <Card as="section" className="intro-panel rdx-panel" aria-labelledby={titleId}>
@@ -60,6 +60,7 @@ export function FirmPanel({ firm: f }: { firm: RolodexFirm }) {
         </Chip>
       </div>
 
+      {f.website || f.linkedinUrl || inPipeline.length ? (
       <div className="rdx-panel__acts">
         {f.website ? <LinkButton href={f.website}>Website</LinkButton> : null}
         {f.linkedinUrl ? <LinkButton href={f.linkedinUrl}>LinkedIn</LinkButton> : null}
@@ -69,6 +70,7 @@ export function FirmPanel({ firm: f }: { firm: RolodexFirm }) {
           </Button>
         ) : null}
       </div>
+      ) : null}
 
       {f.note ? <p className="intro-panel__howtext rdx-note">{f.note[0].toUpperCase() + f.note.slice(1)}.</p> : null}
 
@@ -104,7 +106,7 @@ export function FirmPanel({ firm: f }: { firm: RolodexFirm }) {
         <p className="intro-panel__howtext">{x.peopleDone ? 'No one from the list.' : 'Loading people…'}</p>
       )}
       {people.length > 25 || missing > 0 ? (
-        <button type="button" className="intro-list__more" onClick={() => void navigate({ from: '/raise/rolodex', to: '/raise/rolodex', search: (s) => ({ ...s, view: undefined, who: 'everyone' as const, firm: f.key, person: undefined }) })}>
+        <button type="button" className="intro-list__more" onClick={() => void navigate({ from: '/raise/rolodex', to: '/raise/rolodex', search: (s) => ({ ...s, view: undefined, who: undefined, firm: f.key, person: undefined }) })}>
           {people.length > 25 ? `See all ${fmt(f.people)} in People` : 'See them in People'}
         </button>
       ) : null}

@@ -1,5 +1,5 @@
-// Rolodex › Firms: every investor organisation someone from the list works or worked
-// at. Chips by kind (VC funds, Micro VCs, Accelerators, Angels…) with counts, then
+// Rolodex › Firms: every investing organisation (and ones we couldn't identify) someone
+// from the shortlist works or worked at. Chips by kind (VC funds, Micro VCs, Accelerators, Angels…) with counts, then
 // tier and location (India, US, a US firm with an India office…). Rows open the
 // firm's panel: what it is, where it is, and our people there.
 import { useMemo, useRef } from 'react'
@@ -18,8 +18,8 @@ import { FirmPanel } from './FirmPanel'
 import { Bar, exportRows, FilterChips, fmt, RolodexViews, Sel, TIER_TONE, useMore, type FilterChip } from './parts'
 
 type Set = (patch: Partial<RolodexSearch>) => void
-/** The chips shown: the rest ("Not investors", "Everything") sit at the end. */
-const KIND_CHIPS: Kind[] = ['investors', 'vc', 'micro', 'acc', 'angels', 'other', 'unknown', 'not']
+/** The chips shown ("Everything" is investors and unknown together). */
+const KIND_CHIPS: Kind[] = ['investors', 'vc', 'micro', 'acc', 'angels', 'other', 'unknown']
 
 export function FirmsView({ s, set, peopleCount }: { s: RolodexSearch; set: Set; peopleCount: number | null }) {
   const x = useRolodex()

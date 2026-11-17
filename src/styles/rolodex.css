@@ -21,7 +21,6 @@
 .rdx-frow { --cols: minmax(0, 1.4fr) minmax(0, 0.9fr) 60px minmax(0, 1fr) 52px 52px; }
 .rdx-table .intro-row > span { min-width: 0; padding-right: 10px; }
 .rdx-table .intro-row__who .intro-row__text small { max-width: 100%; }
-.rdx-prow.is-out .intro-row__text strong { color: var(--text-secondary); font-weight: 500; }
 
 .rdx-chip.chip { height: 26px; padding: 0 10px; font-size: 12px; white-space: nowrap; }
 .rdx-prow__place { display: flex; flex-direction: column; gap: 3px; }
@@ -55,7 +54,6 @@
 .rdx-co { color: var(--text-primary); font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
 .rdx-meta { flex: none; max-width: 60%; text-align: right; font-size: 13px; color: var(--text-muted); }
 .rdx-note { margin-top: 16px; }
-.rdx-out { color: var(--text-orange-deep); }
 .rdx-a { color: var(--brand-leaf); font-weight: 600; text-decoration: none; }
 .rdx-a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .rdx-source { margin: 22px 0 0; padding-top: 14px; border-top: 1px solid var(--line-default); font-size: 13px; line-height: 1.45; color: var(--text-faint); }

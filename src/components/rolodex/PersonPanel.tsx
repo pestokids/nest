@@ -1,12 +1,12 @@
 // Rolodex › People: one person's panel. Everything the research kept about them,
 // their firms (each opens in Firms) and companies with funding status, why they're
-// on the list or left out, and two ways in: Add to pipeline (investors: the Add
+// on the shortlist, and two ways in: Add to pipeline (investors: the Add
 // investor drawer with their name) or Add to Network (founders and execs).
 import { useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { normName } from '../../lib/introducers'
 import {
-  batchText, companyList, COMPANY_STATUS_LABEL, CURRENT_LABEL, flag, initials, LEFT_OUT_WHY, ROLE_LABEL, TIMING_LABEL, whyText,
+  batchText, companyList, COMPANY_STATUS_LABEL, CURRENT_LABEL, flag, initials, ROLE_LABEL, TIMING_LABEL, whyText,
   type RoleKey, type RolodexFirm, type RolodexPerson,
 } from '../../lib/rolodex'
 import { play } from '../../lib/sound'
@@ -59,9 +59,6 @@ export function PersonPanel({ id, row, firmsByKey }: { id: string; row: RolodexP
             {p.bestFirmTier} firm
           </Chip>
         ) : null}
-        <Chip tone={p.shortlist ? 'success' : 'muted'} dot={false}>
-          {p.shortlist ? 'Shortlist' : 'Left out'}
-        </Chip>
       </div>
 
       <Actions p={p} />
@@ -122,7 +119,6 @@ export function PersonPanel({ id, row, firmsByKey }: { id: string; row: RolodexP
 
       <h3 className="intro-panel__how eyebrow-mono">Why they’re here</h3>
       <p className="intro-panel__howtext">{whyText(full?.whyIncluded).join(' · ') || roleTextFor(p)}</p>
-      {!p.shortlist && LEFT_OUT_WHY[p.fundingCheck] ? <p className="intro-panel__howtext rdx-out">Left out: {LEFT_OUT_WHY[p.fundingCheck]}</p> : null}
 
       <h3 className="intro-panel__how eyebrow-mono">BITS and where</h3>
       <p className="intro-panel__howtext">

@@ -11,26 +11,23 @@ const P = [
   person({ name: 'Bo', role: 'vc', roleStatus: 'past', vc: 'past', founder: 'current', fundingCheck: 'investor', countryCode: 'US', country: 'United States', bestFirmTier: 'Tier 2', gradYear: 2004, campus: 'Goa' }),
   person({ name: 'Cyra', roleStatus: 'current', founder: 'current', countryCode: 'IN', country: 'India', gradYear: 2019, campus: 'Hyderabad', fundedCompanies: 'Inkwell (funded); Fold (acquired)' }),
   person({ name: 'Dev', role: 'exec', roleStatus: 'past', exec: 'past', countryCode: 'GB', country: 'United Kingdom', gradYear: 1987 }),
-  person({ name: 'Esa', roleStatus: 'current', founder: 'current', shortlist: false, fundingCheck: 'unfunded', countryCode: 'IN', country: 'India', gradYear: 2021 }),
-  person({ name: 'Fen', roleStatus: 'past', founder: 'past', shortlist: false, fundingCheck: 'unverifiable' }),
 ]
 
 describe('people filters', () => {
-  it('the who chips count each group, and Shortlist is the default', () => {
-    expect(whoCounts(P, {})).toEqual({ shortlist: 4, investors: 2, founders: 2, execs: 1, leftout: 2, everyone: 6 })
+  it('the who chips count each group, and All is the default', () => {
+    expect(whoCounts(P, {})).toEqual({ shortlist: 4, investors: 2, founders: 2, execs: 1 })
     expect(P.filter((p) => matchesPeople(p, {})).map((p) => p.name)).toEqual(['Asha', 'Bo', 'Cyra', 'Dev'])
   })
   it('Now and Before follow the chip: Investors now are investing today, Founders before founded in the past', () => {
     expect(P.filter((p) => matchesPeople(p, { who: 'investors', when: 'now' })).map((p) => p.name)).toEqual(['Asha'])
     expect(P.filter((p) => matchesPeople(p, { who: 'investors', when: 'before' })).map((p) => p.name)).toEqual(['Bo'])
-    expect(P.filter((p) => matchesPeople(p, { who: 'everyone', when: 'before' })).map((p) => p.name)).toEqual(['Bo', 'Dev', 'Fen'])
+    expect(P.filter((p) => matchesPeople(p, { when: 'before' })).map((p) => p.name)).toEqual(['Bo', 'Dev'])
   })
-  it('country, tier, campus, batch, funding, firm and search combine', () => {
-    expect(P.filter((p) => matchesPeople(p, { who: 'everyone', country: 'IN' })).map((p) => p.name)).toEqual(['Asha', 'Cyra', 'Esa'])
+  it('country, tier, campus, batch, firm and search combine', () => {
+    expect(P.filter((p) => matchesPeople(p, { country: 'IN' })).map((p) => p.name)).toEqual(['Asha', 'Cyra'])
     expect(P.filter((p) => matchesPeople(p, { tier: 'Tier 1' })).map((p) => p.name)).toEqual(['Asha'])
     expect(P.filter((p) => matchesPeople(p, { campus: 'Goa' })).map((p) => p.name)).toEqual(['Bo'])
     expect(P.filter((p) => matchesPeople(p, { batch: 'earlier' })).map((p) => p.name)).toEqual(['Dev'])
-    expect(P.filter((p) => matchesPeople(p, { who: 'leftout', funding: 'unverifiable' })).map((p) => p.name)).toEqual(['Fen'])
     expect(P.filter((p) => matchesPeople(p, { firm: 'id:1' })).map((p) => p.name)).toEqual(['Asha'])
     expect(P.filter((p) => matchesPeople(p, { q: 'inkwell' })).map((p) => p.name)).toEqual(['Cyra'])
   })
@@ -62,7 +59,7 @@ describe('labels', () => {
     expect(flag('')).toBe('')
   })
   it('CSV rows hold the columns in header order', () => {
-    expect(peopleCsvRows([P[2]])[0]).toEqual(['Cyra', '', 'Founder', 'now', 'Employee', '', '', '', 'Inkwell; Fold', 'India', '', 'Hyderabad', '2019', 'yes', 'Funded company'])
+    expect(peopleCsvRows([P[2]])[0]).toEqual(['Cyra', '', 'Founder', 'now', 'Employee', '', '', '', 'Inkwell; Fold', 'India', '', 'Hyderabad', '2019', 'Funded company'])
   })
 })
 
@@ -77,8 +74,8 @@ const F = [
 ]
 
 describe('firms', () => {
-  it('kinds: investors by default; not investors and unknown apart', () => {
-    expect(kindCounts(F, {})).toMatchObject({ investors: 4, vc: 1, micro: 1, acc: 1, angels: 1, unknown: 1, not: 1, all: 6 })
+  it('kinds: investors by default; unknown apart; Everything is both', () => {
+    expect(kindCounts(F, {})).toMatchObject({ investors: 4, vc: 1, micro: 1, acc: 1, angels: 1, unknown: 1, all: 6 })
     expect(inKind(F[3], 'investors')).toBe(false)
   })
   it('location: India, US, US with an India office, others with one, elsewhere, unknown', () => {

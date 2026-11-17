@@ -103,12 +103,6 @@ export const FUNDING_LABEL: Record<FundingCheck, string> = {
   unverifiable: 'Couldn’t check',
   not_qualified: 'Not a match',
 }
-/** Why a person is left out of the shortlist, said plainly (the panel). */
-export const LEFT_OUT_WHY: Partial<Record<FundingCheck, string>> = {
-  unfunded: 'Every company they founded or ran was checked, and none has funding on record.',
-  unverifiable: 'None of their companies could be checked: no Crustdata record, in stealth, or self-employed.',
-  not_qualified: 'Matched the search, but their title only names someone else’s role (e.g. Advisor to CEO).',
-}
 const WHY_LABEL: Record<string, string> = {
   founder: 'Founder', csuite: 'C-suite', investor_title: 'Investor title', vc_firm: 'At a VC/PE firm', investment_mgmt: 'Investment role',
 }
@@ -166,18 +160,16 @@ export function batchText(p: Pick<RolodexPerson, 'campus' | 'gradYear'>) {
 
 /* ---------- People: filters ---------- */
 
-export const WHO = ['shortlist', 'investors', 'founders', 'execs', 'leftout', 'everyone'] as const
+/** The Rolodex holds only the shortlist (decided 2026-11-17), so 'shortlist' is everyone in it. */
+export const WHO = ['shortlist', 'investors', 'founders', 'execs'] as const
 export type Who = (typeof WHO)[number]
-export const WHO_LABEL: Record<Who, string> = { shortlist: 'Shortlist', investors: 'Investors', founders: 'Founders', execs: 'Execs', leftout: 'Left out', everyone: 'Everyone' }
+export const WHO_LABEL: Record<Who, string> = { shortlist: 'All', investors: 'Investors', founders: 'Founders', execs: 'Execs' }
 export const WHEN = ['now', 'before'] as const
 export type When = (typeof WHEN)[number]
 export const TIERS = ['Tier 1', 'Tier 2', 'Tier 3'] as const
 export const CAMPUSES = ['Pilani', 'Goa', 'Hyderabad', 'Dubai'] as const
 export const BATCHES = ['2020s', '2010s', '2000s', '1990s', 'earlier'] as const
 export type Batch = (typeof BATCHES)[number]
-export const FUNDING = ['funded', 'unfunded', 'unverifiable'] as const
-export type FundingFilter = (typeof FUNDING)[number]
-export const FUNDING_FILTER_LABEL: Record<FundingFilter, string> = { funded: 'Funded company', unfunded: 'No funding found', unverifiable: 'Couldn’t check' }
 export const PEOPLE_SORTS = ['name', 'tier', 'batch', 'country'] as const
 export type PeopleSort = (typeof PEOPLE_SORTS)[number]
 export const PEOPLE_SORT_LABEL: Record<PeopleSort, string> = { name: 'Name', tier: 'Firm tier', batch: 'Newest batch', country: 'Country' }
@@ -190,7 +182,6 @@ export type PeopleFilters = {
   tier?: (typeof TIERS)[number]
   campus?: (typeof CAMPUSES)[number]
   batch?: Batch
-  funding?: FundingFilter
   /** A firm's key: its people (from a firm's panel). */
   firm?: string
 }
@@ -204,8 +195,6 @@ export function inWho(p: RolodexPerson, who: Who = 'shortlist') {
     case 'investors': return isInvestor(p)
     case 'founders': return p.shortlist && !!p.founder
     case 'execs': return p.shortlist && !!p.exec
-    case 'leftout': return !p.shortlist
-    case 'everyone': return true
   }
 }
 
@@ -227,9 +216,6 @@ export function batchOf(year?: number): Batch | undefined {
   return 'earlier'
 }
 
-const fundingOf = (p: RolodexPerson): FundingFilter | undefined =>
-  p.fundingCheck === 'funded_company' ? 'funded' : p.fundingCheck === 'unfunded' ? 'unfunded' : p.fundingCheck === 'unverifiable' ? 'unverifiable' : undefined
-
 /** Text search over the name, title, company, headline and funded companies. */
 export function matchesQuery(p: RolodexPerson, q: string) {
   if (!q) return true
@@ -247,7 +233,6 @@ export function matchesPeople(p: RolodexPerson, f: PeopleFilters, skip?: keyof P
     (skip === 'tier' || !f.tier || p.bestFirmTier === f.tier) &&
     (skip === 'campus' || !f.campus || (p.campus ?? '').includes(f.campus)) &&
     (skip === 'batch' || !f.batch || batchOf(p.gradYear) === f.batch) &&
-    (skip === 'funding' || !f.funding || fundingOf(p) === f.funding) &&
     (skip === 'firm' || !f.firm || (p.firmKeys ?? []).includes(f.firm)) &&
     (skip === 'q' || matchesQuery(p, q))
   )
@@ -290,7 +275,7 @@ export function countryOptions(rows: RolodexPerson[], f: PeopleFilters): { code:
 }
 
 /** How many people each option of a select would show, with the other filters as they are. */
-export function optionCounts<K extends 'tier' | 'campus' | 'batch' | 'funding' | 'when'>(rows: RolodexPerson[], f: PeopleFilters, key: K, options: readonly NonNullable<PeopleFilters[K]>[]) {
+export function optionCounts<K extends 'tier' | 'campus' | 'batch' | 'when'>(rows: RolodexPerson[], f: PeopleFilters, key: K, options: readonly NonNullable<PeopleFilters[K]>[]) {
   const out = new Map<string, number>()
   for (const o of options) out.set(String(o), 0)
   for (const p of rows) {
@@ -300,16 +285,17 @@ export function optionCounts<K extends 'tier' | 'campus' | 'batch' | 'funding' |
   return out
 }
 
-export const peopleFiltered = (f: PeopleFilters) => !!(f.q || f.when || f.country || f.tier || f.campus || f.batch || f.funding || f.firm)
+export const peopleFiltered = (f: PeopleFilters) => !!(f.q || f.when || f.country || f.tier || f.campus || f.batch || f.firm)
 
 /* ---------- Firms ---------- */
 
 /** Types that invest (the default view). */
 export const INVESTING_TYPES = ['VC fund', 'Micro VC', 'Accelerator / incubator', 'Angel network', 'Individual angel', 'Corporate VC', 'PE / growth', 'Family office / holding', 'Govt / DFI'] as const
-export const KINDS = ['investors', 'vc', 'micro', 'acc', 'angels', 'other', 'unknown', 'not', 'all'] as const
+/** The Rolodex holds only investing firms and unknown ones (decided 2026-11-17); 'all' is both. */
+export const KINDS = ['investors', 'vc', 'micro', 'acc', 'angels', 'other', 'unknown', 'all'] as const
 export type Kind = (typeof KINDS)[number]
 export const KIND_LABEL: Record<Kind, string> = {
-  investors: 'All investors', vc: 'VC funds', micro: 'Micro VCs', acc: 'Accelerators', angels: 'Angels', other: 'CVC, PE & others', unknown: 'Unknown', not: 'Not investors', all: 'Everything',
+  investors: 'All investors', vc: 'VC funds', micro: 'Micro VCs', acc: 'Accelerators', angels: 'Angels', other: 'CVC, PE & others', unknown: 'Unknown', all: 'Everything',
 }
 const KIND_TYPES: Partial<Record<Kind, readonly string[]>> = {
   investors: INVESTING_TYPES,
@@ -323,7 +309,6 @@ const KIND_TYPES: Partial<Record<Kind, readonly string[]>> = {
 export const isInvestingType = (t: string) => (INVESTING_TYPES as readonly string[]).includes(t)
 export function inKind(f: Pick<RolodexFirm, 'type'>, kind: Kind = 'investors') {
   if (kind === 'all') return true
-  if (kind === 'not') return !isInvestingType(f.type) && f.type !== 'Unknown'
   return (KIND_TYPES[kind] ?? []).includes(f.type)
 }
 
@@ -391,12 +376,12 @@ export const firmsFiltered = (x: FirmFilters) => !!(x.q || x.tier || x.loc || x.
 
 /* ---------- CSV ---------- */
 
-export const PEOPLE_CSV_HEADERS = ['name', 'linkedin', 'role', 'when', 'doing now', 'title', 'company', 'firm tier', 'funded companies', 'country', 'city', 'campus', 'graduated', 'shortlist', 'why'] as const
+export const PEOPLE_CSV_HEADERS = ['name', 'linkedin', 'role', 'when', 'doing now', 'title', 'company', 'firm tier', 'funded companies', 'country', 'city', 'campus', 'graduated', 'why'] as const
 export function peopleCsvRows(rows: RolodexPerson[]): string[][] {
   return rows.map((p) => [
     p.name, p.linkedinUrl ?? '', p.role === 'none' ? '' : ROLE_LABEL[p.role], p.roleStatus ? TIMING_LABEL[p.roleStatus] : '', CURRENT_LABEL[p.currentRole],
     p.currentTitle ?? '', p.currentCompany ?? '', p.bestFirmTier ?? '', companyList(p.fundedCompanies).map((c) => c.name).join('; '),
-    p.country ?? '', p.city ?? '', p.campus ?? '', p.gradYear ? String(p.gradYear) : '', p.shortlist ? 'yes' : 'no', FUNDING_LABEL[p.fundingCheck],
+    p.country ?? '', p.city ?? '', p.campus ?? '', p.gradYear ? String(p.gradYear) : '', FUNDING_LABEL[p.fundingCheck],
   ])
 }
 export const FIRM_CSV_HEADERS = ['name', 'type', 'tier', 'location', 'hq', 'india office', 'our people', 'there now', 'headcount', 'website', 'linkedin', 'confidence'] as const
@@ -437,7 +422,6 @@ export function validateRolodexSearch(s: Record<string, unknown>): RolodexSearch
     tier: oneOf(TIERS, s.tier),
     campus: oneOf(CAMPUSES, s.campus),
     batch: oneOf(BATCHES, s.batch),
-    funding: oneOf(FUNDING, s.funding),
     firm: str(s.firm),
     sort: oneOf(PEOPLE_SORTS, s.sort),
     person: str(s.person),
