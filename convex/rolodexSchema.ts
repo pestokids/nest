@@ -57,6 +57,17 @@ export const rolodexPersonFields = {
   investorKeys: v.optional(v.array(v.string())),
   /** The companies they founded that were researched (rolodexCompanies.key). */
   companyKeys: v.optional(v.array(v.string())),
+  /** Every company they founded or ran, with what they did there (the panel says the role, not just the company). */
+  companyRoles: v.optional(
+    v.array(
+      v.object({
+        key: v.string(),
+        name: v.string(),
+        status: v.string(),
+        jobs: v.array(v.object({ role: v.union(v.literal('founder'), v.literal('exec')), title: v.string(), from: v.optional(v.string()), to: v.optional(v.string()) })),
+      }),
+    ),
+  ),
   bestFirmTier: v.optional(v.string()),
   whyIncluded: v.optional(v.string()),
   otherSchools: v.optional(v.string()),

@@ -7,7 +7,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { normName } from '../../lib/introducers'
 import {
-  backingTiming, batchText, companyList, COMPANY_STATUS_LABEL, CURRENT_LABEL, flag, initials, ROLE_LABEL, SOURCE_TEXT, TIMING_LABEL, TIMING_TEXT, whyText,
+  backingTiming, batchText, companyList, yearsText, type CompanyRole, COMPANY_STATUS_LABEL, CURRENT_LABEL, flag, initials, ROLE_LABEL, SOURCE_TEXT, TIMING_LABEL, TIMING_TEXT, whyText,
   type RoleKey, type RolodexCompany, type RolodexFirm, type RolodexPerson,
 } from '../../lib/rolodex'
 import { play } from '../../lib/sound'
@@ -100,7 +100,30 @@ export function PersonPanel({ id, row, firmsByKey }: { id: string; row: RolodexP
         </>
       ) : null}
 
-      {companies.length ? (
+      {full?.companyRoles?.length ? (
+        <>
+          <h3 className="intro-panel__how eyebrow-mono">Companies they founded or ran</h3>
+          <ul className="rdx-list rdx-backed">
+            {sortRoles(full.companyRoles).map((c) => (
+              <li key={c.key} className="rdx-backed__co">
+                <div className="rdx-backed__head">
+                  <span className="rdx-co">{c.name}</span>
+                  {c.status ? (
+                    <Chip tone={STATUS_TONE[c.status] ?? 'neutral'} dot={false} className="rdx-chip">
+                      {COMPANY_STATUS_LABEL[c.status] ?? c.status}
+                    </Chip>
+                  ) : null}
+                </div>
+                {c.jobs.map((j, i) => (
+                  <p key={i} className="rdx-backed__rounds">
+                    {[j.title, yearsText(j.from, j.to)].filter(Boolean).join(' · ')}
+                  </p>
+                ))}
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : companies.length ? (
         <>
           <h3 className="intro-panel__how eyebrow-mono">Companies they founded or ran</h3>
           <ul className="rdx-list rdx-list--rows">
@@ -186,6 +209,13 @@ function Raised({ companies, personId, onInvestor }: { companies: RolodexCompany
       </ul>
     </>
   )
+}
+
+const STATUS_RANK: Record<string, number> = { funded: 0, acquired: 0, public: 0, not_funded: 1, unknown: 2, not_checked: 2 }
+/** Funded, acquired and public first, then the rest; newest job first within each. */
+function sortRoles(rows: CompanyRole[]) {
+  const latest = (c: CompanyRole) => c.jobs.reduce((m, j) => (j.to === 'now' ? '9999' : (j.to ?? j.from ?? '') > m ? (j.to ?? j.from ?? '') : m), '')
+  return [...rows].sort((a, b) => (STATUS_RANK[a.status] ?? 3) - (STATUS_RANK[b.status] ?? 3) || latest(b).localeCompare(latest(a)) || a.name.localeCompare(b.name))
 }
 
 const roleTextFor = (p: RolodexPerson) => (p.role === 'none' ? 'Matched the search, but not as a founder, exec or investor.' : `${ROLE_LABEL[p.role]} ${p.roleStatus ? TIMING_LABEL[p.roleStatus] : ''}`)

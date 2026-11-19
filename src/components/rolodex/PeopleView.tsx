@@ -158,7 +158,10 @@ function placeOf(p: RolodexPerson, firmsByKey: Map<string, RolodexFirm>) {
   const rank = (t?: string) => (t === 'Tier 1' ? 1 : t === 'Tier 2' ? 2 : t === 'Tier 3' ? 3 : 9)
   const best = firms.sort((a, b) => rank(a.tier) - rank(b.tier))[0]
   if (best && (p.vc || p.angel)) return { name: best.name, tag: best.tier ?? best.type }
-  const funded = companyList(p.fundedCompanies)[0]
+  // The company they're at now when it's one of theirs, else the first: never a company they only worked at long ago by alphabet.
+  const fundedAll = companyList(p.fundedCompanies)
+  const now = (p.currentCompany ?? '').toLowerCase()
+  const funded = fundedAll.find((c) => now && c.name.toLowerCase() === now) ?? fundedAll[0]
   if (funded) return { name: funded.name, tag: funded.status === 'funded' ? 'Funded' : funded.status === 'acquired' ? 'Acquired' : funded.status === 'public' ? 'Public' : '' }
   return { name: p.currentCompany ?? '—', tag: '' }
 }

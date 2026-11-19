@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   backingTiming, batchOf, batchText, companyList, countryOptions, flag, groupCounts, investorCsvRows, investorListRow, investorOptionCounts, investorOptions,
-  investorPeopleCounts, locOf, matchesInvestor, shortGeo, matchesPeople, optionCounts, peopleCsvRows, roleText, sortInvestors, sortPeople, validateRolodexSearch, whoCounts, whyText,
+  investorPeopleCounts, locOf, matchesInvestor, shortGeo, matchesPeople, optionCounts, peopleCsvRows, roleText, sortInvestors, sortPeople, validateRolodexSearch, whoCounts, whyText, yearsText,
   type RolodexInvestor, type RolodexPerson,
 } from './rolodex'
 
@@ -60,6 +60,10 @@ describe('labels', () => {
     expect(whyText('founder_current; vc_firm_past')).toEqual(['Founder now', 'At a VC/PE firm before'])
     expect(flag('IN')).toBe('🇮🇳')
     expect(flag('')).toBe('')
+    expect(yearsText('2017-11', '2019-10')).toBe('2017–19')
+    expect(yearsText('2025-04', 'now')).toBe('2025–now')
+    expect(yearsText('2008-01', '2008-09')).toBe('2008')
+    expect(yearsText(undefined, undefined)).toBe('')
   })
   it('CSV rows hold the columns in header order', () => {
     expect(peopleCsvRows([P[2]])[0]).toEqual(['Cyra', '', 'Founder', 'now', 'Employee', '', '', '', 'Inkwell; Fold', 'India', '', 'Hyderabad', '2019', 'Funded company'])
