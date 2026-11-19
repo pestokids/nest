@@ -40,7 +40,14 @@ const SEED: P[] = [
   { name: 'Sana Qureshi', role: 'vc', roleStatus: now, vc: now, currentRole: 'vc', currentTitle: 'Venture Partner', currentCompany: 'Saltmarsh Fund', countryCode: 'US', country: 'United States', city: 'Austin', campus: 'Goa', gradYear: 2015, firmKeys: ['id:9007'], bestFirmTier: 'Tier 3' },
   { name: 'Devika Menon', role: 'angel', roleStatus: now, angel: now, founder: before, currentRole: 'angel', currentTitle: 'Angel Investor', currentCompany: 'Self', countryCode: 'AE', country: 'United Arab Emirates', city: 'Dubai', campus: 'Dubai', gradYear: 2008, fundedCompanies: 'Saffron Rails (acquired)' },
   { name: 'Tarun Gill', role: 'vc', roleStatus: before, vc: before, currentRole: 'employee', currentTitle: 'Product Lead', currentCompany: 'Mapleworks', countryCode: 'GB', country: 'United Kingdom', city: 'London', campus: 'Pilani', gradYear: 2016, firmKeys: ['id:9010'] },
-  { name: 'Nikhil Arora', role: 'founder', roleStatus: now, founder: now, exec: now, currentRole: 'founder', currentTitle: 'Founder & CEO', currentCompany: 'Storyloom', countryCode: 'IN', country: 'India', city: 'Bengaluru', campus: 'Pilani', gradYear: 2013, fundedCompanies: 'Storyloom (funded)', headline: 'Building Storyloom, picture books that talk back' },
+  {
+    name: 'Nikhil Arora', role: 'founder', roleStatus: now, founder: now, exec: now, currentRole: 'founder', currentTitle: 'Founder & CEO', currentCompany: 'Storyloom', countryCode: 'IN', country: 'India', city: 'Bengaluru', campus: 'Pilani', gradYear: 2013,
+    fundedCompanies: 'Orbitly (public); Storyloom (funded)', headline: 'Building Storyloom, picture books that talk back',
+    companyRoles: [
+      { key: 'id:8000', name: 'Storyloom', status: 'funded', jobs: [{ role: 'founder', title: 'Founder & CEO', from: '2019-04', to: 'now' }] },
+      { key: 'id:8100', name: 'Orbitly', status: 'public', jobs: [{ role: 'founder', title: 'Founder, Pocket Maps @ Orbitly Labs', from: '2015-02', to: '2018-11' }] },
+    ],
+  },
   { name: 'Priya Venkat', role: 'founder', roleStatus: now, founder: now, currentRole: 'founder', currentTitle: 'Co-founder', currentCompany: 'Kitepath Learning', countryCode: 'IN', country: 'India', city: 'Hyderabad', campus: 'Hyderabad', gradYear: 2016, fundedCompanies: 'Kitepath Learning (funded)' },
   { name: 'Aditya Saxena', role: 'founder', roleStatus: now, founder: now, currentRole: 'founder', currentTitle: 'Founder', currentCompany: 'Gridnest', countryCode: 'US', country: 'United States', city: 'New York', campus: 'Pilani', gradYear: 2007, fundedCompanies: 'Gridnest (funded); Tallow Systems (public)' },
   { name: 'Shreya Iyer', role: 'founder', roleStatus: before, founder: before, currentRole: 'employee', currentTitle: 'Director of Product', currentCompany: 'Bramble Pay', countryCode: 'SG', country: 'Singapore', city: 'Singapore', campus: 'Goa', gradYear: 2011, fundedCompanies: 'Quillnote (acquired)' },

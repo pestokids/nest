@@ -56,6 +56,25 @@ export type RolodexPersonFull = RolodexPerson & {
   twitter?: string
   githubUrl?: string
   companyKeys?: string[]
+  companyRoles?: CompanyRole[]
+}
+
+/** A company someone founded or ran, and what they did there. */
+export type CompanyRole = {
+  key: string
+  name: string
+  status: string
+  jobs: { role: 'founder' | 'exec'; title: string; from?: string; to?: string }[]
+}
+
+/** "2017–19", "2025–now", "2008" from "YYYY-MM" dates. */
+export function yearsText(from?: string, to?: string) {
+  const a = from?.slice(0, 4)
+  const b = to === 'now' ? 'now' : to?.slice(0, 4)
+  if (!a) return b && b !== 'now' ? `until ${b}` : ''
+  if (!b) return a
+  if (b === 'now') return `${a}–now`
+  return a === b ? a : `${a}–${b.slice(2)}`
 }
 
 export type RolodexFirm = {
