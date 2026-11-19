@@ -118,4 +118,6 @@
   .rdx-list--rows li { flex-wrap: wrap; }
   .rdx-meta { max-width: none; text-align: left; }
   .rdx-panel__acts .btn { flex: 1 1 auto; }
+  /* Names in the smaller backed-by text still get a 44px hit area. */
+  .rdx-backed__founders .intro-panel__inv::after { top: -14px; bottom: -14px; }
 }
