@@ -365,8 +365,11 @@ A row opens the person's panel:
 **Investors**: every fund, angel network, accelerator, corporate and angel who backed a company a founder on the list started.
 - **Chips:** All, Funds, Angels, Angel networks, Accelerators, Corporates & family offices, Other.
 - **Finding investors:** search by name or by a company they backed, or use the same investor picker to narrow the list to the investors picked.
-- **Sort:** most founders, most companies, or name.
-- **Selects:** Tier (for firms our people work at, classified by hand) and Source (Checked on the web).
+- **Selects:**
+  - **Tier:** 1–3. Firms our people work at keep their hand classification. Everyone else got a knowledge pass with the same definitions; angels are tiered only when well known.
+  - **Location:** India, US, US with an India office, Elsewhere with an India office, Elsewhere, Not known. Rows show the flag and country, plus 🇮🇳 for an India office.
+  - **Source:** Checked on the web.
+- **Sort:** most founders, most companies, name, or tier.
 
 A row opens the investor's panel:
 - Every company of ours they backed, with status, rounds, lead, and our founders there (each opens in People, marked "after they left" where it applies), and whether the link was checked on the web or is only on Crustdata's list.
