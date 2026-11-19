@@ -112,10 +112,16 @@ export const rolodexInvestorFields = {
   kind: vInvestorKind,
   /** Other spellings merged into this one. */
   aliases: v.optional(v.array(v.string())),
-  /** From the firm classification when it's a firm our people work at. */
+  /** Tier 1–3: by hand for firms our people work at, from a knowledge pass for the rest (angels only when well known). */
   tier: v.optional(v.string()),
+  /** high, med or low. */
+  tierConfidence: v.optional(v.string()),
   firmType: v.optional(v.string()),
+  /** "India", "US", "US firm, India office", "<Country> firm, India office", "<Country>", "Unknown". */
   geo: v.optional(v.string()),
+  /** HQ, or where an angel is based. */
+  hqCountryCode: v.optional(v.string()),
+  indiaPresence: v.optional(v.union(v.literal('yes'), v.literal('no'))),
   website: v.optional(v.string()),
   companyCount: v.number(),
   founderCount: v.number(),

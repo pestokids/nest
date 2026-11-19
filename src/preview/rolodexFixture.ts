@@ -91,19 +91,20 @@ const FIRM_ROWS: RolodexFirm[] = FIRMS.map((f) => {
 
 /* ---------- companies our founders started, and who invested ---------- */
 
-type Inv = { name: string; kind: InvestorKind; tier?: string; geo?: string }
+type Inv = { name: string; kind: InvestorKind; tier?: string; geo?: string; hqCountryCode?: string; indiaPresence?: 'yes' | 'no'; tierConfidence?: string }
+const IN = { geo: 'India', hqCountryCode: 'IN', indiaPresence: 'yes' as const }
 const INV: Record<string, Inv> = {
-  lantern: { name: 'Lantern Ventures', kind: 'vc', tier: 'Tier 1', geo: 'India' },
-  orchard: { name: 'Orchard Capital', kind: 'vc', tier: 'Tier 1', geo: 'US firm, India office' },
-  juniper: { name: 'Juniper Seed', kind: 'micro_vc', tier: 'Tier 2', geo: 'India' },
-  'kite angels': { name: 'Kite Angels', kind: 'angel_network', tier: 'Tier 2', geo: 'India' },
-  'northwind accelerator': { name: 'Northwind Accelerator', kind: 'accelerator', tier: 'Tier 2' },
-  'meera pillai': { name: 'Meera Pillai', kind: 'angel' },
+  lantern: { name: 'Lantern Ventures', kind: 'vc', tier: 'Tier 1', tierConfidence: 'high', ...IN },
+  orchard: { name: 'Orchard Capital', kind: 'vc', tier: 'Tier 1', tierConfidence: 'high', geo: 'US firm, India office', hqCountryCode: 'US', indiaPresence: 'yes' },
+  juniper: { name: 'Juniper Seed', kind: 'micro_vc', tier: 'Tier 2', tierConfidence: 'med', ...IN },
+  'kite angels': { name: 'Kite Angels', kind: 'angel_network', tier: 'Tier 2', tierConfidence: 'high', ...IN },
+  'northwind accelerator': { name: 'Northwind Accelerator', kind: 'accelerator', tier: 'Tier 2', tierConfidence: 'high', geo: 'Singapore firm, India office', hqCountryCode: 'SG', indiaPresence: 'yes' },
+  'meera pillai': { name: 'Meera Pillai', kind: 'angel', tier: 'Tier 2', tierConfidence: 'med', ...IN },
   'rahul desai': { name: 'Rahul Desai', kind: 'angel' },
-  'tidewater': { name: 'Tidewater Ventures', kind: 'corporate', tier: 'Tier 2' },
-  'copperline': { name: 'Copperline Credit', kind: 'debt' },
-  'saltmarsh': { name: 'Saltmarsh Fund', kind: 'micro_vc', tier: 'Tier 3', geo: 'US' },
-  'harbour': { name: 'Harbour Dubai Holdings', kind: 'family_office' },
+  'tidewater': { name: 'Tidewater Ventures', kind: 'corporate', tier: 'Tier 2', tierConfidence: 'med', geo: 'Germany firm, India office', hqCountryCode: 'DE', indiaPresence: 'yes' },
+  'copperline': { name: 'Copperline Credit', kind: 'debt', ...IN },
+  'saltmarsh': { name: 'Saltmarsh Fund', kind: 'micro_vc', tier: 'Tier 3', tierConfidence: 'low', geo: 'US', hqCountryCode: 'US', indiaPresence: 'no' },
+  'harbour': { name: 'Harbour Dubai Holdings', kind: 'family_office', geo: 'United Arab Emirates', hqCountryCode: 'AE', indiaPresence: 'no' },
 }
 type Back = [key: string, rounds: string[], year: number, lead?: boolean, crustdataOnly?: boolean]
 type Co = { name: string; status: string; founders: [name: string, from: string, to: string][]; raised?: string; backs: Back[] }
@@ -146,7 +147,8 @@ const INVESTORS: RolodexInvestorFull[] = Object.entries(INV).map(([key, inv]) =>
     }
   })
   return {
-    key, name: inv.name, kind: inv.kind, tier: inv.tier, geo: inv.geo, companies, companyCount: companies.length,
+    key, name: inv.name, kind: inv.kind, tier: inv.tier, tierConfidence: inv.tierConfidence, geo: inv.geo, hqCountryCode: inv.hqCountryCode, indiaPresence: inv.indiaPresence,
+    companies, companyCount: companies.length,
     founderCount: new Set(companies.flatMap((c) => c.founders.map((f) => f.personId))).size, webCount: companies.filter((c) => c.source === 'web').length,
   }
 })
