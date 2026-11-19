@@ -15,7 +15,13 @@ import { Button, buttonClass, Icon, type ChipTone, type ToastInput } from '../ui
 export const fmt = (n: number) => n.toLocaleString('en-US')
 export const TIER_TONE: Record<string, ChipTone> = { 'Tier 1': 'live', 'Tier 2': 'neutral', 'Tier 3': 'outline' }
 
-/** People · Investors, like Investors · Network. */
+/** What each view holds, under the People · Investors chips. */
+const VIEW_LEDE = {
+  people: 'BITSians who are founders, investors, or execs.',
+  investors: 'Firms and individuals who have invested in BITSian startups.',
+} as const
+
+/** People · Investors, like Investors · Network, and a line saying what the view holds. */
 export function RolodexViews({ view, people, investors, right }: { view: 'people' | 'investors'; people: number | null; investors: number | null; right?: ReactNode }) {
   return (
     <div className="inv-views">
@@ -28,6 +34,7 @@ export function RolodexViews({ view, people, investors, right }: { view: 'people
         </Link>
       </nav>
       {right ? <div className="inv-views__right">{right}</div> : null}
+      <p className="rdx-lede">{VIEW_LEDE[view]}</p>
     </div>
   )
 }
