@@ -4,6 +4,8 @@
    Only the column grids, the wrapping filter row, the investor picker and the panel's
    lists are new. */
 
+/* What the view holds, on its own line under the People · Investors chips (like the Network lede). */
+.rdx-lede { flex-basis: 100%; order: 3; margin: 0; font-size: 15px; line-height: 1.45; color: var(--text-secondary); }
 .rdx-who { margin: -6px 0 16px; }
 
 /* Search and count on the first line, the selects wrap onto the next. */
@@ -108,6 +110,7 @@
 
 @media (max-width: 720px) {
   .rdx-who { margin-top: -4px; }
+  .rdx-lede { font-size: 14px; }
   .rdx-card.inv-card { padding: 4px 14px 2px; }
   /* Rows: who on top, then role · place · batch on one line. */
   .rdx-prow, .rdx-irow { --cols: minmax(0, 1fr) auto; }
