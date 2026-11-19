@@ -46,6 +46,9 @@ const calls = [
   // Rolodex (rolodex:person needs a rolodexPeople id, so it's covered by convex/rolodex.test.ts instead)
   ['query', 'rolodex:people', api.rolodex.people, { paginationOpts: { numItems: 1, cursor: null } }],
   ['query', 'rolodex:firms', api.rolodex.firms, {}],
+  ['query', 'rolodex:investors', api.rolodex.investors, { paginationOpts: { numItems: 1, cursor: null } }],
+  ['query', 'rolodex:investor', api.rolodex.investor, { key: 'accel' }],
+  ['query', 'rolodex:companies', api.rolodex.companies, { keys: ['id:1'] }],
   ['query', 'rolodex:meta', api.rolodex.meta, {}],
 ]
 

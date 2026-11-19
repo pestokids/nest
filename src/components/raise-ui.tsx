@@ -2,7 +2,7 @@
 import { createContext, useCallback, useContext } from 'react'
 import type { Investor } from '../lib/pipeline'
 import { play } from '../lib/sound'
-import { WARM, type Stage, type TouchKind } from '../lib/stages'
+import { WARM, type Geo, type InvestorType, type Stage, type TouchKind } from '../lib/stages'
 import { errorMessage, useRaise } from './data'
 import { confirmAction } from './close/openKit'
 import { Chip, type ChipTone, type ToastInput } from './ui'
@@ -22,6 +22,12 @@ export type OpenOptions = {
   swap?: boolean
   /** PST-293: open on the decision's decide-by date (⌘K "Set a decide-by date", Maybes' "Set a date"). */
   decide?: boolean
+  /** Rolodex › Investors: Add to Investors list fills in the fund (or angel), type, geo, source and a note. */
+  firm?: string
+  type?: InvestorType
+  geo?: Geo
+  source?: string
+  notes?: string
 }
 
 /*

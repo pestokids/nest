@@ -346,29 +346,65 @@ Raise › Advisor is a fundraising coach (what to do next) and storyteller (how 
 - An answer shows its words and blocks in the order the model wrote them (`parts` on the message: runs of text and blocks by index). The prompt asks for a short lead-in before each block that names it, never "above" or "below". Answers saved before this show their words, then their blocks.
 <!-- ---------- end PST-308 ---------- -->
 
-## Rolodex: people and investor firms
+## Rolodex: people and the investors who backed our founders
 
-Raise › Rolodex (`/raise/rolodex`, ⌘K "Go to Rolodex", G R) is the shortlist from the fundraising research and the investor firms they work at. It's read-only: the import is the only writer. It holds only the shortlist (every investor, and founders and execs with at least one funded, acquired or public company) and firms that invest or that we couldn't identify; people left off the shortlist and organisations that aren't investors aren't imported.
+Raise › Rolodex (`/raise/rolodex`, ⌘K "Go to Rolodex", G R) has two views: **People**, the shortlist from the fundraising research, and **Investors**, everyone who backed a company our founders started. It's read-only: the import is the only writer. It holds only the shortlist (every investor, and founders and execs with at least one funded, acquired or public company); people left off the shortlist aren't imported.
 
-**People**: BITS alumni on the shortlist, from Crustdata (3,421). Chips with counts: All, Investors, Founders, Execs. Then search (name, title, company, headline, funded companies) and selects that each show how many people an option would leave: Role now or before, Country, Firm tier, Campus, Batch. A row opens the person's panel: roles now and before, their investor firms (each opens in Firms), the companies they founded or ran with funding status, why they're on the list, BITS and where, LinkedIn. **Add to pipeline** (investors) opens Add investor with their name; **Add to Network** (founders and execs) adds them as a Network person. Both say so instead when they're in Nest already (by name).
+**People**: BITS alumni on the shortlist, from Crustdata (2,771). Chips with counts: All, Investors, Founders, Execs.
+- **Search** covers name, title, company, headline and funded companies.
+- **Investor picker:** type to search and pick several. It shows founders who raised from any investor picked, and each option shows how many people in view it would show.
+- **Selects:** Role now or before, Country, Firm tier, Campus and Batch. Each shows how many people an option would leave.
 
-**Firms**: every investing organisation where someone held a VC or angel role, plus ones we couldn't identify (571). Chips by kind (All investors, VC funds, Micro VCs, Accelerators, Angels, CVC/PE/others, Unknown), then Tier (1–3), Location (India, US, US firm with an India office, other firm with an India office, elsewhere) and India presence, sorted by how many of our people are there. Type and tier were judged by hand with a confidence; location is Crustdata's HQ and office addresses, corrected by hand for a few well-known firms (`geoSource`). The panel lists our people there; each opens in People.
+A row opens the person's panel:
+- **Who invested in their companies:** company by company. Each investor opens in Investors, with lead, and "after they left" or "before they joined" from the round year against their dates.
+- **Everything else:** roles now and before, the investor firms they work or worked at, the companies they founded or ran with funding status, why they're on the list, BITS and where, and LinkedIn.
+- **Add to pipeline** (investors) opens Add investor with their name.
+- **Add to Network** (founders and execs) adds them as a Network person.
+- Both buttons say so instead when the person is in Nest already (matched by name).
 
-Filters, sorts and the open person or firm live in the URL (`src/lib/rolodex.ts` `validateRolodexSearch`). Export these downloads the filtered rows as CSV.
+**Investors**: every fund, angel network, accelerator, corporate and angel who backed a company a founder on the list started.
+- **Chips:** All, Funds, Angels, Angel networks, Accelerators, Corporates & family offices, Other.
+- **Finding investors:** search by name or by a company they backed, or use the same investor picker to narrow the list to the investors picked.
+- **Sort:** most founders, most companies, or name.
+- **Selects:** Tier (for firms our people work at, classified by hand) and Source (Checked on the web).
 
-**Data**: `rolodexPeople`, `rolodexFirms` and `rolodexMeta` (`convex/rolodexSchema.ts`). `rolodex:people` pages through everyone shortlist first, trimmed to the list's fields (`listRow`); the app keeps loading pages until everyone's in, so counts and filters cover the whole list. `rolodex:person` has the rest for the panel. Every public function calls `requireUser`.
+A row opens the investor's panel:
+- Every company of ours they backed, with status, rounds, lead, and our founders there (each opens in People, marked "after they left" where it applies), and whether the link was checked on the web or is only on Crustdata's list.
+- **Add to Investors list** opens Add investor already filled in. For a fund, the fund name, type, geo and a note of whom they backed are filled in and the partner is left to fill in. For an angel, their name is filled in. When the investor is in the pipeline already (matched by name or fund), it says **In your pipeline** instead.
+- **Their founders in People** opens People filtered to them.
+
+Filters, sorts, picks and the open person or investor live in the URL (`src/lib/rolodex.ts` `validateRolodexSearch`; old `view=firms` links open Investors). Export these downloads the filtered rows as CSV.
+
+**Data** (`convex/rolodexSchema.ts`):
+- **Tables:** `rolodexPeople`, `rolodexFirms` (the firms our people work at, for the person panel and Firm tier), `rolodexInvestors`, `rolodexCompanies` and `rolodexMeta`.
+- **`rolodex:people` and `rolodex:investors`:** page through everyone, trimmed to the list's fields (`listRow`, `investorListRow`). The app keeps loading pages until everyone's in, so counts and filters cover the whole list.
+- **Panels:** `rolodex:person`, `rolodex:investor` and `rolodex:companies` fetch the rest.
+- **People's investor links:** a person's `investorKeys` feed the Investor filter, and their `companyKeys` the panel.
+- **Access:** every public function calls `requireUser`.
+
+**Where the investors come from** (2026-11-19, `fundraising/DECISIONS.md`):
+- **Scope:** every company a shortlisted founder started.
+- **Web research:** agents researched them on the web (`fundraising/scripts/research_runner.py`, one headless session per batch).
+- **Crustdata:** where no web research ran, Crustdata's investor list is used and marked "Crustdata, not web-checked".
+- **Merging:** investor names are merged by a normalised key and a naming pass (renames like Sequoia Capital India → Peak XV Partners), in `merge_founder_investors.py`.
 
 **Import** (personal data: it lives in `internal/` and is never committed):
 
 ```sh
-python3 -I ../../fundraising/scripts/export_rolodex.py ../../fundraising/data/bits-alumni-2026-11-17 internal/rolodex.json   # shortlist and investing firms; --everyone for all
+python3 -I ../../fundraising/scripts/export_rolodex.py ../../fundraising/data/bits-alumni-2026-11-17 internal/rolodex.json \
+  --investors=../../fundraising/data/founder-investors-2026-11-19/merged.json   # --everyone for all people
 pnpm rolodex        # dev
 pnpm rolodex:prod   # production (after the functions are deployed)
 ```
 
-`scripts/rolodex-import.mjs` upserts in batches under the command-line limit (people by Crustdata ID, firms by key; running it twice changes nothing), deletes rows the file no longer has (`rolodex:prune`), then writes the totals (`rolodex:setMeta`). How the data was built is in `fundraising/DECISIONS.md` and the READMEs under `fundraising/data/`.
+`scripts/rolodex-import.mjs`:
+- **Upserts** in batches under the command-line limit: people by Crustdata ID, everything else by key. Running it twice changes nothing.
+- **Prunes** rows the file no longer has (`rolodex:prune`).
+- **Writes the totals** last (`rolodex:setMeta`).
 
-Preview: `/raise/rolodex?preview` (made-up people and firms, `src/preview/rolodexFixture.ts`), with `&rolodex=person|filtered|firms|firm|empty|loading`.
+How the data was built is in `fundraising/DECISIONS.md` and the READMEs under `fundraising/data/`.
+
+Preview: `/raise/rolodex?preview` (made-up people, companies and investors, `src/preview/rolodexFixture.ts`), with `&rolodex=person|filtered|investors|investor|picked|empty|loading`.
 
 ## Seed
 

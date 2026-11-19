@@ -794,7 +794,17 @@ export function EditForm({ inv, onDone, onCelebrate }: { inv: Investor | null; o
   const ui = useUI()
   // "New" from a Pipeline column's + starts in that column's stage.
   const [blank] = useState<Form>(() =>
-    toForm({ ...NEW_INVESTOR, stage: ui.opening.stage ?? NEW_INVESTOR.stage, name: ui.opening.name?.trim() ?? NEW_INVESTOR.name, email: ui.opening.email ?? NEW_INVESTOR.email }),
+    toForm({
+      ...NEW_INVESTOR,
+      stage: ui.opening.stage ?? NEW_INVESTOR.stage,
+      name: ui.opening.name?.trim() ?? NEW_INVESTOR.name,
+      email: ui.opening.email ?? NEW_INVESTOR.email,
+      firm: ui.opening.firm?.trim() ?? NEW_INVESTOR.firm,
+      type: ui.opening.type ?? NEW_INVESTOR.type,
+      geo: ui.opening.geo ?? NEW_INVESTOR.geo,
+      source: ui.opening.source ?? NEW_INVESTOR.source,
+      notes: ui.opening.notes ?? NEW_INVESTOR.notes,
+    }),
   )
   // PST-303: only what Dev changed is kept here. Every other field shows the investor as it is now,
   // so a type set elsewhere while the form is open (enrichment, a suggestion, Jev) shows, and Save keeps it.

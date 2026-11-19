@@ -1,15 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import {
-  batchOf, batchText, companyList, countryOptions, firmOptionCounts, flag, inKind, kindCounts, locOf, matchesFirm, matchesPeople, optionCounts, peopleCsvRows, roleText,
-  sortFirms, sortPeople, validateRolodexSearch, whoCounts, whyText, type RolodexFirm, type RolodexPerson,
+  backingTiming, batchOf, batchText, companyList, countryOptions, flag, groupCounts, investorCsvRows, investorListRow, investorOptions, investorPeopleCounts,
+  matchesInvestor, matchesPeople, optionCounts, peopleCsvRows, roleText, sortInvestors, sortPeople, validateRolodexSearch, whoCounts, whyText,
+  type RolodexInvestor, type RolodexPerson,
 } from './rolodex'
 
 // Every name, firm and company here is made up.
 const person = (o: Partial<RolodexPerson> & { name: string }): RolodexPerson => ({ _id: o.name, crustdataId: 1, role: 'founder', currentRole: 'employee', shortlist: true, fundingCheck: 'funded_company', ...o })
 const P = [
   person({ name: 'Asha', role: 'vc', roleStatus: 'current', vc: 'current', fundingCheck: 'investor', countryCode: 'IN', country: 'India', bestFirmTier: 'Tier 1', gradYear: 2012, campus: 'Pilani', firmKeys: ['id:1'] }),
-  person({ name: 'Bo', role: 'vc', roleStatus: 'past', vc: 'past', founder: 'current', fundingCheck: 'investor', countryCode: 'US', country: 'United States', bestFirmTier: 'Tier 2', gradYear: 2004, campus: 'Goa' }),
-  person({ name: 'Cyra', roleStatus: 'current', founder: 'current', countryCode: 'IN', country: 'India', gradYear: 2019, campus: 'Hyderabad', fundedCompanies: 'Inkwell (funded); Fold (acquired)' }),
+  person({ name: 'Bo', role: 'vc', roleStatus: 'past', vc: 'past', founder: 'current', fundingCheck: 'investor', countryCode: 'US', country: 'United States', bestFirmTier: 'Tier 2', gradYear: 2004, campus: 'Goa', investorKeys: ['arbor', 'kai'] }),
+  person({ name: 'Cyra', roleStatus: 'current', founder: 'current', countryCode: 'IN', country: 'India', gradYear: 2019, campus: 'Hyderabad', fundedCompanies: 'Inkwell (funded); Fold (acquired)', investorKeys: ['arbor'] }),
   person({ name: 'Dev', role: 'exec', roleStatus: 'past', exec: 'past', countryCode: 'GB', country: 'United Kingdom', gradYear: 1987 }),
 ]
 
@@ -23,12 +24,14 @@ describe('people filters', () => {
     expect(P.filter((p) => matchesPeople(p, { who: 'investors', when: 'before' })).map((p) => p.name)).toEqual(['Bo'])
     expect(P.filter((p) => matchesPeople(p, { when: 'before' })).map((p) => p.name)).toEqual(['Bo', 'Dev'])
   })
-  it('country, tier, campus, batch, firm and search combine', () => {
+  it('country, tier, campus, batch, investors and search combine', () => {
     expect(P.filter((p) => matchesPeople(p, { country: 'IN' })).map((p) => p.name)).toEqual(['Asha', 'Cyra'])
     expect(P.filter((p) => matchesPeople(p, { tier: 'Tier 1' })).map((p) => p.name)).toEqual(['Asha'])
     expect(P.filter((p) => matchesPeople(p, { campus: 'Goa' })).map((p) => p.name)).toEqual(['Bo'])
     expect(P.filter((p) => matchesPeople(p, { batch: 'earlier' })).map((p) => p.name)).toEqual(['Dev'])
-    expect(P.filter((p) => matchesPeople(p, { firm: 'id:1' })).map((p) => p.name)).toEqual(['Asha'])
+    expect(P.filter((p) => matchesPeople(p, { inv: ['arbor'] })).map((p) => p.name)).toEqual(['Bo', 'Cyra'])
+    expect(P.filter((p) => matchesPeople(p, { inv: ['kai', 'nobody'] })).map((p) => p.name)).toEqual(['Bo'])
+    expect(P.filter((p) => matchesPeople(p, { inv: ['arbor'], country: 'IN' })).map((p) => p.name)).toEqual(['Cyra'])
     expect(P.filter((p) => matchesPeople(p, { q: 'inkwell' })).map((p) => p.name)).toEqual(['Cyra'])
   })
   it('each select counts what its options would show with the other filters kept', () => {
@@ -63,38 +66,60 @@ describe('labels', () => {
   })
 })
 
-const firm = (o: Partial<RolodexFirm> & { name: string }): RolodexFirm => ({ _id: o.name, key: o.name, type: 'VC fund', geo: 'India', hqCountryCode: 'IN', indiaPresence: 'yes', people: 1, vcPeople: 1, angelPeople: 0, peopleThereNow: 0, personIds: [], ...o })
-const F = [
-  firm({ name: 'Arbor', tier: 'Tier 1', geo: 'US firm, India office', hqCountryCode: 'US', people: 5, peopleThereNow: 2 }),
-  firm({ name: 'Brook', type: 'Micro VC', tier: 'Tier 3', people: 2 }),
-  firm({ name: 'Cove', type: 'Accelerator / incubator', tier: 'Tier 2', geo: 'Singapore firm, India office', hqCountryCode: 'SG', people: 9 }),
-  firm({ name: 'Dell Bank', type: 'Asset manager / bank', geo: 'US', hqCountryCode: 'US', indiaPresence: 'no' }),
-  firm({ name: 'Elm', type: 'Unknown', geo: 'Unknown', hqCountryCode: undefined, indiaPresence: 'unknown' }),
-  firm({ name: 'Fir', type: 'Angel network', geo: 'United Kingdom', hqCountryCode: 'GB', indiaPresence: 'no' }),
+const inv = (o: Partial<RolodexInvestor> & { name: string }): RolodexInvestor => ({ _id: o.name, key: o.name.toLowerCase(), kind: 'vc', companyCount: 1, founderCount: 1, webCount: 1, companyNames: [], ...o })
+const I = [
+  inv({ name: 'Arbor', tier: 'Tier 1', founderCount: 4, companyCount: 3, companyNames: ['Inkwell', 'Fold', 'Quay'] }),
+  inv({ name: 'Kai Rao', kind: 'angel', founderCount: 2, companyNames: ['Inkwell'] }),
+  inv({ name: 'Brook Angels', kind: 'angel_network', founderCount: 2, companyCount: 2, webCount: 0, companyNames: ['Mote', 'Fold'] }),
+  inv({ name: 'Cove Labs', kind: 'accelerator', companyNames: ['Quay'] }),
+  inv({ name: 'Harbor Credit', kind: 'debt', webCount: 0, companyNames: ['Mote'] }),
 ]
 
-describe('firms', () => {
-  it('kinds: investors by default; unknown apart; Everything is both', () => {
-    expect(kindCounts(F, {})).toMatchObject({ investors: 4, vc: 1, micro: 1, acc: 1, angels: 1, unknown: 1, all: 6 })
-    expect(inKind(F[3], 'investors')).toBe(false)
+describe('investors', () => {
+  it('groups: funds, angels, networks, accelerators, other; All is everyone', () => {
+    expect(groupCounts(I, {})).toMatchObject({ all: 5, funds: 1, angels: 1, networks: 1, accelerators: 1, corporates: 0, other: 1 })
   })
-  it('location: India, US, US with an India office, others with one, elsewhere, unknown', () => {
-    expect(F.map(locOf)).toEqual(['us-india', 'india', 'other-india', 'us', 'unknown', 'elsewhere'])
-    expect(F.filter((f) => matchesFirm(f, { india: true })).map((f) => f.name)).toEqual(['Arbor', 'Brook', 'Cove'])
-    expect([...firmOptionCounts(F, {}, 'tier', ['Tier 1', 'Tier 2', 'Tier 3'] as const)]).toEqual([['Tier 1', 1], ['Tier 2', 1], ['Tier 3', 1]])
+  it('search finds an investor by name or by a company they backed; picks narrow to those picked', () => {
+    expect(I.filter((r) => matchesInvestor(r, { q: 'fold' })).map((r) => r.name)).toEqual(['Arbor', 'Brook Angels'])
+    expect(I.filter((r) => matchesInvestor(r, { pick: ['kai rao', 'cove labs'] })).map((r) => r.name)).toEqual(['Kai Rao', 'Cove Labs'])
+    expect(I.filter((r) => matchesInvestor(r, { web: true, group: 'other' })).map((r) => r.name)).toEqual([])
   })
-  it('sorts by our people (default), people there now, tier', () => {
-    expect(sortFirms(F.slice(0, 3)).map((f) => f.name)).toEqual(['Cove', 'Arbor', 'Brook'])
-    expect(sortFirms(F.slice(0, 3), 'now').map((f) => f.name)).toEqual(['Arbor', 'Cove', 'Brook'])
-    expect(sortFirms(F.slice(0, 3), 'tier').map((f) => f.name)).toEqual(['Arbor', 'Cove', 'Brook'])
+  it('sorts by founders (then companies), companies, or name', () => {
+    expect(sortInvestors(I).map((r) => r.name)).toEqual(['Arbor', 'Brook Angels', 'Kai Rao', 'Cove Labs', 'Harbor Credit'])
+    expect(sortInvestors(I, 'name').map((r) => r.name)[0]).toBe('Arbor')
+  })
+  it('the picker puts names that start with the text first, then word starts, then the rest', () => {
+    expect(investorOptions(I, 'ra').map((r) => r.name)).toEqual(['Kai Rao'])
+    expect(investorOptions(I, 'c').map((r) => r.name)).toEqual(['Cove Labs', 'Harbor Credit'])
+    expect(investorOptions(I, '').length).toBe(5)
+  })
+  it('People counts how many in view raised from each investor', () => {
+    expect([...investorPeopleCounts(P, {})]).toEqual([['arbor', 2], ['kai', 1]])
+    expect([...investorPeopleCounts(P, { country: 'IN' })]).toEqual([['arbor', 1]])
+  })
+  it('timing: after they left, before they joined, during, or unknown', () => {
+    expect(backingTiming(2022, '2018-09', '2021-03')).toBe('after')
+    expect(backingTiming(2015, '2018-09', 'now')).toBe('before')
+    expect(backingTiming(2019, '2018-09', 'now')).toBe('during')
+    expect(backingTiming(undefined, '2018-09', 'now')).toBe('unknown')
+  })
+  it('the list row keeps company names; CSV rows hold the columns in header order', () => {
+    const row = investorListRow({ _id: 'x', key: 'arbor', name: 'Arbor', kind: 'vc', companyCount: 1, founderCount: 1, webCount: 1, companies: [{ key: 'id:1', name: 'Inkwell', status: 'funded', source: 'web', founders: [] }] })
+    expect(row.companyNames).toEqual(['Inkwell'])
+    expect(investorCsvRows([I[0]])[0]).toEqual(['Arbor', 'VC fund', 'Tier 1', '4', '3', '1', 'Inkwell; Fold; Quay'])
   })
 })
 
 describe('the URL', () => {
   it('keeps known values and drops the rest', () => {
-    expect(validateRolodexSearch({ view: 'firms', who: 'investors', country: 'IN', tier: 'Tier 1', loc: 'us-india', india: 'true', sort: 'nope', country2: 'x' })).toMatchObject({
-      view: 'firms', who: 'investors', country: 'IN', tier: 'Tier 1', loc: 'us-india', india: true, sort: undefined,
+    expect(validateRolodexSearch({ view: 'investors', who: 'investors', country: 'IN', tier: 'Tier 1', group: 'angels', web: 'true', sort: 'nope', country2: 'x' })).toMatchObject({
+      view: 'investors', who: 'investors', country: 'IN', tier: 'Tier 1', group: 'angels', web: true, sort: undefined,
     })
+    expect(validateRolodexSearch({ inv: 'accel' }).inv).toEqual(['accel'])
+    expect(validateRolodexSearch({ pick: ['accel', 'accel', 3, ''] }).pick).toEqual(['accel'])
+    expect(validateRolodexSearch({ pick: [] }).pick).toBeUndefined()
     expect(validateRolodexSearch({ country: 'india', who: 'all' })).toMatchObject({ country: undefined, who: undefined })
+    // Old links to the Firms view land on Investors.
+    expect(validateRolodexSearch({ view: 'firms' }).view).toBe('investors')
   })
 })
