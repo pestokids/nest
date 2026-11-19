@@ -1,8 +1,8 @@
 // Rolodex: everyone from the fundraising research (BITS alumni who are or were
-// founders, execs or investors) and the investor firms they work at. Read-only in
-// the app; written only by `rolodex:importPeople` / `importFirms` from
-// internal/rolodex.json (scripts/rolodex-import.mjs). Spread into schema.ts in a
-// marked block.
+// founders, execs or investors), the investor firms they work at, the companies our
+// founders started and the investors (funds and angels) who backed them. Read-only in
+// the app; written only by the `rolodex:import*` mutations from internal/rolodex.json
+// (scripts/rolodex-import.mjs). Spread into schema.ts in a marked block.
 import { defineTable } from 'convex/server'
 import { v } from 'convex/values'
 
@@ -53,6 +53,10 @@ export const rolodexPersonFields = {
   investorFirms: v.optional(v.string()),
   /** The firm keys behind investorFirms (rolodexFirms.key). */
   firmKeys: v.optional(v.array(v.string())),
+  /** Investors in the companies they founded (rolodexInvestors.key): the Investor filter. */
+  investorKeys: v.optional(v.array(v.string())),
+  /** The companies they founded that were researched (rolodexCompanies.key). */
+  companyKeys: v.optional(v.array(v.string())),
   bestFirmTier: v.optional(v.string()),
   whyIncluded: v.optional(v.string()),
   otherSchools: v.optional(v.string()),
@@ -90,12 +94,97 @@ export const rolodexFirmFields = {
   personIds: v.array(v.number()),
 }
 
+/** What kind of investor (from the research agents; "unknown" for names only Crustdata listed). */
+export const vInvestorKind = v.union(
+  v.literal('vc'), v.literal('micro_vc'), v.literal('angel_network'), v.literal('angel'), v.literal('accelerator'), v.literal('corporate'),
+  v.literal('pe_growth'), v.literal('family_office'), v.literal('government'), v.literal('debt'), v.literal('other'), v.literal('unknown'),
+)
+/** Where the link between an investor and a company comes from: checked on the web, or only Crustdata's list. */
+export const vBackingSource = v.union(v.literal('web'), v.literal('crustdata'))
+/** When the investor came in, against our founder's years at the company. */
+export const vBackingTiming = v.union(v.literal('during'), v.literal('after'), v.literal('before'), v.literal('unknown'))
+
+/** One investor (a fund, a network, an angel…) and the companies of ours they backed. */
+export const rolodexInvestorFields = {
+  /** Normalised name ("accel", "kunal shah"): the upsert key. */
+  key: v.string(),
+  name: v.string(),
+  kind: vInvestorKind,
+  /** Other spellings merged into this one. */
+  aliases: v.optional(v.array(v.string())),
+  /** From the firm classification when it's a firm our people work at. */
+  tier: v.optional(v.string()),
+  firmType: v.optional(v.string()),
+  geo: v.optional(v.string()),
+  website: v.optional(v.string()),
+  companyCount: v.number(),
+  founderCount: v.number(),
+  /** Companies where the link was checked on the web. */
+  webCount: v.number(),
+  companies: v.array(
+    v.object({
+      key: v.string(),
+      name: v.string(),
+      /** funded, acquired, public, not_funded, unknown, no_crustdata_id */
+      status: v.string(),
+      rounds: v.optional(v.array(v.string())),
+      firstYear: v.optional(v.number()),
+      lead: v.optional(v.boolean()),
+      source: vBackingSource,
+      founders: v.array(v.object({ personId: v.number(), name: v.string(), timing: vBackingTiming })),
+    }),
+  ),
+}
+
+/** One company a founder from the list started, and who invested in it. */
+export const rolodexCompanyFields = {
+  /** companies.csv company_key: the upsert key. */
+  key: v.string(),
+  name: v.string(),
+  status: v.string(),
+  website: v.optional(v.string()),
+  linkedinUrl: v.optional(v.string()),
+  /** web: researched on the web; crustdata: Crustdata's list only; none: no investors found. */
+  research: v.union(v.literal('web'), v.literal('crustdata'), v.literal('none')),
+  funded: v.optional(v.string()),
+  totalRaised: v.optional(v.string()),
+  confidence: v.optional(v.string()),
+  notes: v.optional(v.string()),
+  sources: v.optional(v.array(v.string())),
+  founders: v.array(v.object({ personId: v.number(), name: v.string(), title: v.optional(v.string()), from: v.optional(v.string()), to: v.optional(v.string()) })),
+  investors: v.array(
+    v.object({
+      key: v.string(),
+      name: v.string(),
+      kind: vInvestorKind,
+      rounds: v.optional(v.array(v.string())),
+      firstYear: v.optional(v.number()),
+      lead: v.optional(v.boolean()),
+      source: vBackingSource,
+    }),
+  ),
+}
+
 export const rolodexTables = {
   rolodexPeople: defineTable({ ...rolodexPersonFields, importedAt: v.number() })
     .index('by_crustdataId', ['crustdataId'])
     .index('by_shortlist', ['shortlist'])
     .index('by_importedAt', ['importedAt']),
   rolodexFirms: defineTable({ ...rolodexFirmFields, importedAt: v.number() }).index('by_key', ['key']).index('by_importedAt', ['importedAt']),
+  rolodexInvestors: defineTable({ ...rolodexInvestorFields, importedAt: v.number() })
+    .index('by_key', ['key'])
+    .index('by_founderCount', ['founderCount'])
+    .index('by_importedAt', ['importedAt']),
+  rolodexCompanies: defineTable({ ...rolodexCompanyFields, importedAt: v.number() }).index('by_key', ['key']).index('by_importedAt', ['importedAt']),
   /** One row per import (key "import"): totals for the header, and when and where from. */
-  rolodexMeta: defineTable({ key: v.string(), people: v.number(), shortlist: v.number(), firms: v.number(), importedAt: v.number(), source: v.string() }).index('by_key', ['key']),
+  rolodexMeta: defineTable({
+    key: v.string(),
+    people: v.number(),
+    shortlist: v.number(),
+    firms: v.number(),
+    investors: v.optional(v.number()),
+    companies: v.optional(v.number()),
+    importedAt: v.number(),
+    source: v.string(),
+  }).index('by_key', ['key']),
 }

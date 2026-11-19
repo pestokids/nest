@@ -1,11 +1,11 @@
 // Rolodex › People: the shortlist from the fundraising research. Chips for who (All,
-// Investors, Founders, Execs) with counts, then search and selects
-// that each say how many they'd leave. Rows open the person's panel beside the list
+// Investors, Founders, Execs) with counts, then search, the investor picker (founders
+// who raised from any investor picked) and selects that each say how many they'd leave. Rows open the person's panel beside the list
 // (a bottom sheet on phones), the same shape as Investors › Network.
 import { useMemo, useRef } from 'react'
 import {
   BATCHES, batchText, CAMPUSES, countryOptions, flag, initials, matchesPeople, optionCounts, PEOPLE_CSV_HEADERS, PEOPLE_SORT_LABEL,
-  PEOPLE_SORTS, peopleCsvRows, peopleFiltered, personSub, roleText, sortPeople, TIERS, WHEN, WHO, WHO_LABEL, whoCounts, companyList,
+  PEOPLE_SORTS, peopleCsvRows, peopleFiltered, personSub, roleText, sortPeople, TIERS, WHEN, WHO, WHO_LABEL, whoCounts, companyList, investorPeopleCounts,
   type PeopleSort, type RolodexFirm, type RolodexPerson, type RolodexSearch, type Who,
 } from '../../lib/rolodex'
 import { openOnKey, useUI } from '../raise-ui'
@@ -15,7 +15,7 @@ import { useListKeys } from '../system/useListKeys'
 import { stickyHeight } from '../system/stickyHeight'
 import { Button, Chip } from '../ui'
 import { useRolodex } from './data'
-import { Bar, exportRows, FilterChips, fmt, RolodexViews, Sel, useMore, type FilterChip } from './parts'
+import { Bar, exportRows, FilterChips, fmt, InvestorPick, RolodexViews, Sel, useMore, type FilterChip } from './parts'
 import { PersonPanel } from './PersonPanel'
 
 type Set = (patch: Partial<RolodexSearch>) => void
@@ -23,7 +23,7 @@ type Set = (patch: Partial<RolodexSearch>) => void
 const WHEN_LABEL = { now: 'Now', before: 'Before, not now' } as const
 const WHEN_HINT: Record<Who, string> = { shortlist: 'Role', investors: 'Investing', founders: 'Founder', execs: 'Exec' }
 
-export function PeopleView({ s, set, firmCount }: { s: RolodexSearch; set: Set; firmCount: number | null }) {
+export function PeopleView({ s, set, investorCount }: { s: RolodexSearch; set: Set; investorCount: number | null }) {
   const x = useRolodex()
   const { toast } = useUI()
   const phone = useIsPhone()
@@ -43,6 +43,8 @@ export function PeopleView({ s, set, firmCount }: { s: RolodexSearch; set: Set; 
     }),
     [x.people, f],
   )
+  const invCounts = useMemo(() => investorPeopleCounts(x.people, f), [x.people, f])
+  const invByKey = useMemo(() => new Map(x.investors.map((r) => [r.key, r])), [x.investors])
   const { limit, sentinel } = useMore(rows.length, JSON.stringify(f) + s.sort)
   const shown = rows.slice(0, limit)
   const list = useRef<HTMLDivElement>(null)
@@ -52,23 +54,26 @@ export function PeopleView({ s, set, firmCount }: { s: RolodexSearch; set: Set; 
   const sel = selected ?? (phone ? undefined : shown[0])
   const open = (id: string) => set({ person: id })
 
-  const firm = s.firm ? firmsByKey.get(s.firm) : undefined
   const chips: FilterChip[] = []
-  if (s.firm) chips.push({ k: 'firm', label: `Firm: ${firm?.name ?? 'one firm'}`, clear: () => set({ firm: undefined }) })
+  for (const k of s.inv ?? []) {
+    const rest = (s.inv ?? []).filter((i) => i !== k)
+    chips.push({ k: 'inv:' + k, label: `Raised from ${invByKey.get(k)?.name ?? k}`, clear: () => set({ inv: rest.length ? rest : undefined }) })
+  }
   if (s.when) chips.push({ k: 'when', label: `${WHEN_HINT[who]}: ${WHEN_LABEL[s.when]}`, clear: () => set({ when: undefined }) })
   if (s.country) chips.push({ k: 'country', label: `${flag(s.country)} ${countries.find((c) => c.code === s.country)?.name ?? s.country}`, clear: () => set({ country: undefined }) })
   if (s.tier) chips.push({ k: 'tier', label: `Firm: ${s.tier}`, clear: () => set({ tier: undefined }) })
   if (s.campus) chips.push({ k: 'campus', label: `Campus: ${s.campus}`, clear: () => set({ campus: undefined }) })
   if (s.batch) chips.push({ k: 'batch', label: `Batch: ${s.batch === 'earlier' ? 'before 1990' : s.batch}`, clear: () => set({ batch: undefined }) })
-  const clearAll = () => set({ q: undefined, when: undefined, country: undefined, tier: undefined, campus: undefined, batch: undefined, firm: undefined })
+  const clearAll = () => set({ q: undefined, when: undefined, country: undefined, tier: undefined, campus: undefined, batch: undefined, inv: undefined })
 
   const total = x.meta?.people ?? x.people.length
   const loading = !x.peopleDone
   const count = loading ? `Loading ${fmt(x.people.length)} of ${fmt(total)}…` : peopleFiltered(f) ? `${fmt(rows.length)} of ${fmt(counts[who])}` : `${fmt(rows.length)} ${rows.length === 1 ? 'person' : 'people'}`
-  const active = [s.when, s.country, s.tier, s.campus, s.batch, s.firm].filter(Boolean).length
+  const active = [s.when, s.country, s.tier, s.campus, s.batch, s.inv?.length].filter(Boolean).length
 
   const selects = (
     <>
+      <InvestorPick label="Investor" investors={x.investors} value={s.inv} counts={invCounts} onlyCounted onChange={(inv) => set({ inv, person: undefined })} />
       <Sel label="Sort" allLabel="Name" value={s.sort === 'name' ? undefined : s.sort} options={PEOPLE_SORTS.filter((k) => k !== 'name').map((k) => ({ value: k, label: PEOPLE_SORT_LABEL[k] }))} onChange={(v) => set({ sort: v as PeopleSort | undefined })} />
       <Sel label={WHEN_HINT[who]} value={s.when} options={WHEN.map((w) => ({ value: w, label: WHEN_LABEL[w], n: opt.when.get(w) }))} onChange={(v) => set({ when: v as RolodexSearch['when'] })} />
       <Sel label="Country" wide value={s.country} options={countries.map((c) => ({ value: c.code, label: `${flag(c.code)} ${c.name}`, n: c.n }))} onChange={(v) => set({ country: v })} />
@@ -86,7 +91,7 @@ export function PeopleView({ s, set, firmCount }: { s: RolodexSearch; set: Set; 
         <RolodexViews
           view="people"
           people={total}
-          firms={firmCount}
+          investors={investorCount}
           right={
             <Button variant="secondary" icon="download" onClick={() => exportRows('people', PEOPLE_CSV_HEADERS, peopleCsvRows(rows), toast)} disabled={!rows.length}>
               {peopleFiltered(f) || who !== 'shortlist' ? 'Export these' : 'Export CSV'}

@@ -1,10 +1,14 @@
-// Rolodex under ?preview: made-up people and firms (every name, firm, company and
-// link here is invented). Covers each filter: investors at each tier and location,
-// founders and execs of funded companies, every campus and batch, and a firm we
-// couldn't identify. `&rolodex=firms|person|firm|filtered|empty|loading` picks a state.
-import type { RolodexFirm, RolodexMeta, RolodexPerson, RolodexPersonFull, Timing } from '../lib/rolodex'
+// Rolodex under ?preview: made-up people, firms, companies and investors (every name,
+// firm, company and link here is invented). Covers each filter: investors at each tier
+// and location, founders and execs of funded companies, every campus and batch, and
+// investors of every kind, web-checked and Crustdata-only, during and after a founder's
+// time. `&rolodex=investors|investor|picked|person|filtered|empty|loading` picks a state.
+import {
+  backingTiming, type InvestorKind, type RolodexCompany, type RolodexFirm, type RolodexInvestorFull, type RolodexMeta, type RolodexPerson,
+  type RolodexPersonFull, type Timing,
+} from '../lib/rolodex'
 
-export const PREVIEW_ROLODEX = ['firms', 'person', 'firm', 'filtered', 'empty', 'loading'] as const
+export const PREVIEW_ROLODEX = ['investors', 'investor', 'picked', 'person', 'filtered', 'empty', 'loading'] as const
 
 type F = Omit<RolodexFirm, '_id' | 'personIds' | 'people' | 'vcPeople' | 'angelPeople' | 'peopleThereNow'>
 const FIRMS: F[] = [
@@ -85,11 +89,91 @@ const FIRM_ROWS: RolodexFirm[] = FIRMS.map((f) => {
   }
 })
 
-export function previewRolodex(state?: string | null): { people: RolodexPersonFull[]; firms: RolodexFirm[]; meta: RolodexMeta | null } {
-  if (state === 'empty') return { people: [], firms: [], meta: null }
+/* ---------- companies our founders started, and who invested ---------- */
+
+type Inv = { name: string; kind: InvestorKind; tier?: string; geo?: string }
+const INV: Record<string, Inv> = {
+  lantern: { name: 'Lantern Ventures', kind: 'vc', tier: 'Tier 1', geo: 'India' },
+  orchard: { name: 'Orchard Capital', kind: 'vc', tier: 'Tier 1', geo: 'US firm, India office' },
+  juniper: { name: 'Juniper Seed', kind: 'micro_vc', tier: 'Tier 2', geo: 'India' },
+  'kite angels': { name: 'Kite Angels', kind: 'angel_network', tier: 'Tier 2', geo: 'India' },
+  'northwind accelerator': { name: 'Northwind Accelerator', kind: 'accelerator', tier: 'Tier 2' },
+  'meera pillai': { name: 'Meera Pillai', kind: 'angel' },
+  'rahul desai': { name: 'Rahul Desai', kind: 'angel' },
+  'tidewater': { name: 'Tidewater Ventures', kind: 'corporate', tier: 'Tier 2' },
+  'copperline': { name: 'Copperline Credit', kind: 'debt' },
+  'saltmarsh': { name: 'Saltmarsh Fund', kind: 'micro_vc', tier: 'Tier 3', geo: 'US' },
+  'harbour': { name: 'Harbour Dubai Holdings', kind: 'family_office' },
+}
+type Back = [key: string, rounds: string[], year: number, lead?: boolean, crustdataOnly?: boolean]
+type Co = { name: string; status: string; founders: [name: string, from: string, to: string][]; raised?: string; backs: Back[] }
+const COS: Co[] = [
+  { name: 'Storyloom', status: 'funded', raised: '$6.5M', founders: [['Nikhil Arora', '2019-04', 'now']], backs: [['lantern', ['Seed 2020 (lead)', 'Series A 2022'], 2020, true], ['meera pillai', ['Pre-seed 2019'], 2019], ['rahul desai', ['Pre-seed 2019'], 2019], ['northwind accelerator', ['Batch W19'], 2019], ['copperline', ['Venture debt 2023'], 2023]] },
+  { name: 'Kitepath Learning', status: 'funded', raised: '₹12 Cr', founders: [['Priya Venkat', '2020-01', 'now']], backs: [['juniper', ['Pre-seed 2020 (lead)'], 2020, true], ['lantern', ['Seed 2021'], 2021], ['kite angels', ['Pre-seed 2020'], 2020]] },
+  { name: 'Ferrytale Games', status: 'funded', founders: [['Manish Kapoor', '2017-06', 'now']], backs: [['lantern', ['Series A 2021 (lead)'], 2021, true], ['orchard', ['Series B 2024 (lead)'], 2024, true], ['meera pillai', ['Angel 2018'], 2018]] },
+  { name: 'Gridnest', status: 'funded', founders: [['Aditya Saxena', '2016-02', 'now']], backs: [['orchard', ['Seed 2016', 'Series A 2018 (lead)'], 2016, true], ['saltmarsh', ['Seed 2016'], 2016]] },
+  { name: 'Tallow Systems', status: 'public', founders: [['Aditya Saxena', '2004-01', '2012-06']], backs: [['orchard', ['Series B 2008'], 2008], ['tidewater', ['Series C 2014'], 2014]] },
+  { name: 'Pinwheel Labs', status: 'funded', founders: [['Ritu Bansal', '2018-09', '2021-03']], backs: [['juniper', ['Seed 2019'], 2019], ['rahul desai', ['Seed 2022'], 2022]] },
+  { name: 'Dunebook', status: 'funded', founders: [['Omar Sheikh', '2021-05', 'now']], backs: [['harbour', ['Seed 2022 (lead)'], 2022, true], ['northwind accelerator', [], 0, false, true]] },
+  { name: 'Moss & Pebble', status: 'funded', founders: [['Kavya Reddy', '2022-01', 'now']], backs: [['kite angels', ['Angel 2023'], 2023], ['meera pillai', ['Angel 2023'], 2023]] },
+  { name: 'Quillnote', status: 'acquired', founders: [['Shreya Iyer', '2013-03', '2017-11']], backs: [['saltmarsh', [], 0, false, true]] },
+  { name: 'Lumen Tutors', status: 'funded', founders: [['Karan Bhatt', '2019-08', 'now']], backs: [['orchard', ['Seed 2020'], 2020], ['lantern', ['Series A 2023 (lead)'], 2023, true]] },
+]
+
+const byName = new Map(PEOPLE.map((p) => [p.name, p]))
+const COMPANIES: RolodexCompany[] = COS.map((c, i) => ({
+  key: 'id:' + (8000 + i),
+  name: c.name,
+  status: c.status,
+  research: c.backs.every((b) => b[4]) ? 'crustdata' : 'web',
+  funded: 'yes',
+  totalRaised: c.raised,
+  confidence: 'high',
+  founders: c.founders.map(([name, from, to]) => ({ personId: byName.get(name)!.crustdataId, name, title: 'Founder', from, to })),
+  investors: c.backs.map(([key, rounds, year, lead, crustdataOnly]) => ({
+    key, name: INV[key].name, kind: INV[key].kind, rounds: rounds.length ? rounds : undefined, firstYear: year || undefined, lead: lead || undefined,
+    source: crustdataOnly ? ('crustdata' as const) : ('web' as const),
+  })),
+}))
+
+const INVESTORS: RolodexInvestorFull[] = Object.entries(INV).map(([key, inv]) => {
+  const cos = COMPANIES.filter((c) => c.investors.some((i) => i.key === key))
+  const companies = cos.map((c) => {
+    const link = c.investors.find((i) => i.key === key)!
+    return {
+      key: c.key, name: c.name, status: c.status, rounds: link.rounds, firstYear: link.firstYear, lead: link.lead, source: link.source,
+      founders: c.founders.map((f) => ({ personId: f.personId, name: f.name, timing: backingTiming(link.firstYear, f.from, f.to) })),
+    }
+  })
+  return {
+    key, name: inv.name, kind: inv.kind, tier: inv.tier, geo: inv.geo, companies, companyCount: companies.length,
+    founderCount: new Set(companies.flatMap((c) => c.founders.map((f) => f.personId))).size, webCount: companies.filter((c) => c.source === 'web').length,
+  }
+})
+
+for (const p of PEOPLE) {
+  const mine = COMPANIES.filter((c) => c.founders.some((f) => f.personId === p.crustdataId))
+  if (!mine.length) continue
+  p.companyKeys = mine.map((c) => c.key)
+  p.investorKeys = [...new Set(mine.flatMap((c) => c.investors.map((i) => i.key)))]
+}
+
+export function previewRolodex(state?: string | null): {
+  people: RolodexPersonFull[]
+  firms: RolodexFirm[]
+  investors: RolodexInvestorFull[]
+  companies: RolodexCompany[]
+  meta: RolodexMeta | null
+} {
+  if (state === 'empty') return { people: [], firms: [], investors: [], companies: [], meta: null }
   return {
     people: PEOPLE,
     firms: FIRM_ROWS,
-    meta: { people: PEOPLE.length, shortlist: PEOPLE.filter((p) => p.shortlist).length, firms: FIRM_ROWS.length, importedAt: Date.UTC(2026, 10, 17, 12), source: 'Made-up preview data' },
+    investors: INVESTORS,
+    companies: COMPANIES,
+    meta: {
+      people: PEOPLE.length, shortlist: PEOPLE.filter((p) => p.shortlist).length, firms: FIRM_ROWS.length, investors: INVESTORS.length, companies: COMPANIES.length,
+      importedAt: Date.UTC(2026, 10, 19, 12), source: 'Made-up preview data',
+    },
   }
 }

@@ -66,7 +66,7 @@ export const SECTIONS: Section[] = [
   { label: 'Investors', to: '/raise/investors', keys: ['G', 'I'] },
   { label: 'Network', to: '/raise/investors', search: { view: 'network' } }, // PST-305: founders, friends and advisors
   { label: 'Rolodex', to: '/raise/rolodex', keys: ['G', 'R'] }, // Rolodex: people from the research
-  { label: 'Rolodex firms', to: '/raise/rolodex', search: { view: 'firms' } },
+  { label: 'Rolodex investors', to: '/raise/rolodex', search: { view: 'investors' } },
   { label: 'Q&A', to: '/raise/qanda', keys: ['G', 'Q'] },
   { label: 'Plan', to: '/raise/plan', keys: ['G', 'L'] },
   { label: 'Settings', to: '/raise/settings', keys: ['G', 'S'] },

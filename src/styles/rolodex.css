@@ -1,7 +1,8 @@
-/* Rolodex: Raise › Rolodex (People and Firms). Built from what's there: the chip row and
+/* Rolodex: Raise › Rolodex (People and Investors). Built from what's there: the chip row and
    panel are introducers.css's (inv-views, net-filters, intro-view, intro-row, intro-panel),
    the bar and its selects investors.css's (inv-bar, inv-select, inv-chips, inv-card).
-   Only the column grids, the wrapping filter row and the panel's lists are new. */
+   Only the column grids, the wrapping filter row, the investor picker and the panel's
+   lists are new. */
 
 .rdx-who { margin: -6px 0 16px; }
 
@@ -18,16 +19,51 @@
 .rdx-card.is-empty { padding: 0; }
 .rdx-table .intro-row { min-height: 68px; }
 .rdx-prow { --cols: minmax(0, 1.5fr) 132px minmax(0, 1fr) minmax(0, 0.75fr) 92px; }
-.rdx-frow { --cols: minmax(0, 1.4fr) minmax(0, 0.9fr) 60px minmax(0, 1fr) 52px 52px; }
+.rdx-irow { --cols: minmax(0, 1.3fr) minmax(0, 1.2fr) 76px 52px; }
+.rdx-irow__kind { display: inline-flex; align-items: center; gap: 8px; }
+.rdx-irow__cos { font-size: 14px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rdx-table .intro-row > span { min-width: 0; padding-right: 10px; }
 .rdx-table .intro-row__who .intro-row__text small { max-width: 100%; }
 
 .rdx-chip.chip { height: 26px; padding: 0 10px; font-size: 12px; white-space: nowrap; }
+.rdx-chip--sm.chip { height: 20px; padding: 0 7px; font-size: 11px; }
+
+/* The investor picker: a button like the selects, opening a search box with a checklist. */
+.rdx-pick { position: relative; }
+.rdx-pick__btn {
+  display: inline-flex; align-items: center; gap: 10px; height: 44px; max-width: 280px; padding: 0 14px 0 13px;
+  border: 1.5px solid var(--line-default); border-radius: var(--radius-input); background: var(--surface-white);
+  font: 600 14px/1 var(--font-ui); color: var(--text-primary); cursor: pointer;
+}
+.rdx-pick__btn:hover { border-color: var(--text-faint); }
+.rdx-pick.is-on .rdx-pick__btn { border: 2px solid var(--brand-forest); padding: 0 13.5px 0 12.5px; }
+.rdx-pick__text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rdx-pick__pop {
+  position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; width: min(380px, calc(100vw - 32px)); padding: 10px;
+  background: var(--surface-white); border: 1px solid var(--line-default); border-radius: 14px; box-shadow: var(--shadow-pop);
+}
+.rdx-pick__search { width: 100%; }
+.rdx-pick__list { list-style: none; margin: 8px 0 0; padding: 0; max-height: 340px; overflow-y: auto; overscroll-behavior: contain; }
+.rdx-pick__opt { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px; cursor: pointer; }
+.rdx-pick__opt.is-at { background: var(--surface-mint); }
+.rdx-pick__box {
+  flex: none; display: grid; place-items: center; width: 20px; height: 20px; border: 1.5px solid var(--line-default); border-radius: 6px;
+  color: var(--surface-white); background: var(--surface-white);
+}
+.rdx-pick__opt.is-on .rdx-pick__box { background: var(--brand-forest); border-color: var(--brand-forest); }
+.rdx-pick__name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; font: 600 14px/1.2 var(--font-ui); color: var(--text-primary); overflow-wrap: anywhere; }
+.rdx-pick__name small { font: 500 12px/1 var(--font-ui); color: var(--text-muted); }
+.rdx-pick__n { flex: none; font-size: 13px; color: var(--text-muted); }
+.rdx-pick__none { margin: 12px 6px 6px; font-size: 14px; color: var(--text-muted); }
+.rdx-pick__foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; padding: 8px 6px 0; border-top: 1px solid var(--line-default); font-size: 13px; color: var(--text-muted); }
+.inv-sheet__selects .rdx-select select { width: 100%; max-width: none; }
+.inv-sheet__selects .rdx-pick__btn { width: 100%; max-width: none; justify-content: space-between; }
+.inv-sheet__selects .rdx-pick__pop { position: static; width: 100%; margin-top: 8px; box-shadow: none; }
 .rdx-prow__place { display: flex; flex-direction: column; gap: 3px; }
 .rdx-prow__placename { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); }
 .rdx-tag { font: 600 11px/1 var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
 .rdx-tag.is-top { color: var(--brand-leaf); }
-.rdx-prow__where, .rdx-frow__loc, .rdx-frow__type { font-size: 14px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rdx-prow__where { font-size: 14px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rdx-prow__batch { font-size: 14px; color: var(--text-secondary); white-space: nowrap; }
 .rdx-now { font-weight: 600; color: var(--state-success); }
 .rdx-dim { color: var(--text-faint); }
@@ -56,6 +92,13 @@
 .rdx-note { margin-top: 16px; }
 .rdx-a { color: var(--brand-leaf); font-weight: 600; text-decoration: none; }
 .rdx-a:hover { text-decoration: underline; text-underline-offset: 3px; }
+/* Companies an investor backed, or investors in a founder's companies. */
+.rdx-backed .rdx-backed__co { padding: 12px 0; border-top: 1px solid var(--line-default); margin: 0; }
+.rdx-backed .rdx-backed__co:first-child { border-top: 0; padding-top: 2px; }
+.rdx-backed__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.rdx-backed__rounds, .rdx-backed__founders, .rdx-backed__src { margin: 5px 0 0; font-size: 13.5px; line-height: 1.45; color: var(--text-secondary); }
+.rdx-backed__founders .intro-panel__inv { font-size: inherit; }
+.rdx-backed__src { font-size: 12.5px; color: var(--text-faint); }
 .rdx-source { margin: 22px 0 0; padding-top: 14px; border-top: 1px solid var(--line-default); font-size: 13px; line-height: 1.45; color: var(--text-faint); }
 
 @media (max-width: 1080px) {
@@ -66,12 +109,15 @@
   .rdx-who { margin-top: -4px; }
   .rdx-card.inv-card { padding: 4px 14px 2px; }
   /* Rows: who on top, then role · place · batch on one line. */
-  .rdx-prow, .rdx-frow { --cols: minmax(0, 1fr) auto; }
-  .rdx-prow > :is(.rdx-prow__place, .rdx-prow__where), .rdx-frow > :is(.rdx-frow__type, .intro-row__n) { display: none; }
-  .rdx-prow__role, .rdx-frow__loc { grid-column: 1; padding-left: 52px; }
+  .rdx-prow, .rdx-irow { --cols: minmax(0, 1fr) auto; }
+  .rdx-prow > :is(.rdx-prow__place, .rdx-prow__where), .rdx-irow > .intro-row__n:last-child { display: none; }
+  .rdx-prow__role, .rdx-irow__cos { grid-column: 1; padding-left: 52px; }
   .rdx-prow__batch { grid-row: 2; grid-column: 2; align-self: center; }
-  .rdx-frow__loc { grid-row: 2; white-space: normal; }
+  .rdx-irow__cos { grid-row: 2; }
+  .rdx-irow > .intro-row__n { grid-row: 1; grid-column: 2; align-self: center; }
   .rdx-list--rows li { flex-wrap: wrap; }
   .rdx-meta { max-width: none; text-align: left; }
   .rdx-panel__acts .btn { flex: 1 1 auto; }
+  /* Names in the smaller backed-by text still get a 44px hit area. */
+  .rdx-backed__founders .intro-panel__inv::after { top: -14px; bottom: -14px; }
 }

@@ -1,6 +1,7 @@
-// Rolodex: people and investor firms from the fundraising research. Filters,
-// counts, sorts and labels for both views, shared by the app, the preview fixture
-// and convex/rolodex.ts (`listRow`). Pure functions; see rolodex.test.ts.
+// Rolodex: people from the fundraising research and the investors who backed the
+// companies our founders started. Filters, counts, sorts and labels for both views,
+// shared by the app, the preview fixture and convex/rolodex.ts (`listRow`,
+// `investorListRow`). Pure functions; see rolodex.test.ts.
 
 export type Timing = 'current' | 'past'
 export type RoleKey = 'vc' | 'angel' | 'founder' | 'exec'
@@ -32,6 +33,8 @@ export type RolodexPerson = {
   firmKeys?: string[]
   bestFirmTier?: string
   linkedinUrl?: string
+  /** Investors in the companies they founded (the Investor filter). */
+  investorKeys?: string[]
 }
 
 /** Everything kept about one person (the side panel). */
@@ -52,6 +55,7 @@ export type RolodexPersonFull = RolodexPerson & {
   hasBusinessEmail?: boolean
   twitter?: string
   githubUrl?: string
+  companyKeys?: string[]
 }
 
 export type RolodexFirm = {
@@ -79,7 +83,174 @@ export type RolodexFirm = {
   personIds: number[]
 }
 
-export type RolodexMeta = { people: number; shortlist: number; firms: number; importedAt: number; source: string }
+export type RolodexMeta = { people: number; shortlist: number; firms: number; investors?: number; companies?: number; importedAt: number; source: string }
+
+/* ---------- Investors (who backed the companies our founders started) ---------- */
+
+export type InvestorKind = 'vc' | 'micro_vc' | 'angel_network' | 'angel' | 'accelerator' | 'corporate' | 'pe_growth' | 'family_office' | 'government' | 'debt' | 'other' | 'unknown'
+/** web: checked on the web; crustdata: only on Crustdata's list. */
+export type BackingSource = 'web' | 'crustdata'
+/** When the investor came in, against our founder's years there. */
+export type BackingTiming = 'during' | 'after' | 'before' | 'unknown'
+
+export type InvestorCompany = {
+  key: string
+  name: string
+  status: string
+  rounds?: string[]
+  firstYear?: number
+  lead?: boolean
+  source: BackingSource
+  founders: { personId: number; name: string; timing: BackingTiming }[]
+}
+
+/** An investor as stored (the panel). */
+export type RolodexInvestorFull = {
+  key: string
+  name: string
+  kind: InvestorKind
+  aliases?: string[]
+  tier?: string
+  firmType?: string
+  geo?: string
+  website?: string
+  companyCount: number
+  founderCount: number
+  webCount: number
+  companies: InvestorCompany[]
+}
+
+/** An investor as the list and its filters need them (convex/rolodex.ts `investors`). */
+export type RolodexInvestor = Omit<RolodexInvestorFull, 'companies' | 'aliases' | 'website'> & {
+  _id: string
+  /** Every company they backed, for search ("who backed Zoplar?"). */
+  companyNames: string[]
+}
+
+export function investorListRow(r: RolodexInvestorFull & { _id: unknown }): RolodexInvestor {
+  return {
+    _id: String(r._id), key: r.key, name: r.name, kind: r.kind, tier: r.tier, firmType: r.firmType, geo: r.geo,
+    companyCount: r.companyCount, founderCount: r.founderCount, webCount: r.webCount, companyNames: r.companies.map((c) => c.name),
+  }
+}
+
+/** One company a founder from the list started, and who invested in it (a person's panel). */
+export type RolodexCompany = {
+  key: string
+  name: string
+  status: string
+  website?: string
+  linkedinUrl?: string
+  research: 'web' | 'crustdata' | 'none'
+  funded?: string
+  totalRaised?: string
+  confidence?: string
+  notes?: string
+  sources?: string[]
+  founders: { personId: number; name: string; title?: string; from?: string; to?: string }[]
+  investors: { key: string; name: string; kind: InvestorKind; rounds?: string[]; firstYear?: number; lead?: boolean; source: BackingSource }[]
+}
+
+export const INVESTOR_KIND_LABEL: Record<InvestorKind, string> = {
+  vc: 'VC fund', micro_vc: 'Micro VC', angel_network: 'Angel network', angel: 'Angel', accelerator: 'Accelerator', corporate: 'Corporate',
+  pe_growth: 'PE / growth', family_office: 'Family office', government: 'Government / grant', debt: 'Venture debt', other: 'Other', unknown: 'Not sure',
+}
+
+/** The chips on Investors: groups of kinds. */
+export const INVESTOR_GROUPS = ['all', 'funds', 'angels', 'networks', 'accelerators', 'corporates', 'other'] as const
+export type InvestorGroup = (typeof INVESTOR_GROUPS)[number]
+export const INVESTOR_GROUP_LABEL: Record<InvestorGroup, string> = {
+  all: 'All', funds: 'Funds', angels: 'Angels', networks: 'Angel networks', accelerators: 'Accelerators', corporates: 'Corporates & family offices', other: 'Other',
+}
+const GROUP_KINDS: Record<Exclude<InvestorGroup, 'all'>, readonly InvestorKind[]> = {
+  funds: ['vc', 'micro_vc', 'pe_growth'],
+  angels: ['angel'],
+  networks: ['angel_network'],
+  accelerators: ['accelerator'],
+  corporates: ['corporate', 'family_office'],
+  other: ['government', 'debt', 'other', 'unknown'],
+}
+export const inGroup = (r: Pick<RolodexInvestor, 'kind'>, g: InvestorGroup = 'all') => g === 'all' || GROUP_KINDS[g].includes(r.kind)
+
+export const INVESTOR_SORTS = ['founders', 'companies', 'name'] as const
+export type InvestorSort = (typeof INVESTOR_SORTS)[number]
+export const INVESTOR_SORT_LABEL: Record<InvestorSort, string> = { founders: 'Most founders', companies: 'Most companies', name: 'Name' }
+
+export type InvestorFilters = {
+  /** Text: the investor's name or a company they backed. */
+  q?: string
+  group?: InvestorGroup
+  /** Picked investors (their keys): only these. */
+  pick?: string[]
+  /** Only links checked on the web. */
+  web?: boolean
+  tier?: (typeof TIERS)[number]
+}
+
+export function matchesInvestor(r: RolodexInvestor, f: InvestorFilters, skip?: keyof InvestorFilters) {
+  const q = (f.q ?? '').trim().toLowerCase()
+  return (
+    (skip === 'group' || inGroup(r, f.group)) &&
+    (skip === 'pick' || !f.pick?.length || f.pick.includes(r.key)) &&
+    (skip === 'web' || !f.web || r.webCount > 0) &&
+    (skip === 'tier' || !f.tier || r.tier === f.tier) &&
+    (skip === 'q' || !q || [r.name, ...r.companyNames].join(' ').toLowerCase().includes(q))
+  )
+}
+
+export function sortInvestors(rows: RolodexInvestor[], sort: InvestorSort = 'founders') {
+  const byName = (a: RolodexInvestor, b: RolodexInvestor) => a.name.localeCompare(b.name)
+  const cmp: Record<InvestorSort, (a: RolodexInvestor, b: RolodexInvestor) => number> = {
+    founders: (a, b) => b.founderCount - a.founderCount || b.companyCount - a.companyCount || byName(a, b),
+    companies: (a, b) => b.companyCount - a.companyCount || b.founderCount - a.founderCount || byName(a, b),
+    name: byName,
+  }
+  return [...rows].sort(cmp[sort])
+}
+
+export function groupCounts(rows: RolodexInvestor[], f: InvestorFilters): Record<InvestorGroup, number> {
+  const out = Object.fromEntries(INVESTOR_GROUPS.map((g) => [g, 0])) as Record<InvestorGroup, number>
+  for (const r of rows) {
+    if (!matchesInvestor(r, f, 'group')) continue
+    for (const g of INVESTOR_GROUPS) if (inGroup(r, g)) out[g]++
+  }
+  return out
+}
+
+export const investorsFiltered = (f: InvestorFilters) => !!(f.q || f.pick?.length || f.web || f.tier)
+
+/** Options for the investor picker: matching names first (prefix before substring), then most founders. */
+export function investorOptions(rows: RolodexInvestor[], q: string, limit = 60): RolodexInvestor[] {
+  const t = q.trim().toLowerCase()
+  if (!t) return sortInvestors(rows, 'founders').slice(0, limit)
+  const scored: [number, RolodexInvestor][] = []
+  for (const r of rows) {
+    const n = r.name.toLowerCase()
+    const i = n.indexOf(t)
+    if (i === 0) scored.push([0, r])
+    else if (i > 0 && /\W/.test(n[i - 1])) scored.push([1, r])
+    else if (i > 0) scored.push([2, r])
+  }
+  return scored.sort(([a, x], [b, y]) => a - b || y.founderCount - x.founderCount || x.name.localeCompare(y.name)).slice(0, limit).map(([, r]) => r)
+}
+
+/** When an investor came in (their first round's year) against a founder's years there ("2019-03", "now"). */
+export function backingTiming(firstYear: number | undefined, from?: string, to?: string): BackingTiming {
+  if (!firstYear) return 'unknown'
+  const start = from ? Number(from.slice(0, 4)) : NaN
+  const end = to && to !== 'now' ? Number(to.slice(0, 4)) : NaN
+  if (!Number.isNaN(end) && firstYear > end) return 'after'
+  if (!Number.isNaN(start) && firstYear < start) return 'before'
+  return Number.isNaN(start) && Number.isNaN(end) ? 'unknown' : 'during'
+}
+
+export const TIMING_TEXT: Record<BackingTiming, string> = { during: '', after: 'after they left', before: 'before they joined', unknown: '' }
+export const SOURCE_TEXT: Record<BackingSource, string> = { web: 'Checked on the web', crustdata: 'Crustdata, not web-checked' }
+
+export const INVESTOR_CSV_HEADERS = ['investor', 'kind', 'tier', 'founders', 'companies', 'web-checked companies', 'companies backed'] as const
+export function investorCsvRows(rows: RolodexInvestor[]): string[][] {
+  return rows.map((r) => [r.name, INVESTOR_KIND_LABEL[r.kind], r.tier ?? '', String(r.founderCount), String(r.companyCount), String(r.webCount), r.companyNames.join('; ')])
+}
 
 /** The list projection of a stored person (keeps the page small). */
 export function listRow(p: RolodexPersonFull & { _id: unknown }): RolodexPerson {
@@ -87,7 +258,7 @@ export function listRow(p: RolodexPersonFull & { _id: unknown }): RolodexPerson 
     _id: String(p._id), crustdataId: p.crustdataId, name: p.name, headline: p.headline, role: p.role, roleStatus: p.roleStatus, currentRole: p.currentRole,
     vc: p.vc, angel: p.angel, founder: p.founder, exec: p.exec, countryCode: p.countryCode, country: p.country, city: p.city, gradYear: p.gradYear,
     campus: p.campus, currentTitle: p.currentTitle, currentCompany: p.currentCompany, shortlist: p.shortlist, fundingCheck: p.fundingCheck,
-    fundedCompanies: p.fundedCompanies, firmKeys: p.firmKeys, bestFirmTier: p.bestFirmTier, linkedinUrl: p.linkedinUrl,
+    fundedCompanies: p.fundedCompanies, firmKeys: p.firmKeys, bestFirmTier: p.bestFirmTier, linkedinUrl: p.linkedinUrl, investorKeys: p.investorKeys,
   }
 }
 
@@ -182,8 +353,8 @@ export type PeopleFilters = {
   tier?: (typeof TIERS)[number]
   campus?: (typeof CAMPUSES)[number]
   batch?: Batch
-  /** A firm's key: its people (from a firm's panel). */
-  firm?: string
+  /** Investors' keys: founders who raised from any of them. */
+  inv?: string[]
 }
 
 const isInvestor = (p: RolodexPerson) => !!(p.vc || p.angel)
@@ -233,7 +404,7 @@ export function matchesPeople(p: RolodexPerson, f: PeopleFilters, skip?: keyof P
     (skip === 'tier' || !f.tier || p.bestFirmTier === f.tier) &&
     (skip === 'campus' || !f.campus || (p.campus ?? '').includes(f.campus)) &&
     (skip === 'batch' || !f.batch || batchOf(p.gradYear) === f.batch) &&
-    (skip === 'firm' || !f.firm || (p.firmKeys ?? []).includes(f.firm)) &&
+    (skip === 'inv' || !f.inv?.length || f.inv.some((k) => p.investorKeys?.includes(k))) &&
     (skip === 'q' || matchesQuery(p, q))
   )
 }
@@ -285,94 +456,17 @@ export function optionCounts<K extends 'tier' | 'campus' | 'batch' | 'when'>(row
   return out
 }
 
-export const peopleFiltered = (f: PeopleFilters) => !!(f.q || f.when || f.country || f.tier || f.campus || f.batch || f.firm)
+export const peopleFiltered = (f: PeopleFilters) => !!(f.q || f.when || f.country || f.tier || f.campus || f.batch || f.inv?.length)
 
-/* ---------- Firms ---------- */
-
-/** Types that invest (the default view). */
-export const INVESTING_TYPES = ['VC fund', 'Micro VC', 'Accelerator / incubator', 'Angel network', 'Individual angel', 'Corporate VC', 'PE / growth', 'Family office / holding', 'Govt / DFI'] as const
-/** The Rolodex holds only investing firms and unknown ones (decided 2026-11-17); 'all' is both. */
-export const KINDS = ['investors', 'vc', 'micro', 'acc', 'angels', 'other', 'unknown', 'all'] as const
-export type Kind = (typeof KINDS)[number]
-export const KIND_LABEL: Record<Kind, string> = {
-  investors: 'All investors', vc: 'VC funds', micro: 'Micro VCs', acc: 'Accelerators', angels: 'Angels', other: 'CVC, PE & others', unknown: 'Unknown', all: 'Everything',
-}
-const KIND_TYPES: Partial<Record<Kind, readonly string[]>> = {
-  investors: INVESTING_TYPES,
-  vc: ['VC fund'],
-  micro: ['Micro VC'],
-  acc: ['Accelerator / incubator'],
-  angels: ['Angel network', 'Individual angel'],
-  other: ['Corporate VC', 'PE / growth', 'Family office / holding', 'Govt / DFI'],
-  unknown: ['Unknown'],
-}
-export const isInvestingType = (t: string) => (INVESTING_TYPES as readonly string[]).includes(t)
-export function inKind(f: Pick<RolodexFirm, 'type'>, kind: Kind = 'investors') {
-  if (kind === 'all') return true
-  return (KIND_TYPES[kind] ?? []).includes(f.type)
-}
-
-export const LOCATIONS = ['india', 'us', 'us-india', 'other-india', 'elsewhere', 'unknown'] as const
-export type Loc = (typeof LOCATIONS)[number]
-export const LOCATION_LABEL: Record<Loc, string> = {
-  india: 'India', us: 'US', 'us-india': 'US firm, India office', 'other-india': 'Other firm, India office', elsewhere: 'Elsewhere', unknown: 'Unknown',
-}
-export function locOf(f: Pick<RolodexFirm, 'geo' | 'hqCountryCode' | 'indiaPresence'>): Loc {
-  if (f.geo === 'India') return 'india'
-  if (f.geo === 'US') return 'us'
-  if (f.geo === 'US firm, India office') return 'us-india'
-  if (f.geo === 'Unknown' || !f.hqCountryCode) return 'unknown'
-  return f.indiaPresence === 'yes' ? 'other-india' : 'elsewhere'
-}
-
-export const FIRM_SORTS = ['people', 'tier', 'name', 'now'] as const
-export type FirmSort = (typeof FIRM_SORTS)[number]
-export const FIRM_SORT_LABEL: Record<FirmSort, string> = { people: 'Most of our people', now: 'Most there now', tier: 'Tier', name: 'Name' }
-
-export type FirmFilters = { q?: string; kind?: Kind; tier?: (typeof TIERS)[number]; loc?: Loc; india?: boolean }
-
-export function matchesFirm(f: RolodexFirm, x: FirmFilters, skip?: keyof FirmFilters) {
-  const q = (x.q ?? '').trim().toLowerCase()
-  return (
-    (skip === 'kind' || inKind(f, x.kind)) &&
-    (skip === 'tier' || !x.tier || f.tier === x.tier) &&
-    (skip === 'loc' || !x.loc || locOf(f) === x.loc) &&
-    (skip === 'india' || !x.india || f.indiaPresence === 'yes') &&
-    (skip === 'q' || !q || [f.name, f.type, f.geo, f.hq, f.note, f.website].join(' ').toLowerCase().includes(q))
-  )
-}
-
-export function sortFirms(rows: RolodexFirm[], sort: FirmSort = 'people') {
-  const byName = (a: RolodexFirm, b: RolodexFirm) => a.name.localeCompare(b.name)
-  const cmp: Record<FirmSort, (a: RolodexFirm, b: RolodexFirm) => number> = {
-    people: (a, b) => b.people - a.people || (TIER_RANK[a.tier ?? ''] ?? 9) - (TIER_RANK[b.tier ?? ''] ?? 9) || byName(a, b),
-    now: (a, b) => b.peopleThereNow - a.peopleThereNow || b.people - a.people || byName(a, b),
-    tier: (a, b) => (TIER_RANK[a.tier ?? ''] ?? 9) - (TIER_RANK[b.tier ?? ''] ?? 9) || b.people - a.people || byName(a, b),
-    name: byName,
-  }
-  return [...rows].sort(cmp[sort])
-}
-
-export function kindCounts(rows: RolodexFirm[], x: FirmFilters): Record<Kind, number> {
-  const out = Object.fromEntries(KINDS.map((k) => [k, 0])) as Record<Kind, number>
-  for (const f of rows) {
-    if (!matchesFirm(f, x, 'kind')) continue
-    for (const k of KINDS) if (inKind(f, k)) out[k]++
-  }
-  return out
-}
-
-export function firmOptionCounts<K extends 'tier' | 'loc'>(rows: RolodexFirm[], x: FirmFilters, key: K, options: readonly NonNullable<FirmFilters[K]>[]) {
+/** How many people (in the current view) raised from each investor: the People picker's counts. */
+export function investorPeopleCounts(rows: RolodexPerson[], f: PeopleFilters) {
   const out = new Map<string, number>()
-  for (const o of options) out.set(String(o), 0)
-  for (const f of rows) {
-    if (!matchesFirm(f, x, key)) continue
-    for (const o of options) if (matchesFirm(f, { ...x, [key]: o })) out.set(String(o), (out.get(String(o)) ?? 0) + 1)
+  for (const p of rows) {
+    if (!p.investorKeys?.length || !matchesPeople(p, f, 'inv')) continue
+    for (const k of p.investorKeys) out.set(k, (out.get(k) ?? 0) + 1)
   }
   return out
 }
-
-export const firmsFiltered = (x: FirmFilters) => !!(x.q || x.tier || x.loc || x.india)
 
 /* ---------- CSV ---------- */
 
@@ -384,37 +478,37 @@ export function peopleCsvRows(rows: RolodexPerson[]): string[][] {
     p.country ?? '', p.city ?? '', p.campus ?? '', p.gradYear ? String(p.gradYear) : '', FUNDING_LABEL[p.fundingCheck],
   ])
 }
-export const FIRM_CSV_HEADERS = ['name', 'type', 'tier', 'location', 'hq', 'india office', 'our people', 'there now', 'headcount', 'website', 'linkedin', 'confidence'] as const
-export function firmCsvRows(rows: RolodexFirm[]): string[][] {
-  return rows.map((f) => [
-    f.name, f.type, f.tier ?? '', f.geo, f.hq ?? '', f.indiaPresence, String(f.people), String(f.peopleThereNow), f.headcount ? String(f.headcount) : '', f.website ?? '', f.linkedinUrl ?? '', f.confidence ?? '',
-  ])
-}
-
 /* ---------- the URL ---------- */
 
-/** Both views' filters, the sort and the open person or firm live in the URL, so a filtered view is a link. Firms' keys are prefixed so each view keeps its own. */
+/** Both views' filters, the sort and the open person or investor live in the URL, so a filtered view is a link. Investors' keys are prefixed so each view keeps its own. */
 export type RolodexSearch = PeopleFilters & {
-  view?: 'firms'
+  view?: 'investors'
   sort?: PeopleSort
   /** The person whose panel is open (rolodexPeople id). */
   person?: string
-  fq?: string
-  kind?: Kind
-  ftier?: (typeof TIERS)[number]
-  loc?: Loc
-  india?: boolean
-  fsort?: FirmSort
-  /** The firm whose panel is open (its key). */
+  iq?: string
+  group?: InvestorGroup
+  pick?: string[]
+  web?: boolean
+  itier?: (typeof TIERS)[number]
+  isort?: InvestorSort
+  /** The investor whose panel is open (their key). */
   open?: string
 }
 
 const oneOf = <T extends string>(xs: readonly T[], v: unknown): T | undefined => ((xs as readonly unknown[]).includes(v) ? (v as T) : undefined)
 const str = (v: unknown) => (typeof v === 'string' && v ? v : undefined)
+/** A list of keys from the URL: an array, or one key. Empty means no filter. */
+const keys = (v: unknown): string[] | undefined => {
+  const xs = (Array.isArray(v) ? v : typeof v === 'string' ? [v] : []).filter((x): x is string => typeof x === 'string' && !!x).slice(0, 50)
+  return xs.length ? [...new Set(xs)] : undefined
+}
+const yes = (v: unknown) => (v === true || v === 'true' || v === '1' ? true : undefined)
 
 export function validateRolodexSearch(s: Record<string, unknown>): RolodexSearch {
   return {
-    view: s.view === 'firms' ? 'firms' : undefined,
+    // Old links to the Firms view open Investors.
+    view: s.view === 'investors' || s.view === 'firms' ? 'investors' : undefined,
     q: str(s.q),
     who: oneOf(WHO, s.who),
     when: oneOf(WHEN, s.when),
@@ -422,15 +516,15 @@ export function validateRolodexSearch(s: Record<string, unknown>): RolodexSearch
     tier: oneOf(TIERS, s.tier),
     campus: oneOf(CAMPUSES, s.campus),
     batch: oneOf(BATCHES, s.batch),
-    firm: str(s.firm),
+    inv: keys(s.inv),
     sort: oneOf(PEOPLE_SORTS, s.sort),
     person: str(s.person),
-    fq: str(s.fq),
-    kind: oneOf(KINDS, s.kind),
-    ftier: oneOf(TIERS, s.ftier),
-    loc: oneOf(LOCATIONS, s.loc),
-    india: s.india === true || s.india === 'true' || s.india === '1' ? true : undefined,
-    fsort: oneOf(FIRM_SORTS, s.fsort),
+    iq: str(s.iq),
+    group: oneOf(INVESTOR_GROUPS, s.group),
+    pick: keys(s.pick),
+    web: yes(s.web),
+    itier: oneOf(TIERS, s.itier),
+    isort: oneOf(INVESTOR_SORTS, s.isort),
     open: str(s.open),
   }
 }

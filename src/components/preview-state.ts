@@ -63,7 +63,7 @@ export type PreviewState = {
   network?: string | null
   /** PST-307 `&advisor=empty|chat|story|blocks|streaming|cap|panel` (see src/preview/advisorFixture.ts) */
   advisor?: string | null
-  /** Rolodex `&rolodex=firms|person|firm|filtered|empty|loading` (see src/preview/rolodexFixture.ts) */
+  /** Rolodex `&rolodex=investors|investor|picked|person|filtered|empty|loading` (see src/preview/rolodexFixture.ts) */
   rolodex?: string | null
 }
 

@@ -1,13 +1,14 @@
-// Rolodex › People: one person's panel. Everything the research kept about them,
-// their firms (each opens in Firms) and companies with funding status, why they're
-// on the shortlist, and two ways in: Add to pipeline (investors: the Add
-// investor drawer with their name) or Add to Network (founders and execs).
+// Rolodex › People: one person's panel. Everything the research kept about them, who
+// invested in the companies they founded (each investor opens in Investors), their
+// firms and companies with funding status, why they're on the shortlist, and two ways
+// in: Add to pipeline (investors: the Add investor drawer with their name) or Add to
+// Network (founders and execs).
 import { useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { normName } from '../../lib/introducers'
 import {
-  batchText, companyList, COMPANY_STATUS_LABEL, CURRENT_LABEL, flag, initials, ROLE_LABEL, TIMING_LABEL, whyText,
-  type RoleKey, type RolodexFirm, type RolodexPerson,
+  backingTiming, batchText, companyList, COMPANY_STATUS_LABEL, CURRENT_LABEL, flag, initials, ROLE_LABEL, SOURCE_TEXT, TIMING_LABEL, TIMING_TEXT, whyText,
+  type RoleKey, type RolodexCompany, type RolodexFirm, type RolodexPerson,
 } from '../../lib/rolodex'
 import { play } from '../../lib/sound'
 import { useRaise } from '../data'
@@ -31,8 +32,9 @@ export function PersonPanel({ id, row, firmsByKey }: { id: string; row: RolodexP
   const roles = ROLES.filter((r) => p[r])
   const companies = [...companyList(p.fundedCompanies), ...companyList(full?.unfundedCompanies), ...companyList(full?.unverifiableCompanies)]
   const now = (full?.currentRoles ?? '').split(' | ').map((s) => s.trim()).filter(Boolean)
+  const raised = x.useCompanies(full?.companyKeys)
 
-  const openFirm = (key: string) => navigate({ from: '/raise/rolodex', to: '/raise/rolodex', search: (s) => ({ ...s, view: 'firms' as const, open: key }) })
+  const openInvestor = (key: string) => navigate({ from: '/raise/rolodex', to: '/raise/rolodex', search: (s) => ({ ...s, view: 'investors' as const, open: key }) })
 
   return (
     <Card as="section" className="intro-panel rdx-panel" aria-labelledby={titleId}>
@@ -82,15 +84,15 @@ export function PersonPanel({ id, row, firmsByKey }: { id: string; row: RolodexP
         </>
       ) : null}
 
+      {raised?.some((c) => c.investors.length) ? <Raised companies={raised} personId={p.crustdataId} onInvestor={openInvestor} /> : null}
+
       {firms.length ? (
         <>
-          <h3 className="intro-panel__how eyebrow-mono">Investor firms</h3>
+          <h3 className="intro-panel__how eyebrow-mono">Investor firms they work or worked at</h3>
           <ul className="rdx-list rdx-list--rows">
             {firms.map((f) => (
               <li key={f.key}>
-                <button type="button" className="intro-panel__inv" onClick={() => openFirm(f.key)}>
-                  {f.name}
-                </button>
+                <span className="rdx-co">{f.name}</span>
                 <span className="rdx-meta">{[f.type, f.tier, f.geo].filter((v) => v && v !== 'Unknown').join(' · ')}</span>
               </li>
             ))}
@@ -145,6 +147,44 @@ export function PersonPanel({ id, row, firmsByKey }: { id: string; row: RolodexP
       ) : null}
       {x.meta ? <p className="rdx-source">From Crustdata · imported {new Date(x.meta.importedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p> : null}
     </Card>
+  )
+}
+
+/** Who invested in each company they founded: investors open in Investors; lead, rounds, and "after they left" where it applies. */
+function Raised({ companies, personId, onInvestor }: { companies: RolodexCompany[]; personId: number; onInvestor: (key: string) => void }) {
+  const withInvestors = companies.filter((c) => c.investors.length)
+  return (
+    <>
+      <h3 className="intro-panel__how eyebrow-mono">Who invested in their companies</h3>
+      <ul className="rdx-list rdx-backed">
+        {withInvestors.map((c) => {
+          const me = c.founders.find((f) => f.personId === personId)
+          return (
+            <li key={c.key} className="rdx-backed__co">
+              <div className="rdx-backed__head">
+                <span className="rdx-co">{c.name}</span>
+                {c.totalRaised && c.totalRaised !== 'undisclosed' ? <span className="rdx-meta">{c.totalRaised} raised</span> : null}
+              </div>
+              <p className="rdx-backed__founders">
+                {c.investors.map((inv, i) => {
+                  const when = TIMING_TEXT[backingTiming(inv.firstYear, me?.from, me?.to)]
+                  return (
+                    <span key={inv.key}>
+                      {i ? ', ' : ''}
+                      <button type="button" className="intro-panel__inv" onClick={() => onInvestor(inv.key)} title={inv.rounds?.join(' · ') || undefined}>
+                        {inv.name}
+                      </button>
+                      {inv.lead || when ? <span className="rdx-dim"> ({[inv.lead ? 'lead' : '', when].filter(Boolean).join(', ')})</span> : null}
+                    </span>
+                  )
+                })}
+              </p>
+              {c.research === 'crustdata' ? <p className="rdx-backed__src">{SOURCE_TEXT.crustdata}</p> : null}
+            </li>
+          )
+        })}
+      </ul>
+    </>
   )
 }
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Import internal/rolodex.json into the Rolodex (rolodexPeople, rolodexFirms, rolodexMeta).
+// Import internal/rolodex.json into the Rolodex (rolodexPeople, rolodexFirms, rolodexInvestors,
+// rolodexCompanies, rolodexMeta).
 //
 //   node scripts/rolodex-import.mjs            # dev deployment
 //   node scripts/rolodex-import.mjs --prod     # production
@@ -7,7 +8,7 @@
 //
 // The JSON comes from the fundraising research (fundraising/scripts/export_rolodex.py) and holds
 // personal data: it lives in internal/ (git-ignored) and is never committed. Rows are upserted
-// (people by Crustdata ID, firms by key), so running it twice changes nothing; rows the file no
+// (people by Crustdata ID, the rest by key), so running it twice changes nothing; rows the file no
 // longer has are deleted afterwards (rolodex:prune), then the header totals are written.
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
@@ -58,13 +59,25 @@ function run(fn, payload) {
 const total = (acc, c) => ({ inserted: acc.inserted + (c.inserted ?? 0), updated: acc.updated + (c.updated ?? 0), unchanged: acc.unchanged + (c.unchanged ?? 0) })
 const zero = { inserted: 0, updated: 0, unchanged: 0 }
 
-console.log(`Rolodex import → ${prod ? 'PRODUCTION' : 'dev'}${dry ? ' (dry run)' : ''}: ${data.people.length} people, ${data.firms.length} firms from ${file}`)
+const investorRows = data.investors ?? []
+const companyRows = data.companies ?? []
+console.log(
+  `Rolodex import → ${prod ? 'PRODUCTION' : 'dev'}${dry ? ' (dry run)' : ''}: ${data.people.length} people, ${data.firms.length} firms, ${investorRows.length} investors, ${companyRows.length} companies from ${file}`,
+)
 
-let firms = zero
-for (const [i, rows] of batches(data.firms).entries()) {
-  firms = total(firms, run('rolodex:importFirms', { importedAt, rows }))
-  console.log(`  firms batch ${i + 1}: ${rows.length}`)
+function importAll(fn, label, rows) {
+  let c = zero
+  const bs = batches(rows)
+  for (const [i, b] of bs.entries()) {
+    c = total(c, run(fn, { importedAt, rows: b }))
+    console.log(`  ${label} batch ${i + 1}/${bs.length}: ${b.length}`)
+  }
+  return c
 }
+
+const firms = importAll('rolodex:importFirms', 'firms', data.firms)
+const investors = importAll('rolodex:importInvestors', 'investors', investorRows)
+const companies = importAll('rolodex:importCompanies', 'companies', companyRows)
 let people = zero
 const pb = batches(data.people)
 for (const [i, rows] of pb.entries()) {
@@ -73,7 +86,7 @@ for (const [i, rows] of pb.entries()) {
 }
 
 let pruned = 0
-for (const table of ['rolodexFirms', 'rolodexPeople']) {
+for (const table of ['rolodexFirms', 'rolodexInvestors', 'rolodexCompanies', 'rolodexPeople']) {
   for (;;) {
     const r = run('rolodex:prune', { table, importedAt })
     pruned += r.deleted ?? 0
@@ -82,5 +95,5 @@ for (const table of ['rolodexFirms', 'rolodexPeople']) {
 }
 
 const shortlist = data.people.filter((p) => p.shortlist).length
-run('rolodex:setMeta', { people: data.people.length, shortlist, firms: data.firms.length, importedAt, source: data.source ?? file })
-console.log(JSON.stringify({ firms, people, pruned, shortlist }, null, 2))
+run('rolodex:setMeta', { people: data.people.length, shortlist, firms: data.firms.length, investors: investorRows.length, companies: companyRows.length, importedAt, source: data.source ?? file })
+console.log(JSON.stringify({ firms, investors, companies, people, pruned, shortlist }, null, 2))
