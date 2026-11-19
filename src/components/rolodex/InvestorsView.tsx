@@ -1,12 +1,14 @@
 // Rolodex › Investors: every fund, angel network, accelerator and angel who backed a
 // company our founders started. Chips by kind with counts; search by name or by a
-// company they backed; the investor picker narrows the list to the ones picked. Rows
+// company they backed; the investor picker narrows the list to the ones picked; Tier and
+// Location (India, US, a US firm with an India office…) say how many each would show. Rows
 // open the investor's panel: the companies they backed, our founders there, and Add
 // to Investors list.
 import { useMemo, useRef } from 'react'
 import {
-  groupCounts, INVESTOR_CSV_HEADERS, INVESTOR_GROUP_LABEL, INVESTOR_GROUPS, INVESTOR_KIND_LABEL, INVESTOR_SORT_LABEL, INVESTOR_SORTS, investorCsvRows,
-  investorsFiltered, initials, matchesInvestor, sortInvestors, TIERS, type InvestorFilters, type InvestorSort, type RolodexInvestor, type RolodexSearch,
+  flag, groupCounts, INVESTOR_CSV_HEADERS, INVESTOR_GROUP_LABEL, INVESTOR_GROUPS, INVESTOR_KIND_LABEL, INVESTOR_SORT_LABEL, INVESTOR_SORTS, investorCsvRows,
+  investorOptionCounts, investorsFiltered, initials, shortGeo, LOCATION_LABEL, LOCATIONS, matchesInvestor, sortInvestors, TIERS, type InvestorFilters, type InvestorSort,
+  type RolodexInvestor, type RolodexSearch,
 } from '../../lib/rolodex'
 import { openOnKey, useUI } from '../raise-ui'
 import { useIsPhone } from '../system/Menu'
@@ -24,16 +26,13 @@ export function InvestorsView({ s, set, peopleCount }: { s: RolodexSearch; set: 
   const x = useRolodex()
   const { toast } = useUI()
   const phone = useIsPhone()
-  const f: InvestorFilters = useMemo(() => ({ q: s.iq, group: s.group, pick: s.pick, web: s.web, tier: s.itier }), [s.iq, s.group, s.pick, s.web, s.itier])
+  const f: InvestorFilters = useMemo(() => ({ q: s.iq, group: s.group, pick: s.pick, web: s.web, tier: s.itier, loc: s.iloc }), [s.iq, s.group, s.pick, s.web, s.itier, s.iloc])
   const group = s.group ?? 'all'
 
   const rows = useMemo(() => sortInvestors(x.investors.filter((r) => matchesInvestor(r, f)), s.isort), [x.investors, f, s.isort])
   const counts = useMemo(() => groupCounts(x.investors, f), [x.investors, f])
-  const tierN = useMemo(() => {
-    const m = new Map<string, number>()
-    for (const r of x.investors) if (r.tier && matchesInvestor(r, f, 'tier')) m.set(r.tier, (m.get(r.tier) ?? 0) + 1)
-    return m
-  }, [x.investors, f])
+  const tierN = useMemo(() => investorOptionCounts(x.investors, f, 'tier', TIERS), [x.investors, f])
+  const locN = useMemo(() => investorOptionCounts(x.investors, f, 'loc', LOCATIONS), [x.investors, f])
   const byKey = useMemo(() => new Map(x.investors.map((r) => [r.key, r])), [x.investors])
 
   const { limit, sentinel } = useMore(rows.length, JSON.stringify(f) + s.isort)
@@ -45,9 +44,10 @@ export function InvestorsView({ s, set, peopleCount }: { s: RolodexSearch; set: 
   const chips: FilterChip[] = []
   for (const k of s.pick ?? []) chips.push({ k: 'pick:' + k, label: byKey.get(k)?.name ?? k, clear: () => set({ pick: s.pick?.filter((p) => p !== k).length ? s.pick.filter((p) => p !== k) : undefined }) })
   if (s.itier) chips.push({ k: 'tier', label: s.itier, clear: () => set({ itier: undefined }) })
+  if (s.iloc) chips.push({ k: 'loc', label: `Location: ${LOCATION_LABEL[s.iloc]}`, clear: () => set({ iloc: undefined }) })
   if (s.web) chips.push({ k: 'web', label: 'Checked on the web', clear: () => set({ web: undefined }) })
-  const clearAll = () => set({ iq: undefined, pick: undefined, itier: undefined, web: undefined })
-  const active = [s.pick?.length, s.itier, s.web].filter(Boolean).length
+  const clearAll = () => set({ iq: undefined, pick: undefined, itier: undefined, iloc: undefined, web: undefined })
+  const active = [s.pick?.length, s.itier, s.iloc, s.web].filter(Boolean).length
   const total = x.meta?.investors ?? x.investors.length
   const count = !x.investorsDone
     ? `Loading ${fmt(x.investors.length)} of ${fmt(total)}…`
@@ -60,6 +60,7 @@ export function InvestorsView({ s, set, peopleCount }: { s: RolodexSearch; set: 
       <InvestorPick label="Investor" investors={x.investors} value={s.pick} onChange={(pick) => set({ pick, open: undefined })} />
       <Sel label="Sort" allLabel="Most founders" value={s.isort === 'founders' ? undefined : s.isort} options={INVESTOR_SORTS.filter((k) => k !== 'founders').map((k) => ({ value: k, label: INVESTOR_SORT_LABEL[k] }))} onChange={(v) => set({ isort: v as InvestorSort | undefined })} />
       <Sel label="Tier" value={s.itier} options={TIERS.map((t) => ({ value: t, label: t, n: tierN.get(t) ?? 0 }))} onChange={(v) => set({ itier: v as RolodexSearch['itier'] })} />
+      <Sel label="Location" wide value={s.iloc} options={LOCATIONS.map((l) => ({ value: l, label: LOCATION_LABEL[l], n: locN.get(l) ?? 0 }))} onChange={(v) => set({ iloc: v as RolodexSearch['iloc'] })} />
       <Sel label="Source" value={s.web ? 'web' : undefined} allLabel="Web and Crustdata" options={[{ value: 'web', label: 'Checked on the web' }]} onChange={(v) => set({ web: v ? true : undefined })} />
     </>
   )
@@ -105,6 +106,7 @@ export function InvestorsView({ s, set, peopleCount }: { s: RolodexSearch; set: 
               <div className="intro-row intro-row--head rdx-irow" role="row">
                 <span role="columnheader">Investor</span>
                 <span role="columnheader">Backed</span>
+                <span role="columnheader">Location</span>
                 <span role="columnheader" className="intro-row__n" title="Founders from the list whose companies they backed">
                   Founders
                 </span>
@@ -163,6 +165,7 @@ export function InvestorsView({ s, set, peopleCount }: { s: RolodexSearch; set: 
 
 function InvestorRow({ r, on, onOpen }: { r: RolodexInvestor; on: boolean; onOpen: () => void }) {
   const more = r.companyNames.length - 2
+  const where = shortGeo(r)
   return (
     <div role="row" tabIndex={0} data-nav-id={r.key} className={'intro-row rdx-irow' + (on ? ' is-selected' : '')} aria-selected={on} onClick={onOpen} onKeyDown={openOnKey(onOpen)}>
       <span role="cell" className="intro-row__who">
@@ -184,6 +187,16 @@ function InvestorRow({ r, on, onOpen }: { r: RolodexInvestor; on: boolean; onOpe
       <span role="cell" className="rdx-irow__cos">
         {r.companyNames.slice(0, 2).join(', ')}
         {more > 0 ? <span className="rdx-dim"> +{more}</span> : null}
+      </span>
+      <span role="cell" className="rdx-irow__loc" title={r.geo}>
+        {r.hqCountryCode ? (
+          <>
+            <span aria-hidden="true">{flag(r.hqCountryCode)}</span> {where.place}
+            {where.indiaOffice ? <span title="India office"> · {flag('IN')}</span> : null}
+          </>
+        ) : (
+          <span className="rdx-dim">—</span>
+        )}
       </span>
       <span role="cell" className="intro-row__n num">
         {r.founderCount}

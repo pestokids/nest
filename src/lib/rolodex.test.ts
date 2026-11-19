@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  backingTiming, batchOf, batchText, companyList, countryOptions, flag, groupCounts, investorCsvRows, investorListRow, investorOptions, investorPeopleCounts,
-  matchesInvestor, matchesPeople, optionCounts, peopleCsvRows, roleText, sortInvestors, sortPeople, validateRolodexSearch, whoCounts, whyText,
+  backingTiming, batchOf, batchText, companyList, countryOptions, flag, groupCounts, investorCsvRows, investorListRow, investorOptionCounts, investorOptions,
+  investorPeopleCounts, locOf, matchesInvestor, shortGeo, matchesPeople, optionCounts, peopleCsvRows, roleText, sortInvestors, sortPeople, validateRolodexSearch, whoCounts, whyText,
   type RolodexInvestor, type RolodexPerson,
 } from './rolodex'
 
@@ -68,10 +68,10 @@ describe('labels', () => {
 
 const inv = (o: Partial<RolodexInvestor> & { name: string }): RolodexInvestor => ({ _id: o.name, key: o.name.toLowerCase(), kind: 'vc', companyCount: 1, founderCount: 1, webCount: 1, companyNames: [], ...o })
 const I = [
-  inv({ name: 'Arbor', tier: 'Tier 1', founderCount: 4, companyCount: 3, companyNames: ['Inkwell', 'Fold', 'Quay'] }),
-  inv({ name: 'Kai Rao', kind: 'angel', founderCount: 2, companyNames: ['Inkwell'] }),
-  inv({ name: 'Brook Angels', kind: 'angel_network', founderCount: 2, companyCount: 2, webCount: 0, companyNames: ['Mote', 'Fold'] }),
-  inv({ name: 'Cove Labs', kind: 'accelerator', companyNames: ['Quay'] }),
+  inv({ name: 'Arbor', tier: 'Tier 1', founderCount: 4, companyCount: 3, companyNames: ['Inkwell', 'Fold', 'Quay'], hqCountryCode: 'US', indiaPresence: 'yes', geo: 'US firm, India office' }),
+  inv({ name: 'Kai Rao', kind: 'angel', founderCount: 2, companyNames: ['Inkwell'], hqCountryCode: 'IN', indiaPresence: 'yes', geo: 'India' }),
+  inv({ name: 'Brook Angels', kind: 'angel_network', tier: 'Tier 3', founderCount: 2, companyCount: 2, webCount: 0, companyNames: ['Mote', 'Fold'], hqCountryCode: 'SG', indiaPresence: 'no' }),
+  inv({ name: 'Cove Labs', kind: 'accelerator', tier: 'Tier 2', companyNames: ['Quay'], hqCountryCode: 'GB', indiaPresence: 'yes' }),
   inv({ name: 'Harbor Credit', kind: 'debt', webCount: 0, companyNames: ['Mote'] }),
 ]
 
@@ -84,9 +84,18 @@ describe('investors', () => {
     expect(I.filter((r) => matchesInvestor(r, { pick: ['kai rao', 'cove labs'] })).map((r) => r.name)).toEqual(['Kai Rao', 'Cove Labs'])
     expect(I.filter((r) => matchesInvestor(r, { web: true, group: 'other' })).map((r) => r.name)).toEqual([])
   })
-  it('sorts by founders (then companies), companies, or name', () => {
+  it('sorts by founders (then companies), companies, name, or tier', () => {
     expect(sortInvestors(I).map((r) => r.name)).toEqual(['Arbor', 'Brook Angels', 'Kai Rao', 'Cove Labs', 'Harbor Credit'])
     expect(sortInvestors(I, 'name').map((r) => r.name)[0]).toBe('Arbor')
+    expect(sortInvestors(I, 'tier').map((r) => r.name)).toEqual(['Arbor', 'Cove Labs', 'Brook Angels', 'Kai Rao', 'Harbor Credit'])
+  })
+  it('location: India, US, US with an India office, others with one, elsewhere, not known; Tier and Location count their options', () => {
+    expect(I.map(locOf)).toEqual(['us-india', 'india', 'elsewhere', 'other-india', 'unknown'])
+    expect(I.filter((r) => matchesInvestor(r, { loc: 'india' })).map((r) => r.name)).toEqual(['Kai Rao'])
+    expect(shortGeo(I[0])).toEqual({ place: 'US', indiaOffice: true })
+    expect(shortGeo({ geo: 'United Arab Emirates', hqCountryCode: 'AE', indiaPresence: 'no' })).toEqual({ place: 'UAE', indiaOffice: false })
+    expect([...investorOptionCounts(I, {}, 'tier', ['Tier 1', 'Tier 2', 'Tier 3'] as const)]).toEqual([['Tier 1', 1], ['Tier 2', 1], ['Tier 3', 1]])
+    expect(investorOptionCounts(I, { group: 'funds' }, 'loc', ['us-india', 'india'] as const).get('us-india')).toBe(1)
   })
   it('the picker puts names that start with the text first, then word starts, then the rest', () => {
     expect(investorOptions(I, 'ra').map((r) => r.name)).toEqual(['Kai Rao'])
@@ -106,7 +115,7 @@ describe('investors', () => {
   it('the list row keeps company names; CSV rows hold the columns in header order', () => {
     const row = investorListRow({ _id: 'x', key: 'arbor', name: 'Arbor', kind: 'vc', companyCount: 1, founderCount: 1, webCount: 1, companies: [{ key: 'id:1', name: 'Inkwell', status: 'funded', source: 'web', founders: [] }] })
     expect(row.companyNames).toEqual(['Inkwell'])
-    expect(investorCsvRows([I[0]])[0]).toEqual(['Arbor', 'VC fund', 'Tier 1', '4', '3', '1', 'Inkwell; Fold; Quay'])
+    expect(investorCsvRows([I[0]])[0]).toEqual(['Arbor', 'VC fund', 'Tier 1', 'US firm, India office', 'yes', '4', '3', '1', 'Inkwell; Fold; Quay'])
   })
 })
 
@@ -116,6 +125,7 @@ describe('the URL', () => {
       view: 'investors', who: 'investors', country: 'IN', tier: 'Tier 1', group: 'angels', web: true, sort: undefined,
     })
     expect(validateRolodexSearch({ inv: 'accel' }).inv).toEqual(['accel'])
+    expect(validateRolodexSearch({ iloc: 'us-india', isort: 'tier' })).toMatchObject({ iloc: 'us-india', isort: 'tier' })
     expect(validateRolodexSearch({ pick: ['accel', 'accel', 3, ''] }).pick).toEqual(['accel'])
     expect(validateRolodexSearch({ pick: [] }).pick).toBeUndefined()
     expect(validateRolodexSearch({ country: 'india', who: 'all' })).toMatchObject({ country: undefined, who: undefined })

@@ -5,7 +5,7 @@
 import { useNavigate } from '@tanstack/react-router'
 import { useMemo } from 'react'
 import { normName } from '../../lib/introducers'
-import { COMPANY_STATUS_LABEL, INVESTOR_KIND_LABEL, initials, SOURCE_TEXT, TIMING_TEXT, type RolodexInvestor, type RolodexInvestorFull } from '../../lib/rolodex'
+import { COMPANY_STATUS_LABEL, flag, INVESTOR_KIND_LABEL, initials, SOURCE_TEXT, TIMING_TEXT, type RolodexInvestor, type RolodexInvestorFull } from '../../lib/rolodex'
 import type { InvestorType } from '../../lib/stages'
 import { useRaise } from '../data'
 import { useUI, type OpenOptions } from '../raise-ui'
@@ -14,6 +14,7 @@ import { Button, Card, Chip, type ChipTone } from '../ui'
 import { useRolodex } from './data'
 import { fmt, LinkButton, TIER_TONE } from './parts'
 
+const TIER_SOURCE: Record<string, string> = { high: 'well known.', med: 'fairly sure.', low: 'a guess.' }
 const STATUS_TONE: Record<string, ChipTone> = { funded: 'success', acquired: 'selected', public: 'selected', not_funded: 'muted', unknown: 'outline', no_crustdata_id: 'outline' }
 const PIPELINE_TYPE: Partial<Record<RolodexInvestor['kind'], InvestorType>> = { micro_vc: 'Micro-VC', vc: 'Seed fund', pe_growth: 'Multi-stage VC', accelerator: 'Accelerator', angel: 'Angel', angel_network: 'Angel' }
 
@@ -78,7 +79,13 @@ export function InvestorPanel({ row }: { row: RolodexInvestor }) {
         ) : null}
         {row.geo && row.geo !== 'Unknown' ? (
           <Chip tone="outline" dot={false}>
+            {row.hqCountryCode ? flag(row.hqCountryCode) + ' ' : ''}
             {row.geo}
+          </Chip>
+        ) : null}
+        {row.indiaPresence === 'yes' && row.hqCountryCode && row.hqCountryCode !== 'IN' && !row.geo?.includes('India') ? (
+          <Chip tone="outline" dot={false}>
+            {flag('IN')} Invests in India
           </Chip>
         ) : null}
       </div>
@@ -137,6 +144,7 @@ export function InvestorPanel({ row }: { row: RolodexInvestor }) {
       {full?.aliases?.length ? <p className="intro-panel__line">Also listed as {full.aliases.slice(0, 4).join(', ')}</p> : null}
       <p className="rdx-source">
         From research on our founders’ companies: the web, checked by an agent, and Crustdata’s investor lists. {fmt(row.webCount)} of {fmt(row.companyCount)} checked on the web.
+        {row.tier || row.hqCountryCode ? ` Tier and location: ${TIER_SOURCE[row.tierConfidence ?? ''] ?? 'judged from what’s known about them.'}` : ''}
       </p>
     </Card>
   )

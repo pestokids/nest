@@ -19,7 +19,8 @@
 .rdx-card.is-empty { padding: 0; }
 .rdx-table .intro-row { min-height: 68px; }
 .rdx-prow { --cols: minmax(0, 1.5fr) 132px minmax(0, 1fr) minmax(0, 0.75fr) 92px; }
-.rdx-irow { --cols: minmax(0, 1.3fr) minmax(0, 1.2fr) 76px 52px; }
+.rdx-irow { --cols: minmax(0, 1.3fr) minmax(0, 1.1fr) minmax(0, 0.8fr) 76px 52px; }
+.rdx-irow__loc { font-size: 14px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rdx-irow__kind { display: inline-flex; align-items: center; gap: 8px; }
 .rdx-irow__cos { font-size: 14px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rdx-table .intro-row > span { min-width: 0; padding-right: 10px; }
@@ -110,7 +111,7 @@
   .rdx-card.inv-card { padding: 4px 14px 2px; }
   /* Rows: who on top, then role · place · batch on one line. */
   .rdx-prow, .rdx-irow { --cols: minmax(0, 1fr) auto; }
-  .rdx-prow > :is(.rdx-prow__place, .rdx-prow__where), .rdx-irow > .intro-row__n:last-child { display: none; }
+  .rdx-prow > :is(.rdx-prow__place, .rdx-prow__where), .rdx-irow > :is(.intro-row__n:last-child, .rdx-irow__loc) { display: none; }
   .rdx-prow__role, .rdx-irow__cos { grid-column: 1; padding-left: 52px; }
   .rdx-prow__batch { grid-row: 2; grid-column: 2; align-self: center; }
   .rdx-irow__cos { grid-row: 2; }
